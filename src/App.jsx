@@ -102,6 +102,17 @@ export default function App() {
   const [newItem, setNewItem]     = useState({ category: CATEGORIES[0], accounts: "", rule: "FLAG IF", text: "" });
   const [importError, setImportError] = useState("");
   const fileInputRef = useRef(null);
+  const isFileRef    = useRef(null);
+  const glFileRef    = useRef(null);
+  const refineISFileRef = useRef(null);
+  const refineGLFileRef = useRef(null);
+
+  const readCsv = (file, setter) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => setter(e.target.result);
+    reader.readAsText(file);
+  };
 
   const [refineIS, setRefineIS]               = useState("");
   const [refineGL, setRefineGL]               = useState("");
@@ -289,13 +300,29 @@ export default function App() {
             </div>
             <div style={s.twoCol}>
               <div style={s.inputGroup}>
-                <label style={s.label}>Trailing Income Statement <span style={s.hint}>(CSV or plain text)</span></label>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <label style={s.label}>Trailing Income Statement <span style={s.hint}>(CSV or plain text)</span></label>
+                  <button className="btn" onClick={()=>isFileRef.current?.click()}
+                    style={{...s.btnOutline,fontSize:10,padding:"3px 10px",marginBottom:4}}>
+                    Upload CSV
+                  </button>
+                  <input ref={isFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
+                    onChange={e=>{ readCsv(e.target.files?.[0], setIncomeStatement); e.target.value=""; }}/>
+                </div>
                 <textarea style={{...s.textarea,minHeight:240}}
                   placeholder={"Account Number, Account Name, Apr 2025, May 2025, ...\n411001, Residential Income, 466989, 466831, ...\n414000, Vacancy Loss, -30349, -23254, ..."}
                   value={incomeStatement} onChange={e=>setIncomeStatement(e.target.value)}/>
               </div>
               <div style={s.inputGroup}>
-                <label style={s.label}>GL Entries <span style={s.hint}>(CSV or plain text)</span></label>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <label style={s.label}>GL Entries <span style={s.hint}>(CSV or plain text)</span></label>
+                  <button className="btn" onClick={()=>glFileRef.current?.click()}
+                    style={{...s.btnOutline,fontSize:10,padding:"3px 10px",marginBottom:4}}>
+                    Upload CSV
+                  </button>
+                  <input ref={glFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
+                    onChange={e=>{ readCsv(e.target.files?.[0], setGlEntries); e.target.value=""; }}/>
+                </div>
                 <textarea style={{...s.textarea,minHeight:240}}
                   placeholder={"Date, Account, Description, Debit, Credit\n02/25/2026, 601002, RED SEAL FILL VALVE, 9589.33,\n02/25/2026, 601039, PAPER TOWEL ROLLS, 9589.33,"}
                   value={glEntries} onChange={e=>setGlEntries(e.target.value)}/>
@@ -387,13 +414,29 @@ export default function App() {
               <div style={s.stepLabel}>Step 1 - Financials & Manager Comments</div>
               <div style={s.twoCol}>
                 <div style={s.inputGroup}>
-                  <label style={s.label}>Trailing Income Statement <span style={s.hint}>(pre-correction)</span></label>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <label style={s.label}>Trailing Income Statement <span style={s.hint}>(pre-correction)</span></label>
+                    <button className="btn" onClick={()=>refineISFileRef.current?.click()}
+                      style={{...s.btnOutline,fontSize:10,padding:"3px 10px",marginBottom:4}}>
+                      Upload CSV
+                    </button>
+                    <input ref={refineISFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
+                      onChange={e=>{ readCsv(e.target.files?.[0], setRefineIS); e.target.value=""; }}/>
+                  </div>
                   <textarea style={{...s.textarea,minHeight:180}}
                     placeholder="Paste income statement exactly as it was before any corrections..."
                     value={refineIS} onChange={e=>setRefineIS(e.target.value)}/>
                 </div>
                 <div style={s.inputGroup}>
-                  <label style={s.label}>GL Entries <span style={s.hint}>(pre-correction)</span></label>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <label style={s.label}>GL Entries <span style={s.hint}>(pre-correction)</span></label>
+                    <button className="btn" onClick={()=>refineGLFileRef.current?.click()}
+                      style={{...s.btnOutline,fontSize:10,padding:"3px 10px",marginBottom:4}}>
+                      Upload CSV
+                    </button>
+                    <input ref={refineGLFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
+                      onChange={e=>{ readCsv(e.target.files?.[0], setRefineGL); e.target.value=""; }}/>
+                  </div>
                   <textarea style={{...s.textarea,minHeight:180}}
                     placeholder="Paste GL entries exactly as they were before any corrections..."
                     value={refineGL} onChange={e=>setRefineGL(e.target.value)}/>
