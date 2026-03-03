@@ -115,41 +115,60 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // For GL files: filter to review month + 2 prior months for trend context
+  // For GL files: extract expense account section (6xxxxx), keep 3 months of entries + all totals
   const readGlCsv = (file, setter, setErr) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
       const raw = e.target.result;
       const [yr, mo] = reviewMonth.split("-");
-      // Build set of MM/YYYY strings for current + 2 prior months
-      const months = [];
+
+      // Build set of MM/YYYY for current + 2 prior months
+      const keepMonths = new Set();
       for (let i = 0; i < 3; i++) {
         const d = new Date(+yr, +mo - 1 - i, 1);
-        months.push(
-          String(d.getMonth() + 1).padStart(2, "0") + "/" +
-          String(d.getFullYear())
+        keepMonths.add(
+          String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear()
         );
       }
+
       const lines = raw.split("\n");
-      const header = lines.slice(0, 3);
-      const filtered = lines.filter(line => {
-        const parts = line.split(",");
-        const date = parts[0] ?? "";
-        // date format MM/DD/YYYY — check MM/YYYY
-        const monthYear = date.slice(0,3) + date.slice(6,10);
-        return months.includes(monthYear);
-      });
-      if (filtered.length === 0) {
-        setErr("No entries found for the selected period in this GL file. Check the review period matches your data.");
+
+      // Find where expense accounts start (first line starting with 6XXXXX -)
+      let expenseStart = 0;
+      for (let i = 0; i < lines.length; i++) {
+        if (/^6\d{4,5}\s+-/.test(lines[i])) { expenseStart = i; break; }
+      }
+
+      // If no expense section found, fall back to date-based filter across whole file
+      const source = expenseStart > 0 ? lines.slice(expenseStart) : lines;
+
+      const result = [];
+      for (const line of source) {
+        const t = line.trim();
+        // Always keep account headers (6XXXXX - Name) and totals
+        if (/^6\d{4,5}\s+-/.test(t) || /^Totals for 6/.test(t)) {
+          result.push(line); continue;
+        }
+        // Keep date entries in our 3-month window
+        const parts = t.split(",");
+        const dt = parts[0] ?? "";
+        if (dt.length === 10 && dt[2] === "/" && dt[5] === "/") {
+          const my = dt.slice(0,3) + dt.slice(6,10); // MM/YYYY
+          if (keepMonths.has(my)) result.push(line);
+        }
+      }
+
+      if (result.length === 0) {
+        setErr("No expense entries found for the selected period. Check the review period matches your data.");
         return;
       }
       setErr("");
-      const label = new Date(+yr,+mo-1).toLocaleString("en-US",{month:"long",year:"numeric"});
+      const label = new Date(+yr, +mo-1).toLocaleString("en-US", {month:"long", year:"numeric"});
       setter([
-        "// GL filtered to 3 months ending " + label + " (" + filtered.length + " entries)",
-        ...header,
-        ...filtered
+        "// GL: expense accounts, 3 months ending " + label + " (" + result.length + " lines)",
+        lines[0], lines[2], // property name + column headers
+        ...result
       ].join("\n"));
     };
     reader.readAsText(file);
