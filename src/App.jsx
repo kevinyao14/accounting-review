@@ -115,6 +115,46 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  // For GL files: filter to review month + 2 prior months for trend context
+  const readGlCsv = (file, setter, setErr) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const raw = e.target.result;
+      const [yr, mo] = reviewMonth.split("-");
+      // Build set of MM/YYYY strings for current + 2 prior months
+      const months = [];
+      for (let i = 0; i < 3; i++) {
+        const d = new Date(+yr, +mo - 1 - i, 1);
+        months.push(
+          String(d.getMonth() + 1).padStart(2, "0") + "/" +
+          String(d.getFullYear())
+        );
+      }
+      const lines = raw.split("\n");
+      const header = lines.slice(0, 3);
+      const filtered = lines.filter(line => {
+        const parts = line.split(",");
+        const date = parts[0] ?? "";
+        // date format MM/DD/YYYY — check MM/YYYY
+        const monthYear = date.slice(0,3) + date.slice(6,10);
+        return months.includes(monthYear);
+      });
+      if (filtered.length === 0) {
+        setErr("No entries found for the selected period in this GL file. Check the review period matches your data.");
+        return;
+      }
+      setErr("");
+      const label = new Date(+yr,+mo-1).toLocaleString("en-US",{month:"long",year:"numeric"});
+      setter([
+        "// GL filtered to 3 months ending " + label + " (" + filtered.length + " entries)",
+        ...header,
+        ...filtered
+      ].join("\n"));
+    };
+    reader.readAsText(file);
+  };
+
   const [refineIS, setRefineIS]               = useState("");
   const [refineGL, setRefineGL]               = useState("");
   const [refineComments, setRefineComments]   = useState("");
@@ -322,7 +362,7 @@ export default function App() {
                     Upload CSV
                   </button>
                   <input ref={glFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
-                    onChange={e=>{ readCsv(e.target.files?.[0], setGlEntries); e.target.value=""; }}/>
+                    onChange={e=>{ readGlCsv(e.target.files?.[0], setGlEntries, setReviewError); e.target.value=""; }}/>
                 </div>
                 <textarea style={{...s.textarea,minHeight:240}}
                   placeholder={"Date, Account, Description, Debit, Credit\n02/25/2026, 601002, RED SEAL FILL VALVE, 9589.33,\n02/25/2026, 601039, PAPER TOWEL ROLLS, 9589.33,"}
@@ -436,7 +476,7 @@ export default function App() {
                       Upload CSV
                     </button>
                     <input ref={refineGLFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
-                      onChange={e=>{ readCsv(e.target.files?.[0], setRefineGL); e.target.value=""; }}/>
+                      onChange={e=>{ readGlCsv(e.target.files?.[0], setRefineGL, setRefineError); e.target.value=""; }}/>
                   </div>
                   <textarea style={{...s.textarea,minHeight:180}}
                     placeholder="Paste GL entries exactly as they were before any corrections..."
