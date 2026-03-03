@@ -49,9 +49,7 @@ function serialize(items) {
     grouped[item.category].push(item);
   });
   return Object.entries(grouped).map(([cat, rows]) => {
-    const accts = rows[0].accounts
-  ? "ACCOUNTS: " + rows[0].accounts + "\n"
-  : "ACCOUNTS: all accounts (no specific account filter - apply this check across all accounts)\n";
+    const accts = rows[0].accounts ? "ACCOUNTS: " + rows[0].accounts + "\n" : "";
     return "CATEGORY: " + cat + "\n" + accts + rows.map(r => r.rule + ": " + r.text).join("\n");
   }).join("\n\n");
 }
@@ -250,7 +248,7 @@ export default function App() {
     try {
       const [yr, mo] = reviewMonth.split("-");
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
-      const sys = "You are a senior multifamily property accountant. Your response must begin immediately with the first [FINDING] tag. Do not write any introduction, preamble, summary, or closing sentence — output findings only.\n\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nCRITICAL RULE: The REVIEW PERIOD at the top of the user message tells you exactly which month to evaluate. Use ONLY the income statement column for that specific month. Do not reference prior month columns, future month columns, YTD totals, or TTM figures for the negative balance check. Flag every expense account (starting with 6) that shows a negative balance in that specific month's column as a separate finding.";
+      const sys = You are a senior multifamily property accountant. Your response must begin immediately with the first [FINDING] tag. Do not write any introduction, preamble, summary, or closing sentence.\n\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nCRITICAL RULE: The REVIEW PERIOD stated in the user message tells you which month to evaluate. Use ONLY the income statement column for that specific month when checking for negative balances. Do not reference prior months, future months, YTD totals, or TTM. Flag every expense account (starting with 6) with a negative balance in that month as a separate finding. Only use income statement month-ending balances, not GL running balances.";
       const usr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serialize(items) + "\n\n" + (incomeStatement.trim() ? "INCOME STATEMENT:\n" + incomeStatement + "\n\n" : "") + (glEntries.trim() ? "GL ENTRIES:\n" + glEntries + "\n\n" : "") + "Review the " + label + " financials against the checklist.";
       setFindings(await callClaude(sys, usr));
       setTab("findings");
