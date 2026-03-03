@@ -119,6 +119,59 @@ export default function App() {
     reader.readAsText(file);
   };
 
+const readIsCsv = (file, setter, setErr) => {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const raw = e.target.result;
+    const [yr, mo] = reviewMonth.split("-");
+    const reviewDate = new Date(+yr, +mo - 1, 1);
+
+    const lines = raw.split("\n");
+    let keepCols = null; // will be set when we find the date header row
+
+    const result = lines.map(line => {
+      const cols = line.split(",");
+
+      // Detect the date header row and compute which columns to keep
+      if (!keepCols) {
+        const hasDate = cols.some(c => {
+          const t = c.trim();
+          return t.length === 10 && t[2] === "/" && t[5] === "/";
+        });
+        if (hasDate) {
+          keepCols = [0, 1]; // always keep account number + name
+          cols.forEach((c, j) => {
+            const t = c.trim();
+            if (t.length === 10 && t[2] === "/" && t[5] === "/") {
+              const parts = t.split("/");
+              const colDate = new Date(+parts[2], +parts[0] - 1, 1);
+              const monthsDiff = (reviewDate.getFullYear() - colDate.getFullYear()) * 12
+                + (reviewDate.getMonth() - colDate.getMonth());
+              if (monthsDiff >= 0 && monthsDiff <= 2) keepCols.push(j);
+            }
+          });
+        }
+      }
+
+      // If we have keepCols, filter this row; otherwise pass through (header rows)
+      if (keepCols) {
+        return keepCols.map(j => cols[j] ?? "").join(",");
+      }
+      return line;
+    });
+
+    const filtered = result.join("\n");
+    if (!keepCols) {
+      setErr("Could not detect date columns in income statement. Check CSV format.");
+      return;
+    }
+    setErr("");
+    setter(filtered);
+  };
+  reader.readAsText(file);
+};
+
   // For GL files: extract expense account section (6xxxxx), keep 2 months of entries + all totals
   const readGlCsv = (file, setter, setErr) => {
     if (!file) return;
@@ -371,7 +424,7 @@ export default function App() {
                     Upload CSV
                   </button>
                   <input ref={isFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
-                    onChange={e=>{ readCsv(e.target.files?.[0], setIncomeStatement); e.target.value=""; }}/>
+                    onChange={e=>{ readIsCsv(e.target.files?.[0], setIncomeStatement, setReviewError); e.target.value=""; }}/>
                 </div>
                 <textarea style={{...s.textarea,minHeight:240}}
                   placeholder={"Account Number, Account Name, Apr 2025, May 2025, ...\n411001, Residential Income, 466989, 466831, ...\n414000, Vacancy Loss, -30349, -23254, ..."}
@@ -479,7 +532,7 @@ export default function App() {
                       Upload CSV
                     </button>
                     <input ref={refineISFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
-                      onChange={e=>{ readCsv(e.target.files?.[0], setRefineIS); e.target.value=""; }}/>
+                      onChange={e=>{ readIsCsv(e.target.files?.[0], setRefineIS, setRefineError); e.target.value=""; }}/>
                   </div>
                   <textarea style={{...s.textarea,minHeight:180}}
                     placeholder="Paste income statement exactly as it was before any corrections..."
