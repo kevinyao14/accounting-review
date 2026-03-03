@@ -78,6 +78,7 @@ async function callClaude(system, user) {
     body: JSON.stringify({ system, messages: [{ role: "user", content: user }] }),
   });
   const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || "API error " + res.status);
   return data.content?.[0]?.text ?? "";
 }
 
