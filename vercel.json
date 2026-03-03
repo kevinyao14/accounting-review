@@ -1,0 +1,20 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+}
+```
+
+That replaces what `netlify.toml` was doing. The `rewrites` entry handles the SPA routing (same as the `/*` redirect in your netlify.toml).
+
+Your final repo root should look like:
+```
+api/
+  claude.js        ← renamed from claude.mjs
+src/
+public/
+api/
+vercel.json        ← new
+package.json
+vite.config.js
+index.html
