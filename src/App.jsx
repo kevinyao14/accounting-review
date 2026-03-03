@@ -32,6 +32,7 @@ const DEFAULT_ITEMS = [
   { id: 29, category: "Expense Trends",                 accounts: "",                                                                         rule: "CHECK",   text: "Identify any expense line present in 2+ prior months but zero in current month" },
   { id: 30, category: "Expense Trends",                 accounts: "",                                                                         rule: "FLAG IF", text: "Zero balance with no prior indication expense was one-time or seasonal" },
   { id: 31, category: "Expense Trends",                 accounts: "",                                                                         rule: "CHECK",   text: "Flag any account with large swing from positive to negative or vice versa in consecutive months" },
+  { id: 32, category: "Expense Trends",                 accounts: "6xxxxx all expense accounts",                                             rule: "FLAG IF", text: "ANY expense account (6xxxxx) shows a negative month-ending balance on the income statement - flag every instance regardless of amount or category" },
 ];
 
 const CATEGORIES = [
@@ -48,7 +49,9 @@ function serialize(items) {
     grouped[item.category].push(item);
   });
   return Object.entries(grouped).map(([cat, rows]) => {
-    const accts = rows[0].accounts ? "ACCOUNTS: " + rows[0].accounts + "\n" : "";
+    const accts = rows[0].accounts
+  ? "ACCOUNTS: " + rows[0].accounts + "\n"
+  : "ACCOUNTS: all accounts (no specific account filter - apply this check across all accounts)\n";
     return "CATEGORY: " + cat + "\n" + accts + rows.map(r => r.rule + ": " + r.text).join("\n");
   }).join("\n\n");
 }
@@ -118,7 +121,7 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // For GL files: extract expense account section (6xxxxx), keep 3 months of entries + all totals
+  // For GL files: extract expense account section (6xxxxx), keep 2 months of entries + all totals
   const readGlCsv = (file, setter, setErr) => {
     if (!file) return;
     const reader = new FileReader();
@@ -126,9 +129,9 @@ export default function App() {
       const raw = e.target.result;
       const [yr, mo] = reviewMonth.split("-");
 
-      // Build set of MM/YYYY for current + 2 prior months
+      // Build set of MM/YYYY for current + 1 prior month (2 months total)
       const keepMonths = new Set();
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 2; i++) {
         const d = new Date(+yr, +mo - 1 - i, 1);
         keepMonths.add(
           String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear()
@@ -169,7 +172,7 @@ export default function App() {
       setErr("");
       const label = new Date(+yr, +mo-1).toLocaleString("en-US", {month:"long", year:"numeric"});
       setter([
-        "// GL: expense accounts, 3 months ending " + label + " (" + result.length + " lines)",
+        "// GL: expense accounts, 2 months ending " + label + " (" + result.length + " lines)",
         lines[0], lines[2], // property name + column headers
         ...result
       ].join("\n"));
@@ -247,7 +250,7 @@ export default function App() {
     try {
       const [yr, mo] = reviewMonth.split("-");
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
-      const sys = "You are a senior multifamily property accountant reviewing financials for errors, accrual issues, and anomalies.\nProduce a structured findings report. For each finding:\n- Assign priority: HIGH / MEDIUM / LOW\n- State the account name and number\n- Describe the issue with specific dollar amounts from the data\n- State the required action\nFormat each finding as:\n[PRIORITY] Account Name (Account #)\nIssue: ...\nAction: ...\n---\nOrder HIGH first, then MEDIUM, then LOW. Skip categories with no issues. Be specific.";
+      const sys = "You are a senior multifamily property accountant reviewing financials for errors, accrual issues, and anomalies.\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nCRITICAL RULE: Review the income statement for any expense account (any account starting with 6) that has a negative month-ending balance. Flag every instance as a separate finding. Only use income statement month-ending balances for this check, not GL running balances.";
       const usr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serialize(items) + "\n\n" + (incomeStatement.trim() ? "INCOME STATEMENT:\n" + incomeStatement + "\n\n" : "") + (glEntries.trim() ? "GL ENTRIES:\n" + glEntries + "\n\n" : "") + "Review the " + label + " financials against the checklist.";
       setFindings(await callClaude(sys, usr));
       setTab("findings");
@@ -412,32 +415,26 @@ export default function App() {
             </div>
             {findings ? (
               <div style={s.findingsBox}>
-                {findings.split("---").filter(f=>f.trim()).map((block,i)=>{
-                  const lines = block.trim().split("\n");
-                  const header = lines[0]||"";
-                  const p = header.startsWith("[HIGH]")?"high":header.startsWith("[MEDIUM]")?"medium":"low";
-                  const pc = {high:"#ef4444",medium:"#f59e0b",low:"#60a5fa"}[p];
-                  return (
-                    <div key={i} style={{borderBottom:"1px solid #1e1e1e",padding:"16px 0"}}>
-                      <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-                        <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:pc,
-                          border:"1px solid "+pc,borderRadius:3,padding:"2px 7px",marginTop:2,whiteSpace:"nowrap",flexShrink:0}}>
-                          {p.toUpperCase()}
-                        </div>
-                        <div style={{flex:1}}>
-                          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:14,color:"#f5f5f5",marginBottom:8}}>
-                            {header.replace(/\[HIGH\]|\[MEDIUM\]|\[LOW\]/g,"").trim()}
-                          </div>
-                          {lines.slice(1).map((line,j)=>{
-                            const isLabel = line.startsWith("Issue:")||line.startsWith("Action:");
-                            return <div key={j} style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,
-                              color:isLabel?"#e8c468":"#9ca3af",fontWeight:isLabel?500:400}}>{line}</div>;
-                          })}
-                        </div>
-                      </div>
+                {findings.split("---").filter(f=>f.trim()).map(block=>{
+                  const clean = block.replace(/#{1,3}\s*/g,"").replace(/\*\*/g,"").trim();
+                  const lines = clean.split("\n").filter(l=>l.trim());
+                  if (!lines.length) return null;
+                  const headerLine = lines.find(l=>/^\[FINDING\]/i.test(l.trim()));
+                  if (!headerLine) return null;
+                  const acctMatch = headerLine.match(/\((\d{6,})\)/);
+                  return { headerLine, bodyLines: lines.filter(l=>l!==headerLine), acctNum: acctMatch ? parseInt(acctMatch[1]) : 0 };
+                }).filter(Boolean).sort((a,b)=>a.acctNum-b.acctNum).map((item,i)=>(
+                  <div key={i} style={{borderBottom:"1px solid #1e1e1e",padding:"16px 0"}}>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:14,color:"#f5f5f5",marginBottom:8}}>
+                      {item.headerLine.replace(/\[FINDING\]/gi,"").trim()}
                     </div>
-                  );
-                })}
+                    {item.bodyLines.map((line,j)=>{
+                      const isLabel = line.startsWith("Issue:")||line.startsWith("Action:");
+                      return <div key={j} style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,
+                        color:isLabel?"#e8c468":"#9ca3af",fontWeight:isLabel?500:400}}>{line}</div>;
+                    })}
+                  </div>
+                ))}
               </div>
             ) : (
               <div style={s.empty}>
