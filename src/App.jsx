@@ -78,7 +78,10 @@ async function callClaude(system, user) {
     body: JSON.stringify({ system, messages: [{ role: "user", content: user }] }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || "API error " + res.status);
+  if (!res.ok || data.error) {
+    const msg = data.error?.message || data.error || JSON.stringify(data);
+    throw new Error(msg);
+  }
   return data.content?.[0]?.text ?? "";
 }
 
@@ -248,7 +251,7 @@ export default function App() {
       const usr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serialize(items) + "\n\n" + (incomeStatement.trim() ? "INCOME STATEMENT:\n" + incomeStatement + "\n\n" : "") + (glEntries.trim() ? "GL ENTRIES:\n" + glEntries + "\n\n" : "") + "Review the " + label + " financials against the checklist.";
       setFindings(await callClaude(sys, usr));
       setTab("findings");
-    } catch(e) { setReviewError("Error running review. Please try again."); }
+    } catch(e) { setReviewError("Error: " + (e.message || "Please try again.")); }
     setReviewing(false);
   };
 
