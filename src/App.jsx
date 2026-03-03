@@ -32,6 +32,7 @@ const DEFAULT_ITEMS = [
   { id: 29, category: "Expense Trends",                 accounts: "",                                                                         rule: "CHECK",   text: "Identify any expense line present in 2+ prior months but zero in current month" },
   { id: 30, category: "Expense Trends",                 accounts: "",                                                                         rule: "FLAG IF", text: "Zero balance with no prior indication expense was one-time or seasonal" },
   { id: 31, category: "Expense Trends",                 accounts: "",                                                                         rule: "CHECK",   text: "Flag any account with large swing from positive to negative or vice versa in consecutive months" },
+  { id: 32, category: "Expense Trends",                 accounts: "6xxxxx all expense accounts",                                             rule: "FLAG IF", text: "ANY expense account (6xxxxx) shows a negative balance in the current month - flag every instance regardless of amount or category" },
 ];
 
 const CATEGORIES = [
@@ -247,7 +248,7 @@ export default function App() {
     try {
       const [yr, mo] = reviewMonth.split("-");
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
-      const sys = "You are a senior multifamily property accountant reviewing financials for errors, accrual issues, and anomalies.\nProduce a structured findings report. For each finding:\n- Assign priority: HIGH / MEDIUM / LOW\n- State the account name and number\n- Describe the issue with specific dollar amounts from the data\n- State the required action\nFormat each finding as:\n[PRIORITY] Account Name (Account #)\nIssue: ...\nAction: ...\n---\nOrder HIGH first, then MEDIUM, then LOW. Skip categories with no issues. Be specific.";
+      const sys = "You are a senior multifamily property accountant reviewing financials for errors, accrual issues, and anomalies.\nProduce a structured findings report using EXACTLY this format and no other. Do not use markdown, headers, asterisks, pound signs, or any other formatting.\n\nFor each finding use exactly:\n[HIGH] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts\nAction: what needs to be done\n---\n\nUse [HIGH], [MEDIUM], or [LOW] priority. Order HIGH first, then MEDIUM, then LOW. Each finding must start with the priority tag on its own at the beginning of the line. Skip categories with no issues. Be specific with dollar amounts.\n\nCRITICAL RULE: Flag EVERY expense account (any account starting with 6) that has a negative balance in the current month. Do not skip any. List each one as a separate finding.";
       const usr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serialize(items) + "\n\n" + (incomeStatement.trim() ? "INCOME STATEMENT:\n" + incomeStatement + "\n\n" : "") + (glEntries.trim() ? "GL ENTRIES:\n" + glEntries + "\n\n" : "") + "Review the " + label + " financials against the checklist.";
       setFindings(await callClaude(sys, usr));
       setTab("findings");
@@ -413,10 +414,16 @@ export default function App() {
             {findings ? (
               <div style={s.findingsBox}>
                 {findings.split("---").filter(f=>f.trim()).map((block,i)=>{
-                  const lines = block.trim().split("\n");
-                  const header = lines[0]||"";
-                  const p = header.startsWith("[HIGH]")?"high":header.startsWith("[MEDIUM]")?"medium":"low";
+                  // Strip any markdown formatting
+                  const clean = block.replace(/#{1,3}\s*/g,"").replace(/\*\*/g,"").trim();
+                  const lines = clean.split("\n").filter(l=>l.trim());
+                  if (!lines.length) return null;
+                  // Find the priority line - search all lines not just first
+                  const headerLine = lines.find(l => /^\[(HIGH|MEDIUM|LOW)\]/.test(l.trim())) || lines[0];
+                  const p = /\[HIGH\]/.test(headerLine)?"high":/\[MEDIUM\]/.test(headerLine)?"medium":/\[LOW\]/.test(headerLine)?"low":null;
+                  if (!p) return null; // skip non-finding blocks like section headers
                   const pc = {high:"#ef4444",medium:"#f59e0b",low:"#60a5fa"}[p];
+                  const bodyLines = lines.filter(l => l !== headerLine);
                   return (
                     <div key={i} style={{borderBottom:"1px solid #1e1e1e",padding:"16px 0"}}>
                       <div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
@@ -426,9 +433,9 @@ export default function App() {
                         </div>
                         <div style={{flex:1}}>
                           <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:14,color:"#f5f5f5",marginBottom:8}}>
-                            {header.replace(/\[HIGH\]|\[MEDIUM\]|\[LOW\]/g,"").trim()}
+                            {headerLine.replace(/\[HIGH\]|\[MEDIUM\]|\[LOW\]/g,"").trim()}
                           </div>
-                          {lines.slice(1).map((line,j)=>{
+                          {bodyLines.map((line,j)=>{
                             const isLabel = line.startsWith("Issue:")||line.startsWith("Action:");
                             return <div key={j} style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,
                               color:isLabel?"#e8c468":"#9ca3af",fontWeight:isLabel?500:400}}>{line}</div>;
