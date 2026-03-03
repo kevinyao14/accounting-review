@@ -73,7 +73,7 @@ function parseAIChecklist(text) {
 }
 
 async function callClaude(system, user) {
-  const res = await fetch("/api/claude", {
+  const res = await fetch("/.netlify/functions/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ system, messages: [{ role: "user", content: user }] }),
