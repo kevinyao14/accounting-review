@@ -176,63 +176,60 @@ const readIsCsv = (file, setter, setErr) => {
 };
 
   // For GL files: extract expense account section (6xxxxx), keep 2 months of entries + all totals
-  const readGlCsv = (file, setter, setErr) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const raw = e.target.result;
-      const [yr, mo] = reviewMonth.split("-");
+const readGlCsv = (file, setter, setErr) => {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const raw = e.target.result;
+    const [yr, mo] = reviewMonth.split("-");
 
-      // Build set of MM/YYYY for current + 1 prior month (2 months total)
-      const keepMonths = new Set();
-      for (let i = 0; i < 2; i++) {
-        const d = new Date(+yr, +mo - 1 - i, 1);
-        keepMonths.add(
-          String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear()
-        );
+    const stripLastCol = line => line.split(",").slice(0, -1).join(",");
+
+    const keepMonths = new Set();
+    for (let i = 0; i < 2; i++) {
+      const d = new Date(+yr, +mo - 1 - i, 1);
+      keepMonths.add(
+        String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear()
+      );
+    }
+
+    const lines = raw.split("\n");
+
+    let expenseStart = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^6\d{4,5}\s+-/.test(lines[i])) { expenseStart = i; break; }
+    }
+
+    const source = expenseStart > 0 ? lines.slice(expenseStart) : lines;
+
+    const result = [];
+    for (const line of source) {
+      const t = line.trim();
+      if (/^6\d{4,5}\s+-/.test(t) || /^Totals for 6/.test(t)) {
+        result.push(stripLastCol(line)); continue;
       }
-
-      const lines = raw.split("\n");
-
-      // Find where expense accounts start (first line starting with 6XXXXX -)
-      let expenseStart = 0;
-      for (let i = 0; i < lines.length; i++) {
-        if (/^6\d{4,5}\s+-/.test(lines[i])) { expenseStart = i; break; }
+      const parts = t.split(",");
+      const dt = parts[0] ?? "";
+      if (dt.length === 10 && dt[2] === "/" && dt[5] === "/") {
+        const my = dt.slice(0,3) + dt.slice(6,10);
+        if (keepMonths.has(my)) result.push(stripLastCol(line));
       }
+    }
 
-      // If no expense section found, fall back to date-based filter across whole file
-      const source = expenseStart > 0 ? lines.slice(expenseStart) : lines;
-
-      const result = [];
-      for (const line of source) {
-        const t = line.trim();
-        // Always keep account headers (6XXXXX - Name) and totals
-        if (/^6\d{4,5}\s+-/.test(t) || /^Totals for 6/.test(t)) {
-          result.push(line); continue;
-        }
-        // Keep date entries in our 3-month window
-        const parts = t.split(",");
-        const dt = parts[0] ?? "";
-        if (dt.length === 10 && dt[2] === "/" && dt[5] === "/") {
-          const my = dt.slice(0,3) + dt.slice(6,10); // MM/YYYY
-          if (keepMonths.has(my)) result.push(line);
-        }
-      }
-
-      if (result.length === 0) {
-        setErr("No expense entries found for the selected period. Check the review period matches your data.");
-        return;
-      }
-      setErr("");
-      const label = new Date(+yr, +mo-1).toLocaleString("en-US", {month:"long", year:"numeric"});
-      setter([
-        "// GL: expense accounts, 2 months ending " + label + " (" + result.length + " lines)",
-        lines[0], lines[2], // property name + column headers
-        ...result
-      ].join("\n"));
-    };
-    reader.readAsText(file);
+    if (result.length === 0) {
+      setErr("No expense entries found for the selected period. Check the review period matches your data.");
+      return;
+    }
+    setErr("");
+    const label = new Date(+yr, +mo-1).toLocaleString("en-US", {month:"long", year:"numeric"});
+    setter([
+      "// GL: expense accounts, 2 months ending " + label + " (" + result.length + " lines)",
+      stripLastCol(lines[0]), stripLastCol(lines[2]),
+      ...result
+    ].join("\n"));
   };
+  reader.readAsText(file);
+};
 
   const [refineIS, setRefineIS]               = useState("");
   const [refineGL, setRefineGL]               = useState("");
@@ -304,7 +301,7 @@ const readIsCsv = (file, setter, setErr) => {
     try {
       const [yr, mo] = reviewMonth.split("-");
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
-      const sys = "You are a senior multifamily property accountant. Your response must begin immediately with the first [FINDING] tag. Do not write any introduction, preamble, summary, or closing sentence.\n\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nINCOME STATEMENT RULES: Use the income statement for two things only: (1) checking month-ending balances for the REVIEW PERIOD month, and (2) comparing balances to prior months. The general ledger is never used for balance checks. Flag every expense account (account numbers starting with 6) that shows a negative month-ending balance on the income statement for the review period month as a separate finding. Do not reference YTD totals, TTM, or future month columns.\n\nGL RULES: Use the general ledger for reviewing individual journal entries only - accruals, reversals, duplicate postings, unusual descriptions, and timing anomalies. GL running balances are always negative for expense accounts and must never be flagged as findings. Only flag specific GL transactions that look suspicious.";
+      const sys = "You are a senior multifamily property accountant. Your response must begin immediately with the first [FINDING] tag. Do not write any introduction, preamble, summary, or closing sentence.\n\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nINCOME STATEMENT RULES: Use the income statement for two things only: (1) checking month-ending balances for the REVIEW PERIOD month, and (2) comparing balances to prior months. Flag every expense account (account numbers starting with 6) that shows a negative month-ending balance on the income statement for the review period month as a separate finding. Do not reference YTD totals, TTM, or future month columns.\n\nGL RULES: Use the general ledger for reviewing individual journal entries only - accruals, reversals, duplicate postings, unusual descriptions, and timing anomalies. Only flag specific GL transactions that look suspicious.";
       const usr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serialize(items) + "\n\n" + (incomeStatement.trim() ? "INCOME STATEMENT:\n" + incomeStatement + "\n\n" : "") + (glEntries.trim() ? "GL ENTRIES:\n" + glEntries + "\n\n" : "") + "Review the " + label + " financials against the checklist.";
       setFindings(await callClaude(sys, usr));
       setTab("findings");
