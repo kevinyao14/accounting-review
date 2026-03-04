@@ -122,114 +122,114 @@ export default function App() {
     reader.readAsText(file);
   };
 
-const readIsCsv = (file, setter, setErr) => {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const raw = e.target.result;
-    const [yr, mo] = reviewMonth.split("-");
-    const reviewDate = new Date(+yr, +mo - 1, 1);
+  const readIsCsv = (file, setter, setErr) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const raw = e.target.result;
+      const [yr, mo] = reviewMonth.split("-");
+      const reviewDate = new Date(+yr, +mo - 1, 1);
 
-    const lines = raw.split("\n");
-    let keepCols = null; // will be set when we find the date header row
+      const lines = raw.split("\n");
+      let keepCols = null; // will be set when we find the date header row
 
-    const result = lines.map(line => {
-      const cols = line.split(",");
+      const result = lines.map(line => {
+        const cols = line.split(",");
 
-      // Detect the date header row and compute which columns to keep
-      if (!keepCols) {
-        const hasDate = cols.some(c => {
-          const t = c.trim();
-          return t.length === 10 && t[2] === "/" && t[5] === "/";
-        });
-        if (hasDate) {
-          keepCols = [0, 1]; // always keep account number + name
-          cols.forEach((c, j) => {
+        // Detect the date header row and compute which columns to keep
+        if (!keepCols) {
+          const hasDate = cols.some(c => {
             const t = c.trim();
-            if (t.length === 10 && t[2] === "/" && t[5] === "/") {
-              const parts = t.split("/");
-              const colDate = new Date(+parts[2], +parts[0] - 1, 1);
-              const monthsDiff = (reviewDate.getFullYear() - colDate.getFullYear()) * 12
-                + (reviewDate.getMonth() - colDate.getMonth());
-              if (monthsDiff >= 0 && monthsDiff <= 2) keepCols.push(j);
-            }
+            return t.length === 10 && t[2] === "/" && t[5] === "/";
           });
+          if (hasDate) {
+            keepCols = [0, 1]; // always keep account number + name
+            cols.forEach((c, j) => {
+              const t = c.trim();
+              if (t.length === 10 && t[2] === "/" && t[5] === "/") {
+                const parts = t.split("/");
+                const colDate = new Date(+parts[2], +parts[0] - 1, 1);
+                const monthsDiff = (reviewDate.getFullYear() - colDate.getFullYear()) * 12
+                  + (reviewDate.getMonth() - colDate.getMonth());
+                if (monthsDiff >= 0 && monthsDiff <= 2) keepCols.push(j);
+              }
+            });
+          }
+        }
+
+        // If we have keepCols, filter this row; otherwise pass through (header rows)
+        if (keepCols) {
+          return keepCols.map(j => cols[j] ?? "").join(",");
+        }
+        return line;
+      });
+
+      const filtered = result.join("\n");
+      if (!keepCols) {
+        setErr("Could not detect date columns in income statement. Check CSV format.");
+        return;
+      }
+      setErr("");
+      setter(filtered);
+    };
+    reader.readAsText(file);
+  };
+
+  // For GL files: extract expense account section (6xxxxx), keep 2 months of entries + all totals
+  const readGlCsv = (file, setter, setErr) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const raw = e.target.result;
+      const [yr, mo] = reviewMonth.split("-");
+
+      const stripLastCol = line => line.split(",").slice(0, -1).join(",");
+
+      const keepMonths = new Set();
+      for (let i = 0; i < 2; i++) {
+        const d = new Date(+yr, +mo - 1 - i, 1);
+        keepMonths.add(
+          String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear()
+        );
+      }
+
+      const lines = raw.split("\n");
+
+      let expenseStart = 0;
+      for (let i = 0; i < lines.length; i++) {
+        if (/^6\d{4,5}\s+-/.test(lines[i])) { expenseStart = i; break; }
+      }
+
+      const source = expenseStart > 0 ? lines.slice(expenseStart) : lines;
+
+      const result = [];
+      for (const line of source) {
+        const t = line.trim();
+        if (/^6\d{4,5}\s+-/.test(t) || /^Totals for 6/.test(t)) {
+          result.push(stripLastCol(line)); continue;
+        }
+        const parts = t.split(",");
+        const dt = parts[0] ?? "";
+        if (dt.length === 10 && dt[2] === "/" && dt[5] === "/") {
+          const my = dt.slice(0,3) + dt.slice(6,10);
+          if (keepMonths.has(my)) result.push(stripLastCol(line));
         }
       }
 
-      // If we have keepCols, filter this row; otherwise pass through (header rows)
-      if (keepCols) {
-        return keepCols.map(j => cols[j] ?? "").join(",");
+      if (result.length === 0) {
+        setErr("No expense entries found for the selected period. Check the review period matches your data.");
+        return;
       }
-      return line;
-    });
-
-    const filtered = result.join("\n");
-    if (!keepCols) {
-      setErr("Could not detect date columns in income statement. Check CSV format.");
-      return;
-    }
-    setErr("");
-    setter(filtered);
+      setErr("");
+      const label = new Date(+yr, +mo-1).toLocaleString("en-US", {month:"long", year:"numeric"});
+      setter([
+        "// GL: expense accounts, 2 months ending " + label + " (" + result.length + " lines)",
+        stripLastCol(lines[0]), stripLastCol(lines[2]),
+        ...result
+      ].join("\n"));
+    };
+    reader.readAsText(file);
   };
-  reader.readAsText(file);
-};
-
-  // For GL files: extract expense account section (6xxxxx), keep 2 months of entries + all totals
-const readGlCsv = (file, setter, setErr) => {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    const raw = e.target.result;
-    const [yr, mo] = reviewMonth.split("-");
-
-    const stripLastCol = line => line.split(",").slice(0, -1).join(",");
-
-    const keepMonths = new Set();
-    for (let i = 0; i < 2; i++) {
-      const d = new Date(+yr, +mo - 1 - i, 1);
-      keepMonths.add(
-        String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear()
-      );
-    }
-
-    const lines = raw.split("\n");
-
-    let expenseStart = 0;
-    for (let i = 0; i < lines.length; i++) {
-      if (/^6\d{4,5}\s+-/.test(lines[i])) { expenseStart = i; break; }
-    }
-
-    const source = expenseStart > 0 ? lines.slice(expenseStart) : lines;
-
-    const result = [];
-    for (const line of source) {
-      const t = line.trim();
-      if (/^6\d{4,5}\s+-/.test(t) || /^Totals for 6/.test(t)) {
-        result.push(stripLastCol(line)); continue;
-      }
-      const parts = t.split(",");
-      const dt = parts[0] ?? "";
-      if (dt.length === 10 && dt[2] === "/" && dt[5] === "/") {
-        const my = dt.slice(0,3) + dt.slice(6,10);
-        if (keepMonths.has(my)) result.push(stripLastCol(line));
-      }
-    }
-
-    if (result.length === 0) {
-      setErr("No expense entries found for the selected period. Check the review period matches your data.");
-      return;
-    }
-    setErr("");
-    const label = new Date(+yr, +mo-1).toLocaleString("en-US", {month:"long", year:"numeric"});
-    setter([
-      "// GL: expense accounts, 2 months ending " + label + " (" + result.length + " lines)",
-      stripLastCol(lines[0]), stripLastCol(lines[2]),
-      ...result
-    ].join("\n"));
-  };
-  reader.readAsText(file);
-};
 
   const [refineIS, setRefineIS]               = useState("");
   const [refineGL, setRefineGL]               = useState("");
@@ -277,7 +277,7 @@ const readGlCsv = (file, setter, setErr) => {
         }
         const normalised = raw.map((item, i) => ({
           id: item.id ?? Date.now() + i,
-          category: item.category ?? "Uncategorised",
+          category: item.category ?? CATEGORIES[0],
           accounts: item.accounts ?? "",
           rule: item.rule === "CHECK" ? "CHECK" : "FLAG IF",
           text: item.text,
@@ -622,7 +622,7 @@ const readGlCsv = (file, setter, setErr) => {
                   <div style={s.inputGroup}>
                     <label style={s.label}>Category</label>
                     <select value={newItem.category} onChange={e=>setNewItem(n=>({...n,category:e.target.value}))} style={s.select}>
-                      {CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                      {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div style={s.inputGroup}>
@@ -674,7 +674,7 @@ const readGlCsv = (file, setter, setErr) => {
                           <div style={s.inputGroup}>
                             <label style={s.label}>Category</label>
                             <select value={editDraft.category} onChange={e=>setEditDraft(d=>({...d,category:e.target.value}))} style={s.select}>
-                              {CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                              {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
                             </select>
                           </div>
                           <div style={s.inputGroup}>
