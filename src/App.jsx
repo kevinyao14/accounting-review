@@ -301,9 +301,22 @@ export default function App() {
     try {
       const [yr, mo] = reviewMonth.split("-");
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
-      const sys = "You are a senior multifamily property accountant. Your response must begin immediately with the first [FINDING] tag. Do not write any introduction, preamble, summary, or closing sentence.\n\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nINCOME STATEMENT RULES: Use the income statement for two things only: (1) checking month-ending balances for the REVIEW PERIOD month, and (2) comparing balances to prior months. Flag every expense account (account numbers starting with 6) that shows a negative month-ending balance on the income statement for the review period month as a separate finding. Do not reference YTD totals, TTM, or future month columns.\n\nGL RULES: Use the general ledger for reviewing individual journal entries only - accruals, reversals, duplicate postings, unusual descriptions, and timing anomalies. Only flag specific GL transactions that look suspicious.";
-      const usr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serialize(items) + "\n\n" + (incomeStatement.trim() ? "INCOME STATEMENT:\n" + incomeStatement + "\n\n" : "") + (glEntries.trim() ? "GL ENTRIES:\n" + glEntries + "\n\n" : "") + "Review the " + label + " financials against the checklist.";
-      setFindings(await callClaude(sys, usr));
+      const checklistBlock = "CHECKLIST:\n" + serialize(items);
+      const results = [];
+
+      if (incomeStatement.trim()) {
+        const syIS = "You are a senior multifamily property accountant reviewing an income statement. Your response must begin immediately with the first [FINDING] tag. Do not write any introduction, preamble, summary, or closing sentence.\n\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nFocus solely on income statement variance checks: month-ending balances for the REVIEW PERIOD month, comparisons to prior months, negative expense balances (account numbers starting with 6), and threshold flags from the checklist. Do not reference YTD totals, TTM, or future month columns. Do not review GL entries.";
+        const usrIS = "REVIEW PERIOD: " + label + "\n\n" + checklistBlock + "\n\nINCOME STATEMENT:\n" + incomeStatement + "\n\nReview the " + label + " income statement against the checklist.";
+        results.push(await callClaude(syIS, usrIS));
+      }
+
+      if (glEntries.trim()) {
+        const sysGL = "You are a senior multifamily property accountant reviewing general ledger entries. Your response must begin immediately with the first [FINDING] tag. Do not write any introduction, preamble, summary, or closing sentence.\n\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nFocus solely on GL entry anomalies: accruals, reversals, duplicate postings, unusual descriptions, and timing issues. Only flag specific GL transactions that look suspicious. Do not review income statement balances.";
+        const usrGL = "REVIEW PERIOD: " + label + "\n\n" + checklistBlock + "\n\nGL ENTRIES:\n" + glEntries + "\n\nReview the " + label + " GL entries against the checklist.";
+        results.push(await callClaude(sysGL, usrGL));
+      }
+
+      setFindings(results.join("\n\n--- GL REVIEW ---\n\n"));
       setTab("findings");
     } catch(e) { setReviewError("Error: " + (e.message || "Please try again.")); }
     setReviewing(false);
