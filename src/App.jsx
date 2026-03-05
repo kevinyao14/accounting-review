@@ -319,7 +319,7 @@ export default function App() {
 
         const isUsr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serializeBySource(items, "IS") + "\n\nINCOME STATEMENT:\n" + incomeStatement + "\n\nReview the " + label + " income statement against the checklist.";
 
-        const isRaw = await callClaude(isSys, isUsr, { thinking: { type: "enabled", budget_tokens: 8000 }, max_tokens: 8000 });
+        const isRaw = await callClaude(isSys, isUsr, { thinking: { type: "enabled", budget_tokens: 8000 }, max_tokens: 16000 });
         try {
           const clean = isRaw.replace(/^```json\s*/,"").replace(/\s*```$/,"").trim();
           isFindings = JSON.parse(clean);
