@@ -321,7 +321,7 @@ export default function App() {
         try {
           const clean = isRaw.replace(/^```json\s*/,"").replace(/\s*```$/,"").trim();
           isFindings = JSON.parse(clean);
-        } catch { isFindings = []; }
+        } catch(e) { isFindings = []; setReviewError("IS parse error: " + isRaw.slice(0, 200)); }
       }
 
       // ── Call 2: GL Investigation ──────────────────────────────────────────────
@@ -335,7 +335,7 @@ export default function App() {
         try {
           const clean = glRaw.replace(/^```json\s*/,"").replace(/\s*```$/,"").trim();
           glFindings = JSON.parse(clean);
-        } catch { glFindings = []; }
+        } catch(e) { glFindings = []; setReviewError("GL parse error: " + glRaw.slice(0, 200)); }
       }
 
       // ── Merge by accountNumber ────────────────────────────────────────────────
