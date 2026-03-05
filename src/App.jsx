@@ -319,7 +319,7 @@ export default function App() {
 
         const isUsr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serializeBySource(items, "IS") + "\n\nINCOME STATEMENT:\n" + incomeStatement + "\n\nReview the " + label + " income statement against the checklist.";
 
-        const isRaw = await callClaude(isSys, isUsr, { thinking: { type: "enabled", budget_tokens: 5000 }, max_tokens: 8000 });
+        const isRaw = await callClaude(isSys, isUsr, { thinking: { type: "enabled", budget_tokens: 8000 }, max_tokens: 8000 });
         try {
           const clean = isRaw.replace(/^```json\s*/,"").replace(/\s*```$/,"").trim();
           isFindings = JSON.parse(clean);
@@ -333,7 +333,7 @@ export default function App() {
 
         const glUsr = "REVIEW PERIOD: " + label + "\n\nINCOME STATEMENT FINDINGS ALREADY IDENTIFIED:\n" + JSON.stringify(isFindings, null, 2) + "\n\nGL CHECKLIST:\n" + serializeBySource(items, "GL") + "\n\nGL ENTRIES:\n" + glEntries + "\n\nInvestigate the GL entries for " + label + ".";
 
-        const glRaw = await callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 5000 }, max_tokens: 8000 });
+        const glRaw = await callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 4000 }, max_tokens: 8000 });
         try {
           const clean = glRaw.replace(/^```json\s*/,"").replace(/\s*```$/,"").trim();
           glFindings = JSON.parse(clean);
