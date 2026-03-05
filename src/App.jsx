@@ -9,6 +9,7 @@ const DEFAULT_ITEMS = [
   { id: 5,  category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Account shows a reversal with no corresponding new accrual or expense entry in the same month" },
   { id: 6,  category: "Revenue - Total Rental Income",   accounts: "411001-415002",                                                             rule: "FLAG IF", text: "Total Rental Income (sum of 411001-415002) variance of more than 2% vs prior month" },
   { id: 7,  category: "Revenue - Bad Debt",              accounts: "419001 Bad Debt Expense",                                                   rule: "FLAG IF", text: "Bad Debt Expense equals zero; may be missing entries or bad debt reserve" },
+  { id: 35, category: "Revenue - Other Income",          accounts: "440003, 440020, 440032",                                                        rule: "FLAG IF", text: "Any of these other income account ending balances in the income statement for the current month varies by more than 20% from the prior month" },
   { id: 8,  category: "Repairs & Maintenance",           accounts: "601001-601049",                                                            rule: "FLAG IF", text: "Any single R&M account exceeds $3,000 in current month and was under $1,000 prior month" },
   { id: 9,  category: "Repairs & Maintenance",           accounts: "601001-601049",                                                            rule: "FLAG IF", text: "Any R&M account shows a large negative balance on the income statement in the current month" },
   { id: 10, category: "Repairs & Maintenance",           accounts: "601001-601049",                                                            rule: "FLAG IF", text: "PO accruals apply identical dollar amounts across unrelated line items (system error pattern)" },
@@ -39,7 +40,7 @@ const DEFAULT_ITEMS = [
 ];
 
 const CATEGORIES = [
-  "Accruals","Revenue - Gross Potential Rent","Revenue - Bad Debt",
+  "Accruals","Revenue - Gross Potential Rent","Revenue - Bad Debt","Revenue - Other Income",
   "Repairs & Maintenance","Turnover Expenses","Payroll","Utilities",
   "Contract Services","ILS Marketing","Marketing","Administrative","Management Fee","Insurance","Debt Service",
   "Real Estate Taxes","Legal","Expense Trends",
