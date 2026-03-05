@@ -76,11 +76,11 @@ function parseAIChecklist(text) {
   return items.length ? items : null;
 }
 
-async function callClaude(system, user) {
+async function callClaude(system, user, options = {}) {
   const res = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ system, messages: [{ role: "user", content: user }] }),
+    body: JSON.stringify({ system, messages: [{ role: "user", content: user }], ...options }),
   });
   const data = await res.json();
   if (!res.ok || data.error) {
@@ -304,7 +304,7 @@ export default function App() {
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
       const sys = "You are a senior multifamily property accountant. Your response must begin immediately with the first [FINDING] tag. Do not write any introduction, preamble, summary, or closing sentence.\n\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nINCOME STATEMENT RULES: Use the income statement for two things only: (1) checking month-ending balances for the REVIEW PERIOD month, and (2) comparing balances to prior months. Flag every expense account (account numbers starting with 6) that shows a negative month-ending balance on the income statement for the review period month as a separate finding. Do not reference YTD totals, TTM, or future month columns.\n\nGL RULES: Use the general ledger for reviewing individual journal entries only - accruals, reversals, duplicate postings, unusual descriptions, and timing anomalies. Only flag specific GL transactions that look suspicious.";
       const usr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serialize(items) + "\n\n" + (incomeStatement.trim() ? "INCOME STATEMENT:\n" + incomeStatement + "\n\n" : "") + (glEntries.trim() ? "GL ENTRIES:\n" + glEntries + "\n\n" : "") + "Review the " + label + " financials against the checklist.";
-      setFindings(await callClaude(sys, usr));
+      setFindings(await callClaude(sys, usr, { thinking: { type: "enabled", budget_tokens: 5000 }, max_tokens: 16000 }));
       setTab("findings");
     } catch(e) { setReviewError("Error: " + (e.message || "Please try again.")); }
     setReviewing(false);
