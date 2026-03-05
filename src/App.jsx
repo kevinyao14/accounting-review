@@ -2,41 +2,40 @@ import { useState, useRef } from "react";
 
 // ── Structured checklist data ─────────────────────────────────────────────────
 const DEFAULT_ITEMS = [
-  { id: 1,  category: "Accruals",                        accounts: "",                                                                          rule: "CHECK",   text: "Verify all prior month accruals were reversed in current month" },
-  { id: 2,  category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Accrual entry has no corresponding reversal within first 5 business days of month" },
-  { id: 3,  category: "Accruals",                        accounts: "",                                                                          rule: "CHECK",   text: "Confirm standard monthly accruals are present (property mgmt fee, property tax, insurance)" },
-  { id: 4,  category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Any standard accrual is missing or differs more than 5% from prior month" },
-  { id: 5,  category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Account shows a reversal with no corresponding new accrual or expense entry in the same month" },
-  { id: 6,  category: "Revenue - Total Rental Income",   accounts: "411001-415002",                                                             rule: "FLAG IF", text: "Total Rental Income (sum of 411001-415002) variance of more than 2% vs prior month" },
-  { id: 7,  category: "Revenue - Bad Debt",              accounts: "419001 Bad Debt Expense",                                                   rule: "FLAG IF", text: "Bad Debt Expense equals zero; may be missing entries or bad debt reserve" },
-  { id: 35, category: "Revenue - Other Income",          accounts: "440003, 440020, 440032",                                                        rule: "FLAG IF", text: "Any of these other income account ending balances in the income statement for the current month varies by more than 20% from the prior month" },
-  { id: 8,  category: "Repairs & Maintenance",           accounts: "601001-601049",                                                            rule: "FLAG IF", text: "Any single R&M account exceeds $3,000 in current month and was under $1,000 prior month" },
-  { id: 9,  category: "Repairs & Maintenance",           accounts: "601001-601049",                                                            rule: "FLAG IF", text: "Any R&M account shows a large negative balance on the income statement in the current month" },
-  { id: 10, category: "Repairs & Maintenance",           accounts: "601001-601049",                                                            rule: "FLAG IF", text: "PO accruals apply identical dollar amounts across unrelated line items (system error pattern)" },
-  { id: 11, category: "Repairs & Maintenance",           accounts: "601001-601049",                                                            rule: "FLAG IF", text: "Any entry description references roof, HVAC, appliance, flooring - verify P&L vs. capital" },
-  { id: 12, category: "Turnover Expenses",               accounts: "602001-602016",                                                            rule: "FLAG IF", text: "Total Turnover Expenses increase more than 50% vs prior month without corresponding vacancy increase" },
-  { id: 13, category: "Turnover Expenses",               accounts: "602001-602016",                                                            rule: "FLAG IF", text: "Turnover costs near zero when vacancy loss is elevated" },
-  { id: 14, category: "Payroll",                         accounts: "603001-603106",                                                            rule: "FLAG IF", text: "Total payroll, excluding 603008 Bonuses - Performance, varies more than 10% vs prior month without explanation" },
-  { id: 15, category: "Payroll",                         accounts: "603001-603106",                                                            rule: "FLAG IF", text: "Wages post but burden accounts (taxes, insurance, 401k) are zero or missing same period" },
-  { id: 16, category: "Utilities",                       accounts: "604003, 604004, 604201, 604301, 604302",                                   rule: "FLAG IF", text: "Any utility varies more than 25% from trailing 3-month average without explanation" },
-  { id: 17, category: "Utilities",                       accounts: "604003, 604004, 604201, 604301, 604302",                                   rule: "FLAG IF", text: "Any utility account shows large negative income statement value in current month - may indicate billing catch-up or accrual error" },
-  { id: 18, category: "Contract Services",               accounts: "605001-605030",                                                            rule: "FLAG IF", text: "Any recurring vendor missing for current month with no explanation" },
-  { id: 19, category: "Contract Services",               accounts: "605001-605030",                                                            rule: "FLAG IF", text: "Any contract amount varies more than 10% from its typical monthly amount" },
-  { id: 20, category: "Contract Services",               accounts: "605001-605030",                                                            rule: "FLAG IF", text: "Any material increase in contract line (e.g., 2x the prior month amount) that looks like an incorrect accrual" },
-  { id: 21, category: "ILS Marketing",                   accounts: "606602-606610",                                                            rule: "FLAG IF", text: "ILS marketing spend in any account varies more than 50% from the prior month" },
-  { id: 22, category: "Marketing",                       accounts: "606001-606822",                                                            rule: "FLAG IF", text: "Any marketing account reversed but not re-accrued in same period or expensed" },
-  { id: 23, category: "Marketing",                       accounts: "606001-606822",                                                            rule: "FLAG IF", text: "Same vendor accrued twice in one month without explanation" },
-  { id: 24, category: "Administrative",                  accounts: "607005-607009, 607011-607018, 607022-607023, 607029, 607038",              rule: "FLAG IF", text: "Any administrative expense income statement account is negative for the current month or varies more than 25% from trailing 3-month average" },
-  { id: 25, category: "Management Fee",                  accounts: "608001 External Management Fee Expense",                                   rule: "FLAG IF", text: "Fee as % of Total Revenue varies more than 1% from prior months" },
-  { id: 26, category: "Management Fee",                  accounts: "608001 External Management Fee Expense",                                   rule: "FLAG IF", text: "Negative management fee entry posts without explanation" },
-  { id: 27, category: "Insurance",                       accounts: "640001 Property Insurance",                                                rule: "FLAG IF", text: "Amount changes vs prior month without documented policy change or new amortization schedule" },
-  { id: 28, category: "Debt Service",                    accounts: "701001-701010",                                                            rule: "FLAG IF", text: "Any expense line changes vs prior month by more than 2%" },
-  { id: 29, category: "Real Estate Taxes",               accounts: "630001 Real Estate Tax",                                                   rule: "FLAG IF", text: "Amount changes vs prior month without explanation" },
-  { id: 30, category: "Legal",                           accounts: "607010 Legal - Evictions",                                                 rule: "FLAG IF", text: "Any legal fee entry appears - note for manager awareness regardless of amount" },
-  { id: 31, category: "Expense Trends",                  accounts: "",                                                                          rule: "CHECK",   text: "Identify any expense line present in 2+ prior months but zero in current month" },
-  { id: 32, category: "Expense Trends",                  accounts: "",                                                                          rule: "FLAG IF", text: "Zero balance with no prior indication expense was one-time or seasonal" },
-  { id: 33, category: "Expense Trends",                  accounts: "",                                                                          rule: "CHECK",   text: "Flag any income statement account with large swing from positive expense value to negative expense value or vice versa in consecutive months" },
-  { id: 34, category: "Expense Trends",                  accounts: "6xxxxx all expense accounts",                                              rule: "FLAG IF", text: "ANY expense account (6xxxxx) shows a negative month-ending balance on the income statement - flag every instance regardless of amount or category" },
+  { id: 1,  source: "IS", category: "Accruals",                        accounts: "",                                                                          rule: "CHECK",   text: "Verify all prior month accruals were reversed in current month" },
+  { id: 2,  source: "GL", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Accrual entry has no corresponding reversal within first 5 business days of month" },
+  { id: 3,  source: "IS", category: "Accruals",                        accounts: "",                                                                          rule: "CHECK",   text: "Confirm standard monthly accruals are present (property mgmt fee, property tax, insurance)" },
+  { id: 4,  source: "IS", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Any standard accrual is missing or differs more than 5% from prior month" },
+  { id: 5,  source: "GL", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Account shows a reversal with no corresponding new accrual or expense entry in the same month" },
+  { id: 6,  source: "IS", category: "Revenue - Total Rental Income",   accounts: "411001-415002",                                                             rule: "FLAG IF", text: "Total Rental Income (sum of 411001-415002) variance of more than 2% vs prior month" },
+  { id: 7,  source: "IS", category: "Revenue - Bad Debt",              accounts: "419001 Bad Debt Expense",                                                   rule: "FLAG IF", text: "Bad Debt Expense equals zero; may be missing entries or bad debt reserve" },
+  { id: 35, source: "IS", category: "Revenue - Other Income",          accounts: "440003, 440020, 440032",                                                    rule: "FLAG IF", text: "Any of these other income account ending balances in the income statement for the current month varies by more than 20% from the prior month" },
+  { id: 8,  source: "IS", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "Any single R&M account exceeds $3,000 in current month and was under $1,000 prior month" },
+  { id: 9,  source: "IS", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "Any R&M account shows a large negative balance on the income statement in the current month" },
+  { id: 10, source: "GL", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "PO accruals apply identical dollar amounts across unrelated line items (system error pattern)" },
+  { id: 11, source: "GL", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "Any entry description references roof, HVAC, appliance, flooring - verify P&L vs. capital" },
+  { id: 12, source: "IS", category: "Turnover Expenses",               accounts: "602001-602016",                                                             rule: "FLAG IF", text: "Total Turnover Expenses increase more than 50% vs prior month without corresponding vacancy increase" },
+  { id: 13, source: "IS", category: "Turnover Expenses",               accounts: "602001-602016",                                                             rule: "FLAG IF", text: "Turnover costs near zero when vacancy loss is elevated" },
+  { id: 14, source: "IS", category: "Payroll",                         accounts: "603001-603106",                                                             rule: "FLAG IF", text: "Total payroll, excluding 603008 Bonuses - Performance, varies more than 10% vs prior month without explanation" },
+  { id: 15, source: "IS", category: "Payroll",                         accounts: "603001-603106",                                                             rule: "FLAG IF", text: "Wages post but burden accounts (taxes, insurance, 401k) are zero or missing same period" },
+  { id: 16, source: "IS", category: "Utilities",                       accounts: "604003, 604004, 604201, 604301, 604302",                                    rule: "FLAG IF", text: "Any utility varies more than 25% from trailing 3-month average without explanation" },
+  { id: 17, source: "IS", category: "Utilities",                       accounts: "604003, 604004, 604201, 604301, 604302",                                    rule: "FLAG IF", text: "Any utility account shows large negative income statement value in current month - may indicate billing catch-up or accrual error" },
+  { id: 18, source: "IS", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any recurring vendor missing for current month with no explanation" },
+  { id: 19, source: "IS", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any contract amount varies more than 10% from its typical monthly amount" },
+  { id: 20, source: "IS", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any material increase in contract line (e.g., 2x the prior month amount) that looks like an incorrect accrual" },
+  { id: 21, source: "IS", category: "ILS Marketing",                   accounts: "606602-606610",                                                             rule: "FLAG IF", text: "ILS marketing spend in any account varies more than 50% from the prior month" },
+  { id: 22, source: "IS", category: "Marketing",                       accounts: "606001-606822",                                                             rule: "FLAG IF", text: "Any marketing account reversed but not re-accrued in same period or expensed" },
+  { id: 23, source: "GL", category: "Marketing",                       accounts: "606001-606822",                                                             rule: "FLAG IF", text: "Same vendor accrued twice in one month without explanation" },
+  { id: 24, source: "IS", category: "Administrative",                  accounts: "607005-607009, 607011-607018, 607022-607023, 607029, 607038",               rule: "FLAG IF", text: "Any administrative expense income statement account is negative for the current month or varies more than 25% from trailing 3-month average" },
+  { id: 25, source: "IS", category: "Management Fee",                  accounts: "608001 External Management Fee Expense",                                    rule: "FLAG IF", text: "Fee as % of Total Revenue varies more than 1% from prior months" },
+  { id: 26, source: "GL", category: "Management Fee",                  accounts: "608001 External Management Fee Expense",                                    rule: "FLAG IF", text: "Negative management fee entry posts without explanation" },
+  { id: 27, source: "IS", category: "Insurance",                       accounts: "640001 Property Insurance",                                                 rule: "FLAG IF", text: "Amount changes vs prior month without documented policy change or new amortization schedule" },
+  { id: 28, source: "IS", category: "Debt Service",                    accounts: "701001-701010",                                                             rule: "FLAG IF", text: "Any expense line changes vs prior month by more than 2%" },
+  { id: 29, source: "IS", category: "Real Estate Taxes",               accounts: "630001 Real Estate Tax",                                                    rule: "FLAG IF", text: "Amount changes vs prior month without explanation" },
+  { id: 30, source: "GL", category: "Legal",                           accounts: "607010 Legal - Evictions",                                                  rule: "FLAG IF", text: "Any legal fee entry appears - note for manager awareness regardless of amount" },
+  { id: 31, source: "IS", category: "Expense Trends",                  accounts: "",                                                                          rule: "CHECK",   text: "Identify any expense line present in 2+ prior months but zero in current month - note for review, do not flag" },
+  { id: 32, source: "IS", category: "Expense Trends",                  accounts: "",                                                                          rule: "CHECK",   text: "Flag any income statement account with large swing from positive to negative or vice versa in consecutive months" },
+  { id: 33, source: "IS", category: "Expense Trends",                  accounts: "6xxxxx all expense accounts",                                               rule: "FLAG IF", text: "ANY expense account (6xxxxx) shows a negative month-ending balance on the income statement - flag every instance regardless of amount or category" },
 ];
 
 const CATEGORIES = [
@@ -56,6 +55,10 @@ function serialize(items) {
     const accts = rows[0].accounts ? "ACCOUNTS: " + rows[0].accounts + "\n" : "";
     return "CATEGORY: " + cat + "\n" + accts + rows.map(r => r.rule + ": " + r.text).join("\n");
   }).join("\n\n");
+}
+
+function serializeBySource(items, source) {
+  return serialize(items.filter(i => i.source === source));
 }
 
 function parseAIChecklist(text) {
@@ -99,8 +102,9 @@ export default function App() {
   });
   const [incomeStatement, setIncomeStatement] = useState("");
   const [glEntries, setGlEntries]             = useState("");
-  const [findings, setFindings]               = useState("");
+  const [findings, setFindings]               = useState([]);
   const [reviewing, setReviewing]             = useState(false);
+  const [reviewStatus, setReviewStatus]       = useState("");
   const [reviewError, setReviewError]         = useState("");
 
   const [items, setItems]         = useState(DEFAULT_ITEMS);
@@ -108,7 +112,7 @@ export default function App() {
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState({});
   const [adding, setAdding]       = useState(false);
-  const [newItem, setNewItem]     = useState({ category: CATEGORIES[0], accounts: "", rule: "FLAG IF", text: "" });
+  const [newItem, setNewItem]     = useState({ category: CATEGORIES[0], accounts: "", rule: "FLAG IF", source: "IS", text: "" });
   const [importError, setImportError] = useState("");
   const fileInputRef = useRef(null);
   const isFileRef    = useRef(null);
@@ -248,7 +252,7 @@ export default function App() {
   const addItem    = () => {
     if (!newItem.text.trim()) return;
     setItems(is => [...is, { ...newItem, id: Date.now() }]);
-    setNewItem({ category: CATEGORIES[0], accounts: "", rule: "FLAG IF", text: "" });
+    setNewItem({ category: CATEGORIES[0], accounts: "", rule: "FLAG IF", source: "IS", text: "" });
     setAdding(false);
   };
 
@@ -298,15 +302,66 @@ export default function App() {
     if (!incomeStatement.trim() && !glEntries.trim()) {
       setReviewError("Paste at least one of: Income Statement or GL Entries."); return;
     }
-    setReviewError(""); setReviewing(true); setFindings("");
+    setReviewError(""); setReviewing(true); setFindings([]);
     try {
       const [yr, mo] = reviewMonth.split("-");
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
-      const sys = "You are a senior multifamily property accountant. Your response must begin immediately with the first [FINDING] tag. Do not write any introduction, preamble, summary, or closing sentence.\n\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nINCOME STATEMENT RULES: Use the income statement for two things only: (1) checking month-ending balances for the REVIEW PERIOD month, and (2) comparing balances to prior months. Flag every expense account (account numbers starting with 6) that shows a negative month-ending balance on the income statement for the review period month as a separate finding. Do not reference YTD totals, TTM, or future month columns.\n\nGL RULES: Use the general ledger for reviewing individual journal entries only - accruals, reversals, duplicate postings, unusual descriptions, and timing anomalies. Only flag specific GL transactions that look suspicious.\n\nWhen calculating trailing averages, use the 3 months prior to the review period only. Do not include the current review month in the average.";
-      const usr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serialize(items) + "\n\n" + (incomeStatement.trim() ? "INCOME STATEMENT:\n" + incomeStatement + "\n\n" : "") + (glEntries.trim() ? "GL ENTRIES:\n" + glEntries + "\n\n" : "") + "Review the " + label + " financials against the checklist.";
-      setFindings(await callClaude(sys, usr, { thinking: { type: "enabled", budget_tokens: 5000 }, max_tokens: 16000 }));
+
+      let isFindings = [];
+      let glFindings = [];
+
+      // ── Call 1: Income Statement Review ──────────────────────────────────────
+      if (incomeStatement.trim()) {
+        setReviewStatus("Reviewing income statement...");
+        const isSys = "You are a senior multifamily property accountant reviewing an income statement.\n\nYour job is to evaluate the income statement data against the checklist rules provided. Do not analyze GL entries — that is handled separately.\n\nRULES FOR READING THE DATA:\n- The review period column is the column matching the review period date. Use only that column for current month balances.\n- When calculating trailing averages, use the 3 months immediately prior to the review period only. Do not include the current review month in the average.\n- Do not reference YTD totals, TTM columns, or any future month columns.\n- Flag every expense account (6xxxxx) that shows a negative month-ending balance in the review period as a finding.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: describe the specific issue with dollar amounts from the data\n  - action: what needs to be done\n- If you cannot find the specific numbers in the data to evaluate a checklist rule, skip it entirely. Do not include soft observations or findings where the variance is within the acceptable threshold.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if no issues are found.";
+
+        const isUsr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serializeBySource(items, "IS") + "\n\nINCOME STATEMENT:\n" + incomeStatement + "\n\nReview the " + label + " income statement against the checklist.";
+
+        const isRaw = await callClaude(isSys, isUsr, { thinking: { type: "enabled", budget_tokens: 5000 }, max_tokens: 8000 });
+        try {
+          const clean = isRaw.replace(/^```json\s*/,"").replace(/\s*```$/,"").trim();
+          isFindings = JSON.parse(clean);
+        } catch { isFindings = []; }
+      }
+
+      // ── Call 2: GL Investigation ──────────────────────────────────────────────
+      if (glEntries.trim()) {
+        setReviewStatus("Investigating GL entries...");
+        const glSys = "You are a senior multifamily property accountant investigating GL journal entries.\n\nYou will receive two things: (1) a list of issues already identified from the income statement, and (2) GL journal entries to investigate.\n\nYour job has two parts:\nPART 1 - For each income statement finding provided, look at the GL entries for that account and add specific detail about the individual journal entries that explain or confirm the issue. Add context such as specific entry dates, descriptions, amounts, and whether accrual/reversal pairs are present.\nPART 2 - Apply the GL checklist rules independently to identify any additional issues visible only in the GL that the income statement would not show.\n\nDo NOT re-detect income statement variance issues. Do NOT recalculate month-ending balances or compare column totals. Only look at individual journal entry patterns: accruals, reversals, duplicate postings, missing pairs, suspicious descriptions, and timing anomalies.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: describe the specific issue with entry dates, descriptions, and amounts from the GL\n  - action: what needs to be done\n  - source: either \"IS\" if this augments an income statement finding, or \"GL\" if this is a new GL-only finding\n- If you cannot find the specific entries to evaluate a checklist rule, skip it entirely.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if no issues are found.";
+
+        const glUsr = "REVIEW PERIOD: " + label + "\n\nINCOME STATEMENT FINDINGS ALREADY IDENTIFIED:\n" + JSON.stringify(isFindings, null, 2) + "\n\nGL CHECKLIST:\n" + serializeBySource(items, "GL") + "\n\nGL ENTRIES:\n" + glEntries + "\n\nInvestigate the GL entries for " + label + ".";
+
+        const glRaw = await callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 5000 }, max_tokens: 8000 });
+        try {
+          const clean = glRaw.replace(/^```json\s*/,"").replace(/\s*```$/,"").trim();
+          glFindings = JSON.parse(clean);
+        } catch { glFindings = []; }
+      }
+
+      // ── Merge by accountNumber ────────────────────────────────────────────────
+      const merged = {};
+
+      isFindings.forEach(f => {
+        const key = f.accountNumber;
+        if (!merged[key]) merged[key] = { accountNumber: f.accountNumber, accountName: f.accountName, isIssue: "", glIssue: "", action: "" };
+        merged[key].isIssue = f.issue;
+        merged[key].action = f.action;
+      });
+
+      glFindings.forEach(f => {
+        const key = f.accountNumber;
+        if (!merged[key]) merged[key] = { accountNumber: f.accountNumber, accountName: f.accountName, isIssue: "", glIssue: "", action: "" };
+        if (!merged[key].accountName) merged[key].accountName = f.accountName;
+        merged[key].glIssue = f.issue;
+        if (!merged[key].action) merged[key].action = f.action;
+      });
+
+      const mergedArray = Object.values(merged).sort((a, b) => a.accountNumber.localeCompare(b.accountNumber));
+      setFindings(mergedArray);
       setTab("findings");
+
     } catch(e) { setReviewError("Error: " + (e.message || "Please try again.")); }
+    setReviewStatus("");
     setReviewing(false);
   };
 
@@ -384,7 +439,7 @@ export default function App() {
           <nav style={s.nav}>
             {[
               {key:"review",    label:"01 · Run Review"},
-              {key:"findings",  label:"02 · Findings",   dot: !!findings},
+              {key:"findings",  label:"02 · Findings",   dot: findings.length > 0},
               {key:"refine",    label:"03 · Refine Checklist"},
               {key:"checklist", label:"04 · Checklist",  badge: totalChecks},
             ].map(t => (
@@ -449,7 +504,7 @@ export default function App() {
             {reviewError && <div style={s.error}>{reviewError}</div>}
             <div style={{display:"flex",justifyContent:"flex-end",marginTop:20}}>
               <button className="btn" onClick={runReview} disabled={reviewing} style={s.btnGold}>
-                {reviewing ? <span className="pulsing">Reviewing...</span> : "Run Review →"}
+                {reviewing ? <span className="pulsing">{reviewStatus || "Reviewing..."}</span> : "Run Review →"}
               </button>
             </div>
           </div>
@@ -460,39 +515,44 @@ export default function App() {
             <div style={s.panelHead}>
               <h2 style={s.panelTitle}>Findings</h2>
               <p style={s.panelDesc}>
-                {findings
+                {findings.length > 0
                   ? <span>Results for <strong style={{color:"#e8c468"}}>{monthLabel}</strong>. Copy for staff distribution, or use Refine Checklist to improve future reviews.</span>
                   : "No findings yet - run a review first."}
               </p>
             </div>
-            {findings ? (
+            {findings.length > 0 ? (
               <div style={s.findingsBox}>
-                {findings.split("---").filter(f=>f.trim()).map(block=>{
-                  const clean = block.replace(/#{1,3}\s*/g,"").replace(/\*\*/g,"").trim();
-                  const lines = clean.split("\n").filter(l=>l.trim());
-                  if (!lines.length) return null;
-                  const headerLine = lines.find(l=>/^\[FINDING\]/i.test(l.trim()));
-                  if (!headerLine) return null;
-                  const acctMatch = headerLine.match(/\((\d{6,})\)/);
-                  return { headerLine, bodyLines: lines.filter(l=>l!==headerLine), acctNum: acctMatch ? parseInt(acctMatch[1]) : 0 };
-                }).filter(Boolean).sort((a,b)=>a.acctNum-b.acctNum).map((item,i)=>(
-                  <div key={i} style={{borderBottom:"1px solid #1e1e1e",padding:"16px 0"}}>
-                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:14,color:"#f5f5f5",marginBottom:8}}>
-                      {item.headerLine.replace(/\[FINDING\]/gi,"").trim()}
+                {findings.map((item, i) => (
+                  <div key={i} style={{borderBottom:"1px solid #1e1e1e", padding:"16px 0"}}>
+                    <div style={{fontFamily:"'Syne',sans-serif", fontWeight:600, fontSize:14, color:"#f5f5f5", marginBottom:8}}>
+                      {item.accountName} ({item.accountNumber})
                     </div>
-                    {item.bodyLines.map((line,j)=>{
-                      const isLabel = line.startsWith("Issue:")||line.startsWith("Action:");
-                      return <div key={j} style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,
-                        color:isLabel?"#e8c468":"#9ca3af",fontWeight:isLabel?500:400}}>{line}</div>;
-                    })}
+                    {item.isIssue && (
+                      <div style={{marginBottom:6}}>
+                        <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#e8c468", letterSpacing:0.5}}>IS · </span>
+                        <span style={{fontFamily:"'Lora',serif", fontSize:13, lineHeight:1.7, color:"#9ca3af"}}>{item.isIssue}</span>
+                      </div>
+                    )}
+                    {item.glIssue && (
+                      <div style={{marginBottom:6}}>
+                        <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#60a5fa", letterSpacing:0.5}}>GL · </span>
+                        <span style={{fontFamily:"'Lora',serif", fontSize:13, lineHeight:1.7, color:"#9ca3af"}}>{item.glIssue}</span>
+                      </div>
+                    )}
+                    {item.action && (
+                      <div>
+                        <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#4ade80", letterSpacing:0.5}}>Action · </span>
+                        <span style={{fontFamily:"'Lora',serif", fontSize:13, lineHeight:1.7, color:"#9ca3af"}}>{item.action}</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             ) : (
               <div style={s.empty}>
-                <div style={{fontSize:28,color:"#2a2a2a",marginBottom:12}}>◈</div>
-                <div style={{fontFamily:"'Lora',serif",fontSize:14,fontStyle:"italic",color:"#4b5563"}}>Run a review to see findings here</div>
-                <button className="btn" onClick={()=>setTab("review")} style={{...s.btnGold,marginTop:16}}>Go to Review →</button>
+                <div style={{fontSize:28, color:"#2a2a2a", marginBottom:12}}>◈</div>
+                <div style={{fontFamily:"'Lora',serif", fontSize:14, fontStyle:"italic", color:"#4b5563"}}>Run a review to see findings here</div>
+                <button className="btn" onClick={()=>setTab("review")} style={{...s.btnGold, marginTop:16}}>Go to Review →</button>
               </div>
             )}
           </div>
@@ -619,7 +679,7 @@ export default function App() {
             {adding && (
               <div style={{background:"#0a1a0a",border:"1px solid #1a3a1a",borderRadius:10,padding:"16px 18px",marginBottom:24}}>
                 <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4ade80",marginBottom:12,letterSpacing:0.5}}>NEW CHECK</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
                   <div style={s.inputGroup}>
                     <label style={s.label}>Category</label>
                     <select value={newItem.category} onChange={e=>setNewItem(n=>({...n,category:e.target.value}))} style={s.select}>
@@ -631,6 +691,13 @@ export default function App() {
                     <select value={newItem.rule} onChange={e=>setNewItem(n=>({...n,rule:e.target.value}))} style={s.select}>
                       <option value="FLAG IF">FLAG IF</option>
                       <option value="CHECK">CHECK</option>
+                    </select>
+                  </div>
+                  <div style={s.inputGroup}>
+                    <label style={s.label}>Source</label>
+                    <select value={newItem.source} onChange={e=>setNewItem(n=>({...n,source:e.target.value}))} style={s.select}>
+                      <option value="IS">IS</option>
+                      <option value="GL">GL</option>
                     </select>
                   </div>
                 </div>
@@ -671,7 +738,7 @@ export default function App() {
 
                     {editingId===item.id ? (
                       <div style={{flex:1}}>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
                           <div style={s.inputGroup}>
                             <label style={s.label}>Category</label>
                             <select value={editDraft.category} onChange={e=>setEditDraft(d=>({...d,category:e.target.value}))} style={s.select}>
@@ -683,6 +750,13 @@ export default function App() {
                             <select value={editDraft.rule} onChange={e=>setEditDraft(d=>({...d,rule:e.target.value}))} style={s.select}>
                               <option value="FLAG IF">FLAG IF</option>
                               <option value="CHECK">CHECK</option>
+                            </select>
+                          </div>
+                          <div style={s.inputGroup}>
+                            <label style={s.label}>Source</label>
+                            <select value={editDraft.source || "IS"} onChange={e=>setEditDraft(d=>({...d,source:e.target.value}))} style={s.select}>
+                              <option value="IS">IS</option>
+                              <option value="GL">GL</option>
                             </select>
                           </div>
                         </div>
@@ -702,13 +776,20 @@ export default function App() {
                       </div>
                     ) : (
                       <>
-                        <div style={{flexShrink:0,marginTop:1}}>
+                        <div style={{flexShrink:0,marginTop:1,display:"flex",gap:4}}>
                           <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,fontWeight:600,
                             padding:"2px 6px",borderRadius:3,whiteSpace:"nowrap",
                             background:item.rule==="FLAG IF"?"#2a1a0a":"#0a1a2a",
                             color:item.rule==="FLAG IF"?"#f59e0b":"#60a5fa",
                             border:"1px solid "+(item.rule==="FLAG IF"?"#3a2a0a":"#1a2a3a")}}>
                             {item.rule}
+                          </span>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,fontWeight:600,
+                            padding:"2px 6px",borderRadius:3,whiteSpace:"nowrap",
+                            background:(item.source||"IS")==="IS"?"#0a1a0a":"#1a0a1a",
+                            color:(item.source||"IS")==="IS"?"#4ade80":"#c084fc",
+                            border:"1px solid "+((item.source||"IS")==="IS"?"#1a3a1a":"#3a1a3a")}}>
+                            {item.source||"IS"}
                           </span>
                         </div>
                         <div style={{flex:1,fontFamily:"'Lora',serif",fontSize:13,color:"#d1d5db",lineHeight:1.6}}>
