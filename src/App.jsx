@@ -2,129 +2,48 @@ import { useState, useRef } from "react";
 
 // ── Structured checklist data ─────────────────────────────────────────────────
 const DEFAULT_ITEMS = [
-  // Accruals
-  { id: 1,  category: "Accruals", accounts: "", rule: "CHECK",   text: "Verify all prior month accruals were reversed in current month except Real estate tax accrual" },
-  { id: 2,  category: "Accruals", accounts: "", rule: "FLAG IF", text: "Accrual entry has no corresponding reversal within first 5 business days of month" },
-  { id: 3,  category: "Accruals", accounts: "", rule: "CHECK",   text: "Confirm standard monthly accruals are present (property management fees, property tax, insurance, payroll, mortgage interest expense, asset management fees, invoice accrual, order accrual, utilities expense, marketing expense, contract accrual, utilities re-bill, capex accrual)" },
-  { id: 4,  category: "Accruals", accounts: "", rule: "FLAG IF", text: "Any standard accrual is missing or differs more than 5% from prior month" },
-  { id: 5,  category: "Accruals", accounts: "", rule: "FLAG IF", text: "Account shows a reversal with no corresponding new accrual or expense entry in the same month" },
-  { id: 6,  category: "Accruals", accounts: "", rule: "FLAG IF", text: "Accrual posted with vague description especially near month-end" },
-  { id: 7,  category: "Accruals", accounts: "", rule: "FLAG IF", text: "Accrual description indicates the accrual should be posted in a future period and not the current review month period" },
-  { id: 8,  category: "Accruals", accounts: "", rule: "FLAG IF", text: "Any recurring accrual is reversed without an actual expense posting, typically causing a negative expense balance in the review month income statement" },
-
-  // Revenue - Total Rental Income
-  { id: 9,  category: "Revenue - Total Rental Income", accounts: "411001-415002", rule: "FLAG IF", text: "Total Rental Income (sum of 411001-415002) variance of more than 2% vs prior month" },
-  { id: 10, category: "Revenue - Total Rental Income", accounts: "411001-415002", rule: "FLAG IF", text: "Any reclass journal entries are posted to rental income accounts" },
-  { id: 11, category: "Revenue - Total Rental Income", accounts: "411001-415002", rule: "FLAG IF", text: "Any adjustments or reversals to rental income accounts" },
-
-  // Revenue - Bad Debt
-  { id: 12, category: "Revenue - Bad Debt", accounts: "419001 Bad Debt Expense", rule: "FLAG IF", text: "Bad Debt Expense equals zero; may be missing entries or bad debt reserve" },
-  { id: 13, category: "Revenue - Bad Debt", accounts: "419001 Bad Debt Expense", rule: "FLAG IF", text: "Negative bad debt expense posted" },
-
-  // Revenue - Other Income
-  { id: 14, category: "Revenue - Other Income", accounts: "440003, 440020, 440032", rule: "FLAG IF", text: "Any of these other income account ending balances in the income statement for the current month varies by more than 20% from the prior month" },
-
-  // Repairs & Maintenance
-  { id: 15, category: "Repairs & Maintenance", accounts: "601001-601049", rule: "FLAG IF", text: "Any single R&M account exceeds $3,000 in current month and was under $1,000 prior month" },
-  { id: 16, category: "Repairs & Maintenance", accounts: "601001-601049", rule: "FLAG IF", text: "PO accruals apply identical dollar amounts across unrelated line items (system error pattern)" },
-  { id: 17, category: "Repairs & Maintenance", accounts: "601001-601049", rule: "FLAG IF", text: "Any entry description references roof, HVAC, appliance, flooring, toilet replacement, sink replacement, faucet, water heater, door replacement, garbage disposal, resurfacing tub, oven, control board, glass installation - verify P&L vs. capital" },
-  { id: 18, category: "Repairs & Maintenance", accounts: "601001-601049", rule: "FLAG IF", text: "Invoices from the same vendor are being posted to multiple unrelated R&M accounts" },
-
-  // Turnover Expenses
-  { id: 19, category: "Turnover Expenses", accounts: "602001-602016", rule: "FLAG IF", text: "Total Turnover Expenses increase more than 50% vs prior month without corresponding vacancy increase" },
-  { id: 20, category: "Turnover Expenses", accounts: "602001-602016", rule: "FLAG IF", text: "Turnover costs near zero when vacancy loss is elevated" },
-  { id: 21, category: "Turnover Expenses", accounts: "602001-602016", rule: "FLAG IF", text: "GL ONLY: In the turnover expense accounts (602001-602016), flag any individual journal entry that does not include a unit number in its description" },
-  { id: 22, category: "Turnover Expenses", accounts: "602001-602016", rule: "FLAG IF", text: "GL ONLY: In the turnover expense accounts (602001-602016), add up all GL entries for the review month by unit number. Flag any unit where the total across all turnover accounts exceeds $350" },
-  { id: 23, category: "Turnover Expenses", accounts: "602001-602016", rule: "FLAG IF", text: "Drywall/Painting expense coded under cleaning services GL or vice versa. Similarly, cleaning services under carpet cleaning and vice versa" },
-  { id: 24, category: "Turnover Expenses", accounts: "602001-602016", rule: "FLAG IF", text: "Expenses related to Doors supplies and repairs coded to Locks and Keys and vice versa" },
-  { id: 25, category: "Turnover Expenses", accounts: "602001-602016", rule: "FLAG IF", text: "Any invoice/accrual entry description references replacement" },
-
-  // Payroll
-  { id: 26, category: "Payroll", accounts: "603001-603106", rule: "FLAG IF", text: "Total payroll, excluding 603008 Bonuses - Performance, varies more than 10% vs prior month without explanation" },
-  { id: 27, category: "Payroll", accounts: "603001-603106", rule: "FLAG IF", text: "Wages post but burden accounts (taxes, insurance, 401k) are zero or missing same period" },
-  { id: 28, category: "Payroll", accounts: "603001-603106", rule: "FLAG IF", text: "Large overtime spike without change in staffing payroll" },
-  { id: 29, category: "Payroll", accounts: "603001-603106", rule: "FLAG IF", text: "Payroll expenses posted without description of payroll period" },
-
-  // Utilities
-  { id: 30, category: "Utilities", accounts: "604003, 604004, 604104, 604201, 604301, 604302, 604401, 604403", rule: "FLAG IF", text: "Any utility varies more than 25% from trailing 3-month average without explanation" },
-  { id: 31, category: "Utilities", accounts: "604003, 604004, 604104, 604201, 604301, 604302, 604401, 604403", rule: "FLAG IF", text: "Any utility account shows large negative income statement value in current month - may indicate billing catch-up or accrual error" },
-  { id: 32, category: "Utilities", accounts: "604003, 604004, 604104, 604201, 604301, 604302, 604401, 604403", rule: "FLAG IF", text: "GL ONLY: A material utility expense for a new meter number is recorded in the current month that did not appear in any prior month GL entries" },
-  { id: 33, category: "Utilities", accounts: "604003, 604004, 604104, 604201, 604301, 604302, 604401, 604403", rule: "FLAG IF", text: "GL ONLY: A meter number that appeared in prior month GL entries is completely absent from current month GL entries" },
-  { id: 34, category: "Utilities", accounts: "604003, 604004, 604104, 604201, 604301, 604302, 604401, 604403", rule: "FLAG IF", text: "GL ONLY: Any utility GL entry where the billing period in the description does not overlap with the review month" },
-  { id: 35, category: "Utilities", accounts: "604003, 604004, 604104, 604201, 604301, 604302, 604401, 604403", rule: "FLAG IF", text: "GL ONLY: Any utility GL entry where the billing period in the description overlaps with a period already posted in a prior month entry for the same meter number" },
-
-  // Contract Services
-  { id: 36, category: "Contract Services", accounts: "605001-605030", rule: "FLAG IF", text: "Any recurring vendor missing for current month with no explanation" },
-  { id: 37, category: "Contract Services", accounts: "605001-605030", rule: "FLAG IF", text: "Any contract amount varies more than 10% from its typical monthly amount" },
-  { id: 38, category: "Contract Services", accounts: "605001-605030", rule: "FLAG IF", text: "Any material increase in contract line (e.g., 2x the prior month amount) that looks like an incorrect accrual" },
-  { id: 39, category: "Contract Services", accounts: "605001-605030", rule: "FLAG IF", text: "Contract services posted without service period" },
-  { id: 40, category: "Contract Services", accounts: "605001-605030", rule: "FLAG IF", text: "Duplicate vendor invoices with slightly different descriptions" },
-  { id: 41, category: "Contract Services", accounts: "605001-605030", rule: "FLAG IF", text: "Invoice/accrual posted for annual/quarterly period services" },
-
-  // ILS Marketing
-  { id: 42, category: "ILS Marketing", accounts: "606602-606610", rule: "FLAG IF", text: "ILS marketing spend in any account varies more than 50% from the prior month" },
-  { id: 43, category: "ILS Marketing", accounts: "606602-606610", rule: "FLAG IF", text: "Multiple payments to same advertising vendor within same month" },
-
-  // Marketing
-  { id: 44, category: "Marketing", accounts: "606001-606822", rule: "FLAG IF", text: "Any marketing account reversed but not re-accrued in same period or expensed" },
-  { id: 45, category: "Marketing", accounts: "606001-606822", rule: "FLAG IF", text: "Same vendor accrued twice in one month without explanation" },
-  { id: 46, category: "Marketing", accounts: "606001-606822", rule: "FLAG IF", text: "Duplicate accrual for same period and same service" },
-  { id: 47, category: "Marketing", accounts: "606001-606822", rule: "FLAG IF", text: "Invoice/accrual posted for annual/quarterly period" },
-
-  // Administrative
-  { id: 48, category: "Administrative", accounts: "607001, 607004-607009, 607011-607018, 607019, 607020, 607022-607023, 607028, 607029, 607030, 607038", rule: "FLAG IF", text: "Any administrative expense income statement account is negative for the current month or varies more than 25% from trailing 3-month average" },
-  { id: 49, category: "Administrative", accounts: "607001, 607004-607009, 607011-607018, 607019, 607020, 607022-607023, 607028, 607029, 607030, 607038", rule: "FLAG IF", text: "Expense description says Banner fees - these need to be reclassed to capital" },
-  { id: 50, category: "Administrative", accounts: "607001, 607004-607009, 607011-607018, 607019, 607020, 607022-607023, 607028, 607029, 607030, 607038", rule: "FLAG IF", text: "Realpage vendor invoice/accrual or any licence or inspection fees indicating future period services" },
-
-  // Management Fee
-  { id: 51, category: "Management Fee", accounts: "608001 External Management Fee Expense", rule: "FLAG IF", text: "Fee as % of Total Revenue varies more than 1% from prior months" },
-  { id: 52, category: "Management Fee", accounts: "608001 External Management Fee Expense", rule: "FLAG IF", text: "Negative management fee entry posts without explanation" },
-
-  // Insurance
-  { id: 53, category: "Insurance", accounts: "640001, 640007 Property and Flood Insurance", rule: "FLAG IF", text: "Any insurance account (640001, 640007) changes vs prior month without documented policy change or new amortization schedule" },
-  { id: 54, category: "Insurance", accounts: "640001, 640007 Property and Flood Insurance", rule: "FLAG IF", text: "Full annual or multi-month premium expensed in one month instead of being amortized across the policy period" },
-  { id: 55, category: "Insurance", accounts: "640001, 640007 Property and Flood Insurance", rule: "FLAG IF", text: "Changes in insurance vendor without policy documentation" },
-  { id: 56, category: "Insurance", accounts: "640001, 640007 Property and Flood Insurance", rule: "FLAG IF", text: "Duplicate insurance expense entries posted in the same month" },
-
-  // Debt Service
-  { id: 57, category: "Debt Service", accounts: "701001-701010", rule: "FLAG IF", text: "Any expense line changes vs prior month by more than 5%" },
-  { id: 58, category: "Debt Service", accounts: "701001-701010", rule: "FLAG IF", text: "Loan payment missed or doubled in same month" },
-
-  // Real Estate Taxes
-  { id: 59, category: "Real Estate Taxes", accounts: "630001 Real Estate Tax", rule: "FLAG IF", text: "Amount changes vs prior month without explanation" },
-  { id: 60, category: "Real Estate Taxes", accounts: "630001 Real Estate Tax", rule: "FLAG IF", text: "Multiple tax entries within same month" },
-  { id: 61, category: "Real Estate Taxes", accounts: "630001 Real Estate Tax", rule: "FLAG IF", text: "Prior month accrual posted on reversal basis" },
-
-  // Legal
-  { id: 62, category: "Legal", accounts: "607010 Legal - Evictions", rule: "FLAG IF", text: "Any legal fee entry appears - note for manager awareness regardless of amount" },
-  { id: 63, category: "Legal", accounts: "607010 Legal - Evictions", rule: "FLAG IF", text: "Legal expenses indicating owner-related matters or undertaken on behalf of the owners - add a comment to reclass these expenses below the line" },
-  { id: 64, category: "Legal", accounts: "607010 Legal - Evictions", rule: "FLAG IF", text: "Legal expenses capital in nature (acquisition, financing) but recorded as expense" },
-
-  // Expense Trends
-  { id: 65, category: "Expense Trends", accounts: "", rule: "CHECK",   text: "Identify any expense line present in 2+ prior months but zero in current month - note for review, do not flag" },
-  { id: 66, category: "Expense Trends", accounts: "", rule: "CHECK",   text: "Flag any income statement account with large swing from positive to negative or vice versa in consecutive months" },
-  { id: 67, category: "Expense Trends", accounts: "6xxxxx all expense accounts", rule: "FLAG IF", text: "ANY expense account (6xxxxx) shows a negative month-ending balance on the income statement for the review period - flag every instance regardless of amount, category, or cause including accrual reversals, billing credits, or coding errors" },
+  { id: 1,  category: "Accruals",                        accounts: "",                                                                          rule: "CHECK",   text: "Verify all prior month accruals were reversed in current month" },
+  { id: 2,  category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Accrual entry has no corresponding reversal within first 5 business days of month" },
+  { id: 3,  category: "Accruals",                        accounts: "",                                                                          rule: "CHECK",   text: "Confirm standard monthly accruals are present (property mgmt fee, property tax, insurance)" },
+  { id: 4,  category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Any standard accrual is missing or differs more than 5% from prior month" },
+  { id: 5,  category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Account shows a reversal with no corresponding new accrual or expense entry in the same month" },
+  { id: 6,  category: "Revenue - Total Rental Income",   accounts: "411001-415002",                                                             rule: "FLAG IF", text: "Total Rental Income (sum of 411001-415002) variance of more than 2% vs prior month" },
+  { id: 7,  category: "Revenue - Bad Debt",              accounts: "419001 Bad Debt Expense",                                                   rule: "FLAG IF", text: "Bad Debt Expense equals zero; may be missing entries or bad debt reserve" },
+  { id: 35, category: "Revenue - Other Income",          accounts: "440003, 440020, 440032",                                                        rule: "FLAG IF", text: "Any of these other income account ending balances in the income statement for the current month varies by more than 20% from the prior month" },
+  { id: 8,  category: "Repairs & Maintenance",           accounts: "601001-601049",                                                            rule: "FLAG IF", text: "Any single R&M account exceeds $3,000 in current month and was under $1,000 prior month" },
+  { id: 9,  category: "Repairs & Maintenance",           accounts: "601001-601049",                                                            rule: "FLAG IF", text: "Any R&M account shows a large negative balance on the income statement in the current month" },
+  { id: 10, category: "Repairs & Maintenance",           accounts: "601001-601049",                                                            rule: "FLAG IF", text: "PO accruals apply identical dollar amounts across unrelated line items (system error pattern)" },
+  { id: 11, category: "Repairs & Maintenance",           accounts: "601001-601049",                                                            rule: "FLAG IF", text: "Any entry description references roof, HVAC, appliance, flooring - verify P&L vs. capital" },
+  { id: 12, category: "Turnover Expenses",               accounts: "602001-602016",                                                            rule: "FLAG IF", text: "Total Turnover Expenses increase more than 50% vs prior month without corresponding vacancy increase" },
+  { id: 13, category: "Turnover Expenses",               accounts: "602001-602016",                                                            rule: "FLAG IF", text: "Turnover costs near zero when vacancy loss is elevated" },
+  { id: 14, category: "Payroll",                         accounts: "603001-603106",                                                            rule: "FLAG IF", text: "Total payroll, excluding 603008 Bonuses - Performance, varies more than 10% vs prior month without explanation" },
+  { id: 15, category: "Payroll",                         accounts: "603001-603106",                                                            rule: "FLAG IF", text: "Wages post but burden accounts (taxes, insurance, 401k) are zero or missing same period" },
+  { id: 16, category: "Utilities",                       accounts: "604003, 604004, 604201, 604301, 604302",                                   rule: "FLAG IF", text: "Any utility varies more than 25% from trailing 3-month average without explanation" },
+  { id: 17, category: "Utilities",                       accounts: "604003, 604004, 604201, 604301, 604302",                                   rule: "FLAG IF", text: "Any utility account shows large negative income statement value in current month - may indicate billing catch-up or accrual error" },
+  { id: 18, category: "Contract Services",               accounts: "605001-605030",                                                            rule: "FLAG IF", text: "Any recurring vendor missing for current month with no explanation" },
+  { id: 19, category: "Contract Services",               accounts: "605001-605030",                                                            rule: "FLAG IF", text: "Any contract amount varies more than 10% from its typical monthly amount" },
+  { id: 20, category: "Contract Services",               accounts: "605001-605030",                                                            rule: "FLAG IF", text: "Any material increase in contract line (e.g., 2x the prior month amount) that looks like an incorrect accrual" },
+  { id: 21, category: "ILS Marketing",                   accounts: "606602-606610",                                                            rule: "FLAG IF", text: "ILS marketing spend in any account varies more than 50% from the prior month" },
+  { id: 22, category: "Marketing",                       accounts: "606001-606822",                                                            rule: "FLAG IF", text: "Any marketing account reversed but not re-accrued in same period or expensed" },
+  { id: 23, category: "Marketing",                       accounts: "606001-606822",                                                            rule: "FLAG IF", text: "Same vendor accrued twice in one month without explanation" },
+  { id: 24, category: "Administrative",                  accounts: "607005-607009, 607011-607018, 607022-607023, 607029, 607038",              rule: "FLAG IF", text: "Any administrative expense income statement account is negative for the current month or varies more than 25% from trailing 3-month average" },
+  { id: 25, category: "Management Fee",                  accounts: "608001 External Management Fee Expense",                                   rule: "FLAG IF", text: "Fee as % of Total Revenue varies more than 1% from prior months" },
+  { id: 26, category: "Management Fee",                  accounts: "608001 External Management Fee Expense",                                   rule: "FLAG IF", text: "Negative management fee entry posts without explanation" },
+  { id: 27, category: "Insurance",                       accounts: "640001 Property Insurance",                                                rule: "FLAG IF", text: "Amount changes vs prior month without documented policy change or new amortization schedule" },
+  { id: 28, category: "Debt Service",                    accounts: "701001-701010",                                                            rule: "FLAG IF", text: "Any expense line changes vs prior month by more than 2%" },
+  { id: 29, category: "Real Estate Taxes",               accounts: "630001 Real Estate Tax",                                                   rule: "FLAG IF", text: "Amount changes vs prior month without explanation" },
+  { id: 30, category: "Legal",                           accounts: "607010 Legal - Evictions",                                                 rule: "FLAG IF", text: "Any legal fee entry appears - note for manager awareness regardless of amount" },
+  { id: 31, category: "Expense Trends",                  accounts: "",                                                                          rule: "CHECK",   text: "Identify any expense line present in 2+ prior months but zero in current month" },
+  { id: 32, category: "Expense Trends",                  accounts: "",                                                                          rule: "FLAG IF", text: "Zero balance with no prior indication expense was one-time or seasonal" },
+  { id: 33, category: "Expense Trends",                  accounts: "",                                                                          rule: "CHECK",   text: "Flag any income statement account with large swing from positive expense value to negative expense value or vice versa in consecutive months" },
+  { id: 34, category: "Expense Trends",                  accounts: "6xxxxx all expense accounts",                                              rule: "FLAG IF", text: "ANY expense account (6xxxxx) shows a negative month-ending balance on the income statement - flag every instance regardless of amount or category" },
 ];
 
 const CATEGORIES = [
-  "Accruals",
-  "Revenue - Total Rental Income",
-  "Revenue - Bad Debt",
-  "Revenue - Other Income",
-  "Repairs & Maintenance",
-  "Turnover Expenses",
-  "Payroll",
-  "Utilities",
-  "Contract Services",
-  "ILS Marketing",
-  "Marketing",
-  "Administrative",
-  "Management Fee",
-  "Insurance",
-  "Debt Service",
-  "Real Estate Taxes",
-  "Legal",
-  "Expense Trends",
+  "Accruals","Revenue - Gross Potential Rent","Revenue - Bad Debt","Revenue - Other Income",
+  "Repairs & Maintenance","Turnover Expenses","Payroll","Utilities",
+  "Contract Services","ILS Marketing","Marketing","Administrative","Management Fee","Insurance","Debt Service",
+  "Real Estate Taxes","Legal","Expense Trends",
 ];
 
 function serialize(items) {
@@ -383,9 +302,9 @@ export default function App() {
     try {
       const [yr, mo] = reviewMonth.split("-");
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
-      const sys = "You are a senior multifamily property accountant. Your response must begin immediately with the first [FINDING] tag. Do not write any introduction, preamble, summary, or closing sentence.\n\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nINCOME STATEMENT RULES: Use the income statement for two things only: (1) checking month-ending balances for the REVIEW PERIOD month, and (2) comparing balances to prior months. Flag every expense account (account numbers starting with 6) that shows a negative month-ending balance on the income statement for the review period month as a separate finding. Do not reference YTD totals, TTM, or future month columns. When calculating trailing averages, use the 3 months prior to the review period only. Do not include the current review month in the average.\n\nGL RULES: Use the general ledger for reviewing individual journal entries only - accruals, reversals, duplicate postings, unusual descriptions, and timing anomalies. Only flag specific GL transactions that look suspicious.\n\nIf you cannot find the specific numbers in the data to evaluate a checklist rule, skip that rule entirely. Do not include soft observations, monitoring notes, or findings where the variance is within the acceptable threshold.";
+      const sys = "You are a senior multifamily property accountant. Your response must begin immediately with the first [FINDING] tag. Do not write any introduction, preamble, summary, or closing sentence.\n\nDo not use markdown, headers, asterisks, or any formatting symbols.\n\nFor checklist items where ACCOUNTS are empty or says 'all', apply that check across every account in the provided data.\n\nFor each issue found, use EXACTLY this format:\n[FINDING] Account Name (Account #)\nIssue: describe the issue with specific dollar amounts from the data\nAction: what needs to be done\n---\n\nOrder all findings by account number ascending (lowest number first). Do not assign or mention any priority level. Skip accounts with no issues. Be specific with dollar amounts.\n\nINCOME STATEMENT RULES: Use the income statement for two things only: (1) checking month-ending balances for the REVIEW PERIOD month, and (2) comparing balances to prior months. Flag every expense account (account numbers starting with 6) that shows a negative month-ending balance on the income statement for the review period month as a separate finding. Do not reference YTD totals, TTM, or future month columns.\n\nGL RULES: Use the general ledger for reviewing individual journal entries only - accruals, reversals, duplicate postings, unusual descriptions, and timing anomalies. Only flag specific GL transactions that look suspicious.\n\nWhen calculating trailing averages, use the 3 months prior to the review period only. Do not include the current review month in the average.";
       const usr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serialize(items) + "\n\n" + (incomeStatement.trim() ? "INCOME STATEMENT:\n" + incomeStatement + "\n\n" : "") + (glEntries.trim() ? "GL ENTRIES:\n" + glEntries + "\n\n" : "") + "Review the " + label + " financials against the checklist.";
-      setFindings(await callClaude(sys, usr, { thinking: { type: "enabled", budget_tokens: 7000 }, max_tokens: 16000 }));
+      setFindings(await callClaude(sys, usr, { thinking: { type: "enabled", budget_tokens: 5000 }, max_tokens: 16000 }));
       setTab("findings");
     } catch(e) { setReviewError("Error: " + (e.message || "Please try again.")); }
     setReviewing(false);
