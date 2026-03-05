@@ -321,8 +321,8 @@ export default function App() {
 
         const isRaw = await callClaude(isSys, isUsr, { thinking: { type: "enabled", budget_tokens: 6000 }, max_tokens: 16000 });
         try {
-          const clean = isRaw.replace(/^```json\s*/,"").replace(/\s*```$/,"").trim();
-          isFindings = JSON.parse(clean);
+          const match = isRaw.match(/\[[\s\S]*\]/);
+          isFindings = JSON.parse(match ? match[0] : isRaw);
         } catch(e) { isFindings = []; setReviewError("IS parse error: " + isRaw.slice(0, 200)); }
       }
 
@@ -335,8 +335,8 @@ export default function App() {
 
         const glRaw = await callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 3000 }, max_tokens: 8000 });
         try {
-          const clean = glRaw.replace(/^```json\s*/,"").replace(/\s*```$/,"").trim();
-          glFindings = JSON.parse(clean);
+          const match = glRaw.match(/\[[\s\S]*\]/);
+          glFindings = JSON.parse(match ? match[0] : glRaw);
         } catch(e) { glFindings = []; setReviewError("GL parse error: " + glRaw.slice(0, 200)); }
       }
 
