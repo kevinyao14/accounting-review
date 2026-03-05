@@ -85,7 +85,9 @@ async function callClaude(system, user, options = {}) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ system, messages: [{ role: "user", content: user }], ...options }),
   });
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error(text.slice(0, 300)); }
   if (!res.ok || data.error) {
     const msg = data.error?.message || data.error || JSON.stringify(data);
     throw new Error(msg);
