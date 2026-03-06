@@ -423,7 +423,7 @@ export default function App() {
               .catch(e => { setReviewError("GL parse error: " + e.message.slice(0, 200)); return []; })
           : Promise.resolve([]),
         budgetData.trim()
-          ? callClaude(budSys, budUsr, { thinking: { type: "enabled", budget_tokens: 3000 }, max_tokens: 6000 })
+          ? callClaude(budSys, budUsr, { thinking: { type: "enabled", budget_tokens: 3000 }, max_tokens: 16000 })
               .then(raw => { const match = raw.match(/\[[\s\S]*\]/); return JSON.parse(match ? match[0] : raw); })
               .catch(e => { setReviewError("Budget parse error: " + e.message.slice(0, 200)); return []; })
           : Promise.resolve([]),
