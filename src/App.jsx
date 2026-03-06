@@ -109,6 +109,8 @@ export default function App() {
   const [reviewing, setReviewing]             = useState(false);
   const [reviewStatus, setReviewStatus]       = useState("");
   const [reviewError, setReviewError]         = useState("");
+  const [budgetData, setBudgetData]           = useState("");
+  const [budgetError, setBudgetError]         = useState("");
 
   const [items, setItems]         = useState(DEFAULT_ITEMS);
   const [prevItems, setPrevItems] = useState(null);
@@ -120,6 +122,7 @@ export default function App() {
   const fileInputRef = useRef(null);
   const isFileRef    = useRef(null);
   const glFileRef    = useRef(null);
+  const budgetFileRef = useRef(null);
   const refineISFileRef = useRef(null);
   const refineGLFileRef = useRef(null);
 
@@ -179,6 +182,62 @@ export default function App() {
       }
       setErr("");
       setter(filtered);
+    };
+    reader.readAsText(file);
+  };
+
+  const readBudgetCsv = (file, setter, setErr) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const raw = e.target.result;
+      const [yr, mo] = reviewMonth.split("-");
+      const reviewDate = new Date(+yr, +mo - 1, 1);
+
+      const lines = raw.split("\n");
+      let budgetColIdx = null;
+
+      // Find the date header row and locate the exact review month column
+      for (let i = 0; i < lines.length; i++) {
+        const cols = lines[i].split(",");
+        const hasDate = cols.some(c => {
+          const t = c.trim();
+          return t.length === 10 && t[2] === "/" && t[5] === "/";
+        });
+        if (hasDate) {
+          cols.forEach((c, j) => {
+            const t = c.trim();
+            if (t.length === 10 && t[2] === "/" && t[5] === "/") {
+              const parts = t.split("/");
+              const colDate = new Date(+parts[2], +parts[0] - 1, 1);
+              if (colDate.getFullYear() === reviewDate.getFullYear() &&
+                  colDate.getMonth() === reviewDate.getMonth()) {
+                budgetColIdx = j;
+              }
+            }
+          });
+          break;
+        }
+      }
+
+      if (budgetColIdx === null) {
+        setErr("No budget column found for the selected review period.");
+        return;
+      }
+
+      const rows = ["AccountNumber,AccountName,Budget"];
+      for (const line of lines) {
+        const cols = line.split(",");
+        const acct = (cols[0] ?? "").trim();
+        if (/^\d{6}$/.test(acct)) {
+          const name = (cols[1] ?? "").trim();
+          const budget = (cols[budgetColIdx] ?? "").trim();
+          rows.push([acct, name, budget].join(","));
+        }
+      }
+
+      setErr("");
+      setter(rows.join("\n"));
     };
     reader.readAsText(file);
   };
@@ -327,35 +386,58 @@ export default function App() {
         } catch(e) { isFindings = []; setReviewError("IS parse error: " + isRaw.slice(0, 200)); }
       }
 
-      // ── Call 2: GL Investigation ──────────────────────────────────────────────
-      if (glEntries.trim()) {
-        setReviewStatus("Investigating GL entries...");
-        const glSys = "You are a senior multifamily property accountant investigating GL journal entries.\n\nYou will receive two things: (1) a list of issues already identified from the income statement, and (2) GL journal entries to investigate.\n\nYour job has two parts:\nPART 1 - For each income statement finding provided, look at the GL entries for that account and add specific detail about the individual journal entries that explain or confirm the issue. Add context such as specific entry dates, descriptions, amounts, and whether accrual/reversal pairs are present.\nPART 2 - Apply the GL checklist rules independently to identify any additional issues visible only in the GL that the income statement would not show.\n\nDo NOT re-detect income statement variance issues. Do NOT recalculate month-ending balances or compare column totals. Only look at individual journal entry patterns: accruals, reversals, duplicate postings, missing pairs, suspicious descriptions, and timing anomalies.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: describe the specific issue with entry dates, descriptions, and amounts from the GL\n  - action: what needs to be done\n  - source: either \"IS\" if this augments an income statement finding, or \"GL\" if this is a new GL-only finding\n- If you cannot find the specific entries to evaluate a checklist rule, skip it entirely.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if no issues are found.";
+      // ── Calls 2 & 3: GL Investigation + Budget Review (parallel) ─────────────
+      const parallelStatus = glEntries.trim() && budgetData.trim() ? "Investigating GL entries and budget..."
+        : glEntries.trim() ? "Investigating GL entries..."
+        : budgetData.trim() ? "Running budget variance check..."
+        : null;
+      if (parallelStatus) setReviewStatus(parallelStatus);
 
-        const glUsr = "REVIEW PERIOD: " + label + "\n\nINCOME STATEMENT FINDINGS ALREADY IDENTIFIED:\n" + JSON.stringify(isFindings, null, 2) + "\n\nGL CHECKLIST:\n" + serializeBySource(items, "GL") + "\n\nGL ENTRIES:\n" + glEntries + "\n\nInvestigate the GL entries for " + label + ".";
+      const glSys = "You are a senior multifamily property accountant investigating GL journal entries.\n\nYou will receive two things: (1) a list of issues already identified from the income statement, and (2) GL journal entries to investigate.\n\nYour job has two parts:\nPART 1 - For each income statement finding provided, look at the GL entries for that account and add specific detail about the individual journal entries that explain or confirm the issue. Add context such as specific entry dates, descriptions, amounts, and whether accrual/reversal pairs are present.\nPART 2 - Apply the GL checklist rules independently to identify any additional issues visible only in the GL that the income statement would not show.\n\nDo NOT re-detect income statement variance issues. Do NOT recalculate month-ending balances or compare column totals. Only look at individual journal entry patterns: accruals, reversals, duplicate postings, missing pairs, suspicious descriptions, and timing anomalies.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: describe the specific issue with entry dates, descriptions, and amounts from the GL\n  - action: what needs to be done\n  - source: either \"IS\" if this augments an income statement finding, or \"GL\" if this is a new GL-only finding\n- If you cannot find the specific entries to evaluate a checklist rule, skip it entirely.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if no issues are found.";
+      const glUsr = "REVIEW PERIOD: " + label + "\n\nINCOME STATEMENT FINDINGS ALREADY IDENTIFIED:\n" + JSON.stringify(isFindings, null, 2) + "\n\nGL CHECKLIST:\n" + serializeBySource(items, "GL") + "\n\nGL ENTRIES:\n" + glEntries + "\n\nInvestigate the GL entries for " + label + ".";
 
-        const glRaw = await callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 3000 }, max_tokens: 8000 });
-        try {
-          const match = glRaw.match(/\[[\s\S]*\]/);
-          glFindings = JSON.parse(match ? match[0] : glRaw);
-        } catch(e) { glFindings = []; setReviewError("GL parse error: " + glRaw.slice(0, 200)); }
-      }
+      const budSys = "You are a senior multifamily property accountant performing a budget variance review.  Apply exactly two checks to expense accounts (6xxxxx) only:  CHECK 1 — UNBUDGETED EXPENSES: Any expense account where the actual amount for the review period is greater than $0 but the budget is $0 or missing. Flag as potential miscoding to wrong account.  CHECK 2 — MATERIAL BUDGET OVERAGES: Any expense account where actual exceeds budget by more than 25% AND the dollar overage is greater than $500. Skip accounts where budget is $0 (those are caught by Check 1).  OUTPUT RULES: - Return a JSON array only. No preamble, no explanation, no markdown backticks. - Each object must have: { accountNumber, accountName, issue, action, checkType } where checkType is \"UNBUDGETED\" or \"BUDGET_OVERAGE\" - Include exact actual amount, budget amount, and variance % in the issue field. - Order by accountNumber ascending. - Return [] if no issues found.";
+      const budUsr = "REVIEW PERIOD: " + label + "\n\nACTUAL (from income statement, review month column only):\n" + incomeStatement + "\n\nBUDGET (review month only):\n" + budgetData + "\n\nApply the two budget checks for " + label + ".";
+
+      const [glResult, budResult] = await Promise.all([
+        glEntries.trim()
+          ? callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 3000 }, max_tokens: 8000 })
+              .then(raw => { const match = raw.match(/\[[\s\S]*\]/); return JSON.parse(match ? match[0] : raw); })
+              .catch(e => { setReviewError("GL parse error: " + e.message.slice(0, 200)); return []; })
+          : Promise.resolve([]),
+        budgetData.trim()
+          ? callClaude(budSys, budUsr, { thinking: { type: "enabled", budget_tokens: 3000 }, max_tokens: 6000 })
+              .then(raw => { const match = raw.match(/\[[\s\S]*\]/); return JSON.parse(match ? match[0] : raw); })
+              .catch(e => { setReviewError("Budget parse error: " + e.message.slice(0, 200)); return []; })
+          : Promise.resolve([]),
+      ]);
+
+      glFindings = glResult;
+      const budgetFindings = budResult;
 
       // ── Merge by accountNumber ────────────────────────────────────────────────
       const merged = {};
 
       isFindings.forEach(f => {
         const key = f.accountNumber;
-        if (!merged[key]) merged[key] = { accountNumber: f.accountNumber, accountName: f.accountName, isIssue: "", glIssue: "", action: "" };
+        if (!merged[key]) merged[key] = { accountNumber: f.accountNumber, accountName: f.accountName, isIssue: "", glIssue: "", budgetIssue: "", action: "" };
         merged[key].isIssue = f.issue;
         merged[key].action = f.action;
       });
 
       glFindings.forEach(f => {
         const key = f.accountNumber;
-        if (!merged[key]) merged[key] = { accountNumber: f.accountNumber, accountName: f.accountName, isIssue: "", glIssue: "", action: "" };
+        if (!merged[key]) merged[key] = { accountNumber: f.accountNumber, accountName: f.accountName, isIssue: "", glIssue: "", budgetIssue: "", action: "" };
         if (!merged[key].accountName) merged[key].accountName = f.accountName;
         merged[key].glIssue = f.issue;
+        if (!merged[key].action) merged[key].action = f.action;
+      });
+
+      budgetFindings.forEach(f => {
+        const key = f.accountNumber;
+        if (!merged[key]) merged[key] = { accountNumber: f.accountNumber, accountName: f.accountName, isIssue: "", glIssue: "", budgetIssue: "", action: "" };
+        if (!merged[key].accountName) merged[key].accountName = f.accountName;
+        merged[key].budgetIssue = f.issue;
         if (!merged[key].action) merged[key].action = f.action;
       });
 
@@ -504,6 +586,19 @@ export default function App() {
                   value={glEntries} onChange={e=>setGlEntries(e.target.value)}/>
               </div>
             </div>
+            <div style={{...s.inputGroup,marginTop:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <label style={s.label}>Budget Statement <span style={s.hint}>Annual budget CSV — review month column will be extracted</span></label>
+                <button className="btn" onClick={()=>budgetFileRef.current?.click()}
+                  style={{...s.btnOutline,fontSize:10,padding:"3px 10px",marginBottom:4}}>
+                  Upload CSV
+                </button>
+                <input ref={budgetFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
+                  onChange={e=>{ readBudgetCsv(e.target.files?.[0], setBudgetData, setBudgetError); e.target.value=""; }}/>
+              </div>
+              {budgetError && <div style={{...s.error,marginTop:6}}>{budgetError}</div>}
+              {budgetData && !budgetError && <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4ade80",marginTop:4}}>Budget loaded ({budgetData.split("\n").length - 1} accounts)</div>}
+            </div>
             {reviewError && <div style={s.error}>{reviewError}</div>}
             <div style={{display:"flex",justifyContent:"flex-end",marginTop:20}}>
               <button className="btn" onClick={runReview} disabled={reviewing} style={s.btnGold}>
@@ -540,6 +635,12 @@ export default function App() {
                       <div style={{marginBottom:6}}>
                         <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#60a5fa", letterSpacing:0.5}}>GL · </span>
                         <span style={{fontFamily:"'Lora',serif", fontSize:13, lineHeight:1.7, color:"#9ca3af"}}>{item.glIssue}</span>
+                      </div>
+                    )}
+                    {item.budgetIssue && (
+                      <div style={{marginBottom:6}}>
+                        <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#f97316", letterSpacing:0.5}}>BUD · </span>
+                        <span style={{fontFamily:"'Lora',serif", fontSize:13, lineHeight:1.7, color:"#9ca3af"}}>{item.budgetIssue}</span>
                       </div>
                     )}
                     {item.action && (
