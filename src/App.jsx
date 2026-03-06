@@ -384,8 +384,8 @@ export default function App() {
     if (!refineAnalysis.trim()) { setRefineError("Run the gap analysis first."); return; }
     setRefineError(""); setRefining(true);
     try {
-      const sys = "You are updating a multifamily property accounting review checklist.\nReturn ONLY the full updated checklist. Keep all existing checks unless the analysis says to change them.\nAdd new FLAG IF or CHECK lines where gaps were found. Adjust thresholds as needed.\nFormat strictly:\nCATEGORY: X\nACCOUNTS: ... (if applicable)\nCHECK: ...\nFLAG IF: ...\n\nSeparate each category with a blank line. No preamble, no explanation, nothing else.";
-      const usr = "CURRENT CHECKLIST:\n" + serialize(items) + "\n\nGAP ANALYSIS:\n" + refineAnalysis + "\n\nReturn full updated checklist.";
+      const sys = "You are updating a multifamily property accounting review checklist.\nReturn ONLY new or modified checklist items — do not repeat existing unchanged items.\nAdd new FLAG IF or CHECK lines where gaps were found. Adjust thresholds as needed.\nFormat strictly:\nCATEGORY: X\nACCOUNTS: ... (if applicable)\nCHECK: ...\nFLAG IF: ...\n\nSeparate each item with a blank line. No preamble, no explanation, nothing else.";
+      const usr = "CURRENT CHECKLIST:\n" + serialize(items) + "\n\nGAP ANALYSIS:\n" + refineAnalysis + "\n\nThe following findings were not caught by the current checklist — suggest additions or modifications to address them:\n" + refineComments + "\n\nReturn only suggested new or modified checklist items.";
       const result = await callClaude(sys, usr);
       const parsed = parseAIChecklist(result);
       if (parsed) { setPrevItems(items); setItems(parsed); setRefineApplied(true); }
