@@ -466,6 +466,33 @@ export default function App() {
     setReviewing(false);
   };
 
+  const downloadXlsx = async () => {
+    const XLSX = await import("https://cdn.skypack.dev/xlsx@0.18.5");
+
+    const rows = findings.map(item => ({
+      "Account Number": item.accountNumber,
+      "Account Name": item.accountName,
+      "IS Finding": item.isIssue || "",
+      "GL Finding": item.glIssue || "",
+      "Action": item.action || ""
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    ws["!cols"] = [
+      { wch: 16 },
+      { wch: 36 },
+      { wch: 60 },
+      { wch: 60 },
+      { wch: 50 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Findings");
+
+    XLSX.writeFile(wb, "Accounting_Review_" + reviewMonth + ".xlsx");
+  };
+
   const analyseGaps = async () => {
     if (!refineComments.trim()) { setRefineError("Manager comments are required."); return; }
     if (!refineIS.trim() && !refineGL.trim()) { setRefineError("Paste at least the income statement or GL entries."); return; }
@@ -633,6 +660,13 @@ export default function App() {
                   ? <span>Results for <strong style={{color:"#e8c468"}}>{monthLabel}</strong>. Copy for staff distribution, or use Refine Checklist to improve future reviews.</span>
                   : "No findings yet - run a review first."}
               </p>
+              {findings.length > 0 && (
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+                  <button className="btn" onClick={downloadXlsx} style={s.btnOutline}>
+                    Download .xlsx
+                  </button>
+                </div>
+              )}
             </div>
             {findings.length > 0 ? (
               <div style={s.findingsBox}>
