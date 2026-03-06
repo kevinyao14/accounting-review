@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import * as XLSX from "xlsx";
 
 // ── Structured checklist data ─────────────────────────────────────────────────
 const DEFAULT_ITEMS = [
@@ -466,9 +467,7 @@ export default function App() {
     setReviewing(false);
   };
 
-  const downloadXlsx = async () => {
-    const XLSX = await import("https://cdn.skypack.dev/xlsx@0.18.5");
-
+  const downloadXlsx = () => {
     const rows = findings.map(item => ({
       "Account Number": item.accountNumber,
       "Account Name": item.accountName,
