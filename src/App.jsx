@@ -250,8 +250,6 @@ export default function App() {
       const raw = e.target.result;
       const [yr, mo] = reviewMonth.split("-");
 
-      const stripLastCol = line => line.split(",").slice(0, -1).join(",");
-
       const keepMonths = new Set();
       for (let i = 0; i < 2; i++) {
         const d = new Date(+yr, +mo - 1 - i, 1);
@@ -268,18 +266,35 @@ export default function App() {
       }
 
       const source = expenseStart > 0 ? lines.slice(expenseStart) : lines;
-
       const result = [];
+
       for (const line of source) {
         const t = line.trim();
-        if (/^6\d{4,5}\s+-/.test(t) || /^Totals for 6/.test(t)) {
-          result.push(stripLastCol(line)); continue;
+
+        // Account header — keep just account number and name
+        if (/^6\d{4,5}\s+-/.test(t)) {
+          const m = t.match(/^(6\d{4,5}\s+-[^(]+)/);
+          result.push(m ? m[1].trim() : t);
+          continue;
         }
+
+        // Skip totals rows
+        if (/^Totals for 6/.test(t)) continue;
+
+        // Journal entry lines — keep only if in the relevant months
         const parts = t.split(",");
         const dt = parts[0] ?? "";
         if (dt.length === 10 && dt[2] === "/" && dt[5] === "/") {
-          const my = dt.slice(0,3) + dt.slice(6,10);
-          if (keepMonths.has(my)) result.push(stripLastCol(line));
+          const my = dt.slice(0, 3) + dt.slice(6, 10);
+          if (keepMonths.has(my)) {
+            const doc      = (parts[1] ?? "").trim();
+            const desc     = (parts[2] ?? "").trim();
+            const debit    = (parts[7] ?? "").trim();
+            const credit   = (parts[8] ?? "").trim();
+            const docPart  = doc ? `,${doc}` : "";
+            const shortDesc = desc.includes("AP Invoices:") ? "AP" : desc;
+            result.push(`${dt}${docPart},${shortDesc},${debit},${credit}`);
+          }
         }
       }
 
@@ -287,11 +302,12 @@ export default function App() {
         setErr("No expense entries found for the selected period. Check the review period matches your data.");
         return;
       }
+
       setErr("");
-      const label = new Date(+yr, +mo-1).toLocaleString("en-US", {month:"long", year:"numeric"});
+      const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
       setter([
         "// GL: expense accounts, 2 months ending " + label + " (" + result.length + " lines)",
-        stripLastCol(lines[0]), stripLastCol(lines[2]),
+        "FORMAT: Account | Date, [Doc], Description, Debit, Credit. AP = batch payment posting.",
         ...result
       ].join("\n"));
     };
