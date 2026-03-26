@@ -246,7 +246,7 @@ export default function App() {
   const [historyLoading, setHistoryLoading]   = useState(false);
   const [expandedReview, setExpandedReview]   = useState(null); // { blobUrl, data|null, loading }
   const [feedbackMode, setFeedbackMode]       = useState(null); // blobUrl of review in feedback mode
-  const [feedbackDraft, setFeedbackDraft]     = useState({ findings: {}, general: "" });
+  const [feedbackDraft, setFeedbackDraft]     = useState({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
   const [feedbackSaving, setFeedbackSaving]   = useState(false);
   const [feedbackSaved, setFeedbackSaved]     = useState(false);
   const [detailOpen, setDetailOpen]           = useState({});
@@ -1375,14 +1375,17 @@ export default function App() {
                                     .then(res => res.json())
                                     .then(existing => {
                                       setFeedbackDraft({
-                                        findings: existing?.findings || {},
-                                        general:  existing?.general  || "",
+                                        findings:     existing?.findings     || {},
+                                        accountNotes: existing?.accountNotes?.length
+                                          ? existing.accountNotes
+                                          : [{ id: 1, accountNumber: "", note: "" }],
+                                        general:      existing?.general      || "",
                                       });
                                       setFeedbackMode(r.blobUrl);
                                       setFeedbackSaved(false);
                                     })
                                     .catch(() => {
-                                      setFeedbackDraft({ findings: {}, general: "" });
+                                      setFeedbackDraft({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
                                       setFeedbackMode(r.blobUrl);
                                     });
                                 });
@@ -1652,29 +1655,53 @@ export default function App() {
                                 <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",marginBottom:12,letterSpacing:0.5}}>
                                   ACCOUNT-SPECIFIC FEEDBACK
                                 </div>
-                                {expandedReview.data.findings.map((item, fi) => {
-                                  const fb = feedbackDraft.findings[item.accountNumber] || {};
-                                  return (
-                                    <div key={fi} style={{display:"flex",gap:12,alignItems:"flex-start",marginBottom:10}}>
-                                      <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",
-                                        whiteSpace:"nowrap",paddingTop:8,minWidth:80,flexShrink:0}}>
-                                        {item.accountNumber}
-                                      </div>
-                                      <textarea
-                                        placeholder="Account-specific feedback not mentioned above: be as specific as possible"
-                                        value={fb.note || ""}
-                                        onChange={e => setFeedbackDraft(d => ({
-                                          ...d,
-                                          findings: {
-                                            ...d.findings,
-                                            [item.accountNumber]: { ...fb, note: e.target.value }
-                                          }
-                                        }))}
-                                        style={{...s.textarea,minHeight:48,fontSize:12,flex:1}}
-                                      />
-                                    </div>
-                                  );
-                                })}
+                                {feedbackDraft.accountNotes.map((row, ri) => (
+                                  <div key={row.id} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:8}}>
+                                    <input
+                                      type="text"
+                                      placeholder="Account #"
+                                      value={row.accountNumber}
+                                      onChange={e => setFeedbackDraft(d => ({
+                                        ...d,
+                                        accountNotes: d.accountNotes.map(r =>
+                                          r.id === row.id ? { ...r, accountNumber: e.target.value } : r
+                                        )
+                                      }))}
+                                      style={{...s.textarea,minHeight:0,height:36,fontSize:12,width:110,flexShrink:0,padding:"6px 10px"}}
+                                    />
+                                    <textarea
+                                      placeholder="Account-specific feedback not mentioned above: be as specific as possible"
+                                      value={row.note}
+                                      onChange={e => setFeedbackDraft(d => ({
+                                        ...d,
+                                        accountNotes: d.accountNotes.map(r =>
+                                          r.id === row.id ? { ...r, note: e.target.value } : r
+                                        )
+                                      }))}
+                                      style={{...s.textarea,minHeight:36,fontSize:12,flex:1}}
+                                    />
+                                    {feedbackDraft.accountNotes.length > 1 && (
+                                      <button className="btn" onClick={() => setFeedbackDraft(d => ({
+                                        ...d,
+                                        accountNotes: d.accountNotes.filter(r => r.id !== row.id)
+                                      }))}
+                                        style={{fontFamily:"'Fira Code',monospace",fontSize:12,padding:"6px 10px",
+                                          color:"#4b5563",border:"1px solid #1e1e1e",borderRadius:4,
+                                          background:"transparent",flexShrink:0,cursor:"pointer"}}>
+                                        ✕
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                                <button className="btn" onClick={() => setFeedbackDraft(d => ({
+                                  ...d,
+                                  accountNotes: [...d.accountNotes, { id: Date.now(), accountNumber: "", note: "" }]
+                                }))}
+                                  style={{fontFamily:"'Fira Code',monospace",fontSize:11,padding:"4px 14px",
+                                    color:"#4b5563",border:"1px solid #1e1e1e",borderRadius:4,
+                                    background:"transparent",cursor:"pointer",marginTop:2}}>
+                                  + Add Account
+                                </button>
                               </div>
                             )}
 
