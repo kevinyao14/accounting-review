@@ -244,11 +244,13 @@ export default function App() {
   const [historyIndex, setHistoryIndex]       = useState([]);
   const [historyLoaded, setHistoryLoaded]     = useState(false);
   const [historyLoading, setHistoryLoading]   = useState(false);
+  const [historyPropertyFilter, setHistoryPropertyFilter] = useState("");
   const [expandedReview, setExpandedReview]   = useState(null); // { blobUrl, data|null, loading }
   const [feedbackMode, setFeedbackMode]       = useState(null); // blobUrl of review in feedback mode
   const [feedbackDraft, setFeedbackDraft]     = useState({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
   const [feedbackSaving, setFeedbackSaving]   = useState(false);
   const [feedbackSaved, setFeedbackSaved]     = useState(false);
+  const [isPropertyName, setIsPropertyName]         = useState("");
   const [reviewBlobUrl, setReviewBlobUrl]           = useState(null);
   const [reviewPropertyName, setReviewPropertyName] = useState("");
   const [findingsFbMode, setFindingsFbMode]         = useState(false);
@@ -334,6 +336,10 @@ export default function App() {
         setErr("This appears to be a GL report, not an income statement. Please upload the income statement CSV.");
         return;
       }
+
+      // Extract property name from first non-empty cell (A1)
+      const firstCell = raw.split("\n")[0]?.split(",")?.[0]?.trim() ?? "";
+      if (firstCell && !/^\d/.test(firstCell)) setIsPropertyName(firstCell);
 
       const [yr, mo] = reviewMonth.split("-");
       const reviewDate = new Date(+yr, +mo - 1, 1);
@@ -738,9 +744,8 @@ export default function App() {
       setFindings(mergedArray);
       setTab("findings");
 
-      const propertyName = glFileName
-        ? glFileName.replace(/\.[^.]+$/, "").split("_").pop()
-        : "";
+      const propertyName = isPropertyName
+        || (glFileName ? glFileName.replace(/\.[^.]+$/, "").split("_").pop() : "");
       setReviewPropertyName(propertyName);
 
       // Fire-and-forget email notification
@@ -1496,6 +1501,25 @@ export default function App() {
             <div style={s.panelHead}>
               <h2 style={s.panelTitle}>Review History</h2>
               <p style={s.panelDesc}>Every review is saved automatically with its source data and checklist snapshot.</p>
+              {historyIndex.length > 0 && (() => {
+                const props = [...new Set(historyIndex.map(r => r.property || "Unknown Property"))].sort();
+                if (props.length <= 1) return null;
+                return (
+                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:14}}>
+                    {["", ...props].map(p => (
+                      <button key={p || "__all__"} className="btn"
+                        onClick={() => setHistoryPropertyFilter(p)}
+                        style={{fontFamily:"'Fira Code',monospace",fontSize:10,padding:"3px 12px",
+                          borderRadius:4,cursor:"pointer",
+                          background: historyPropertyFilter === p ? "#e8c468" : "transparent",
+                          border: `1px solid ${historyPropertyFilter === p ? "#e8c468" : "#2a2a2a"}`,
+                          color:  historyPropertyFilter === p ? "#0e0e0e" : "#4b5563"}}>
+                        {p || "All Properties"}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             {historyLoading && (
@@ -1512,9 +1536,12 @@ export default function App() {
             )}
 
             {!historyLoading && historyIndex.length > 0 && (() => {
-              // Group by property
+              // Apply property filter then group by property
+              const visible = historyPropertyFilter
+                ? historyIndex.filter(r => (r.property || "Unknown Property") === historyPropertyFilter)
+                : historyIndex;
               const grouped = {};
-              historyIndex.forEach(r => {
+              visible.forEach(r => {
                 const key = r.property || "Unknown Property";
                 if (!grouped[key]) grouped[key] = [];
                 grouped[key].push(r);
