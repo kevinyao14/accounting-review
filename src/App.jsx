@@ -249,8 +249,9 @@ export default function App() {
   const [feedbackDraft, setFeedbackDraft]     = useState({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
   const [feedbackSaving, setFeedbackSaving]   = useState(false);
   const [feedbackSaved, setFeedbackSaved]     = useState(false);
-  const [reviewBlobUrl, setReviewBlobUrl]         = useState(null);
-  const [findingsFbMode, setFindingsFbMode]       = useState(false);
+  const [reviewBlobUrl, setReviewBlobUrl]           = useState(null);
+  const [reviewPropertyName, setReviewPropertyName] = useState("");
+  const [findingsFbMode, setFindingsFbMode]         = useState(false);
   const [findingsFbDraft, setFindingsFbDraft]     = useState({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
   const [findingsFbSaving, setFindingsFbSaving]   = useState(false);
   const [findingsFbSaved, setFindingsFbSaved]     = useState(false);
@@ -740,6 +741,7 @@ export default function App() {
       const propertyName = glFileName
         ? glFileName.replace(/\.[^.]+$/, "").split("_").pop()
         : "";
+      setReviewPropertyName(propertyName);
 
       // Fire-and-forget email notification
       fetch("/api/notify", {
@@ -1302,7 +1304,7 @@ export default function App() {
                                   blobUrl: reviewBlobUrl,
                                   feedback: {
                                     ...findingsFbDraft,
-                                    reviewMeta: { property: propertyName, period: reviewMonth, timestamp: new Date().toISOString() },
+                                    reviewMeta: { property: reviewPropertyName, period: reviewMonth, timestamp: new Date().toISOString() },
                                   },
                                 }),
                               });
