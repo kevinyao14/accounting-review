@@ -416,49 +416,55 @@ export default function App() {
     reader.onload = (e) => {
       const raw = e.target.result;
       const [yr, mo] = reviewMonth.split("-");
-      const reviewDate = new Date(+yr, +mo - 1, 1);
+
+      // Target: review month and up to 2 prior months, oldest first
+      const targetMonths = [-2, -1, 0].map(offset => {
+        const d = new Date(+yr, +mo - 1 + offset, 1);
+        return { year: d.getFullYear(), month: d.getMonth() + 1 };
+      });
 
       const lines = raw.split("\n");
-      let budgetColIdx = null;
 
-      // Find the date header row and locate the exact review month column
+      // Find the date header row; collect column index + label for each target month
+      let targetCols = []; // [{ colIdx, headerLabel }] in chronological order
       for (let i = 0; i < lines.length; i++) {
         const cols = lines[i].split(",");
-        const hasDate = cols.some(c => {
-          const t = c.trim();
-          return t.length === 10 && t[2] === "/" && t[5] === "/";
-        });
-        if (hasDate) {
-          cols.forEach((c, j) => {
-            const t = c.trim();
-            if (t.length === 10 && t[2] === "/" && t[5] === "/") {
-              const parts = t.split("/");
-              const colDate = new Date(+parts[2], +parts[0] - 1, 1);
-              if (colDate.getFullYear() === reviewDate.getFullYear() &&
-                  colDate.getMonth() === reviewDate.getMonth()) {
-                budgetColIdx = j;
-              }
+        if (!cols.some(c => /^\d{1,2}\/\d{2}\/\d{4}$/.test(c.trim()))) continue;
+        targetCols = targetMonths.map(({ year, month }) => {
+          for (let j = 0; j < cols.length; j++) {
+            const t = cols[j].trim();
+            if (/^\d{1,2}\/\d{2}\/\d{4}$/.test(t)) {
+              const p = t.split("/");
+              if (parseInt(p[0]) === month && parseInt(p[2]) === year) return { colIdx: j, headerLabel: t };
             }
-          });
-          break;
-        }
+          }
+          return null;
+        }).filter(Boolean);
+        break;
       }
 
-      if (budgetColIdx === null) {
-        const [y, m] = reviewMonth.split("-");
-        const label = new Date(+y, +m - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+      // Must have at least the review month column
+      const reviewTarget = targetMonths[2];
+      const hasReview = targetCols.some(({ headerLabel }) => {
+        const p = headerLabel.split("/");
+        return parseInt(p[0]) === reviewTarget.month && parseInt(p[2]) === reviewTarget.year;
+      });
+      if (!hasReview) {
+        const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
         setErr(`No column found for ${label} in this budget file. Check that the review period matches the file.`);
         return;
       }
 
-      const rows = ["AccountNumber,AccountName,Budget"];
+      // Build IS-compatible format: AccountNumber,AccountName,MM/DD/YYYY,...
+      const header = ["AccountNumber", "AccountName", ...targetCols.map(c => c.headerLabel)].join(",");
+      const rows = [header];
       for (const line of lines) {
         const cols = line.split(",");
         const acct = (cols[0] ?? "").trim();
         if (/^\d{6}$/.test(acct)) {
           const name = (cols[1] ?? "").trim();
-          const budget = (cols[budgetColIdx] ?? "").trim();
-          rows.push([acct, name, budget].join(","));
+          const vals = targetCols.map(({ colIdx }) => (cols[colIdx] ?? "").trim());
+          rows.push([acct, name, ...vals].join(","));
         }
       }
 
@@ -1018,6 +1024,14 @@ export default function App() {
                           GL {detailOpen[item.accountNumber]?.gl ? "▲" : "▼"}
                         </button>
                       )}
+                      {budgetData && (
+                        <button className="btn" onClick={() => toggleDetail(item.accountNumber, "bud")}
+                          style={{...s.btnOutline,fontSize:10,padding:"2px 10px",
+                            color: detailOpen[item.accountNumber]?.bud ? "#f97316" : "#4b5563",
+                            borderColor: detailOpen[item.accountNumber]?.bud ? "#f97316" : "#2a2a2a"}}>
+                          BUD {detailOpen[item.accountNumber]?.bud ? "▲" : "▼"}
+                        </button>
+                      )}
                     </div>
 
                     {/* IS detail table */}
@@ -1117,6 +1131,49 @@ export default function App() {
                                   <td style={tblCell("right",{color:"#f87171",whiteSpace:"nowrap"})}>{e.credit}</td>
                                 </tr>
                               ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Budget detail table */}
+                    {detailOpen[item.accountNumber]?.bud && (() => {
+                      const d = parseIsDetail(budgetData, item.accountNumber);
+                      if (!d) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No budget data found for {item.accountNumber}.</div>;
+                      const tblCell = (align, extra) => ({
+                        padding:"4px 10px", textAlign:align, borderBottom:"1px solid #141414",
+                        fontFamily:"'Fira Code',monospace", fontSize:11, whiteSpace:"nowrap", ...extra
+                      });
+                      return (
+                        <div style={{marginTop:10,overflowX:"auto",borderRadius:6,border:"1px solid #2a1a0a"}}>
+                          <table style={{borderCollapse:"collapse",width:"100%"}}>
+                            <thead>
+                              <tr style={{background:"#111"}}>
+                                {d.headers.map((h,hi) => (
+                                  <th key={hi} style={tblCell(hi<=1?"left":"right",{color:"#4b5563",fontWeight:400})}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {d.dataRows.map((row,ri) => (
+                                <tr key={ri} style={{background:ri%2===0?"transparent":"#0a0a0a"}}>
+                                  {row.map((v,vi) => {
+                                    const num = vi>=2 ? parseFloat(v) : NaN;
+                                    const fmt = !isNaN(num) ? num.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : v;
+                                    return <td key={vi} style={tblCell(vi<=1?"left":"right",{color:vi<2?"#6b7280":num<0?"#f87171":num===0?"#374151":"#d1d5db"})}>{fmt}</td>;
+                                  })}
+                                </tr>
+                              ))}
+                              {d.sumRow && (
+                                <tr style={{background:"#1a0d00",borderTop:"1px solid #3a2a0a"}}>
+                                  {d.sumRow.map((v,vi) => {
+                                    const num = vi>=2 ? parseFloat(v) : NaN;
+                                    const fmt = !isNaN(num) ? num.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : v;
+                                    return <td key={vi} style={tblCell(vi<=1?"left":"right",{color:vi<2?"#f97316":num<0?"#f87171":num===0?"#374151":"#f97316",fontWeight:600})}>{fmt}</td>;
+                                  })}
+                                </tr>
+                              )}
                             </tbody>
                           </table>
                         </div>
@@ -1515,8 +1572,9 @@ export default function App() {
                                   {isFeedback && (() => {
                                     const hKey = `${r.blobUrl}:${item.accountNumber}`;
                                     const hd   = historyDetailOpen[hKey] || {};
-                                    const isCs = expandedReview.data.csvs?.is;
-                                    const glCs = expandedReview.data.csvs?.gl;
+                                    const isCs  = expandedReview.data.csvs?.is;
+                                    const glCs  = expandedReview.data.csvs?.gl;
+                                    const budCs = expandedReview.data.csvs?.budget;
                                     const tblCell = (align, extra) => ({
                                       padding:"4px 10px", textAlign:align, borderBottom:"1px solid #141414",
                                       fontFamily:"'Fira Code',monospace", fontSize:11, ...extra
@@ -1540,6 +1598,15 @@ export default function App() {
                                                 color: hd.gl ? "#60a5fa" : "#4b5563",
                                                 borderColor: hd.gl ? "#60a5fa" : "#2a2a2a"}}>
                                               GL {hd.gl ? "▲" : "▼"}
+                                            </button>
+                                          )}
+                                          {budCs && (
+                                            <button className="btn"
+                                              onClick={() => toggleHistoryDetail(hKey,"bud")}
+                                              style={{...s.btnOutline,fontSize:10,padding:"2px 10px",
+                                                color: hd.bud ? "#f97316" : "#4b5563",
+                                                borderColor: hd.bud ? "#f97316" : "#2a2a2a"}}>
+                                              BUD {hd.bud ? "▲" : "▼"}
                                             </button>
                                           )}
                                         </div>
@@ -1614,6 +1681,44 @@ export default function App() {
                                                       <td style={tblCell("right",{color:"#f87171",whiteSpace:"nowrap"})}>{e.credit}</td>
                                                     </tr>
                                                   ))}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                          );
+                                        })()}
+
+                                        {hd.bud && (() => {
+                                          const d = parseIsDetail(budCs, item.accountNumber);
+                                          if (!d) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No budget data for {item.accountNumber}.</div>;
+                                          return (
+                                            <div style={{marginTop:10,overflowX:"auto",borderRadius:6,border:"1px solid #2a1a0a"}}>
+                                              <table style={{borderCollapse:"collapse",width:"100%"}}>
+                                                <thead>
+                                                  <tr style={{background:"#111"}}>
+                                                    {d.headers.map((h,hi) => (
+                                                      <th key={hi} style={tblCell(hi<=1?"left":"right",{color:"#4b5563",fontWeight:400,whiteSpace:"nowrap"})}>{h}</th>
+                                                    ))}
+                                                  </tr>
+                                                </thead>
+                                                <tbody>
+                                                  {d.dataRows.map((row,ri) => (
+                                                    <tr key={ri} style={{background:ri%2===0?"transparent":"#0a0a0a"}}>
+                                                      {row.map((v,vi) => {
+                                                        const num = vi>=2 ? parseFloat(v) : NaN;
+                                                        const fmt = !isNaN(num) ? num.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : v;
+                                                        return <td key={vi} style={tblCell(vi<=1?"left":"right",{color:vi<2?"#6b7280":num<0?"#f87171":num===0?"#374151":"#d1d5db"})}>{fmt}</td>;
+                                                      })}
+                                                    </tr>
+                                                  ))}
+                                                  {d.sumRow && (
+                                                    <tr style={{background:"#1a0d00",borderTop:"1px solid #3a2a0a"}}>
+                                                      {d.sumRow.map((v,vi) => {
+                                                        const num = vi>=2 ? parseFloat(v) : NaN;
+                                                        const fmt = !isNaN(num) ? num.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : v;
+                                                        return <td key={vi} style={tblCell(vi<=1?"left":"right",{color:vi<2?"#f97316":num<0?"#f87171":num===0?"#374151":"#f97316",fontWeight:600})}>{fmt}</td>;
+                                                      })}
+                                                    </tr>
+                                                  )}
                                                 </tbody>
                                               </table>
                                             </div>
