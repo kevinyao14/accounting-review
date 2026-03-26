@@ -1641,18 +1641,6 @@ export default function App() {
                                           </button>
                                         ))}
                                       </div>
-                                      <textarea
-                                        placeholder="Optional note on this finding…"
-                                        value={fb.note || ""}
-                                        onChange={e => setFeedbackDraft(d => ({
-                                          ...d,
-                                          findings: {
-                                            ...d.findings,
-                                            [item.accountNumber]: { ...fb, note: e.target.value }
-                                          }
-                                        }))}
-                                        style={{...s.textarea,minHeight:48,fontSize:12,width:"100%"}}
-                                      />
                                     </div>
                                   )}
                                 </div>
@@ -1661,6 +1649,37 @@ export default function App() {
 
                             {isFeedback && (
                               <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid #1e1e1e"}}>
+                                <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",marginBottom:12,letterSpacing:0.5}}>
+                                  ACCOUNT-SPECIFIC FEEDBACK
+                                </div>
+                                {expandedReview.data.findings.map((item, fi) => {
+                                  const fb = feedbackDraft.findings[item.accountNumber] || {};
+                                  return (
+                                    <div key={fi} style={{display:"flex",gap:12,alignItems:"flex-start",marginBottom:10}}>
+                                      <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",
+                                        whiteSpace:"nowrap",paddingTop:8,minWidth:80,flexShrink:0}}>
+                                        {item.accountNumber}
+                                      </div>
+                                      <textarea
+                                        placeholder="Account-specific feedback not mentioned above: be as specific as possible"
+                                        value={fb.note || ""}
+                                        onChange={e => setFeedbackDraft(d => ({
+                                          ...d,
+                                          findings: {
+                                            ...d.findings,
+                                            [item.accountNumber]: { ...fb, note: e.target.value }
+                                          }
+                                        }))}
+                                        style={{...s.textarea,minHeight:48,fontSize:12,flex:1}}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {isFeedback && (
+                              <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid #1e1e1e"}}>
                                 <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",marginBottom:8,letterSpacing:0.5}}>
                                   GENERAL FEEDBACK
                                 </div>
