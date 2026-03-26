@@ -1,12 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 
 // ── Structured checklist data ─────────────────────────────────────────────────
 const DEFAULT_ITEMS = [
-  { id: 1,  source: "IS", category: "Accruals",                        accounts: "",                                                                          rule: "CHECK",   text: "Verify all prior month accruals were reversed in current month" },
   { id: 2,  source: "GL", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Accrual entry has no corresponding reversal within first 5 business days of month" },
-  { id: 3,  source: "IS", category: "Accruals",                        accounts: "",                                                                          rule: "CHECK",   text: "Confirm standard monthly accruals are present (property mgmt fee, property tax, insurance)" },
-  { id: 4,  source: "IS", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Any standard accrual is missing or differs more than 5% from prior month" },
+  { id: 4,  source: "GL", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Any standard accrual is missing or differs more than 5% from prior month" },
   { id: 5,  source: "GL", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Account shows a reversal with no corresponding new accrual or expense entry in the same month" },
   { id: 6,  source: "GL", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Accrual description references a service period that ended more than 60 days prior to the current review month (stale period accrual). Indicates a prior-period accrual has not been resolved and is continuing to cycle through reversals and re-accruals without the underlying invoice being posted or the accrual being closed." },
   { id: 7,  source: "IS", category: "Revenue - Total Rental Income",   accounts: "411001-415002",                                                             rule: "FLAG IF", text: "Total Rental Income (sum of 411001-415002) variance of more than 2% vs prior month" },
@@ -15,33 +13,32 @@ const DEFAULT_ITEMS = [
   { id: 9,  source: "IS", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "Any single R&M account exceeds $3,000 in current month and was under $1,000 prior month" },
   { id: 10, source: "IS", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "Any R&M account shows a large negative balance on the income statement in the current month" },
   { id: 11, source: "GL", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "PO accruals apply identical dollar amounts across unrelated line items (system error pattern)" },
-  { id: 12, source: "GL", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "Any entry description references roof, HVAC, appliance, flooring - verify P&L vs. capital" },
+  { id: 12, source: "GL", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "Any entry description for a GL entry over $500 that references roof, HVAC, appliance, flooring - verify P&L vs. capital" },
   { id: 13, source: "IS", category: "Turnover Expenses",               accounts: "602001-602016",                                                             rule: "FLAG IF", text: "Total Turnover Expenses increase more than 50% vs prior month without corresponding vacancy increase" },
-  { id: 14, source: "IS", category: "Turnover Expenses",               accounts: "602001-602016",                                                             rule: "FLAG IF", text: "Turnover costs near zero when vacancy loss is elevated" },
   { id: 15, source: "IS", category: "Payroll",                         accounts: "603001-603106",                                                             rule: "FLAG IF", text: "Total payroll, excluding 603008 Bonuses - Performance, varies more than 10% vs prior month without explanation" },
   { id: 16, source: "IS", category: "Payroll",                         accounts: "603001-603106",                                                             rule: "FLAG IF", text: "Wages post but burden accounts (taxes, insurance, 401k) are zero or missing same period" },
-  { id: 17, source: "IS", category: "Utilities",                       accounts: "604003, 604004, 604201, 604301, 604302",                                    rule: "FLAG IF", text: "Any utility varies more than 25% from trailing 3-month average without explanation" },
+  { id: 17, source: "IS", category: "Utilities",                       accounts: "604003, 604004, 604201, 604301, 604302",                                    rule: "FLAG IF", text: "Any utility varies more than 25% from trailing 3-month average" },
   { id: 18, source: "IS", category: "Utilities",                       accounts: "604003, 604004, 604201, 604301, 604302",                                    rule: "FLAG IF", text: "Any utility account shows large negative income statement value in current month - may indicate billing catch-up or accrual error" },
-  { id: 19, source: "IS", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any recurring vendor missing for current month with no explanation" },
-  { id: 20, source: "IS", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any contract amount varies more than 10% from its typical monthly amount" },
-  { id: 21, source: "IS", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any material increase in contract line (e.g., 2x the prior month amount) that looks like an incorrect accrual" },
+  { id: 19, source: "GL", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any recurring vendor missing for current month with no explanation" },
+  { id: 20, source: "GL", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any contract amount varies more than 10% from its typical monthly amount" },
+  { id: 21, source: "IS", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any material increase or decrease in contract line (e.g., 2x the prior month amount) that looks like an incorrect accrual" },
   { id: 22, source: "IS", category: "ILS Marketing",                   accounts: "606602-606610",                                                             rule: "FLAG IF", text: "ILS marketing spend in any account varies 50% or more from the prior month" },
   { id: 23, source: "IS", category: "Marketing",                       accounts: "606001-606822",                                                             rule: "FLAG IF", text: "Any marketing account reversed but not re-accrued in same period or expensed" },
   { id: 24, source: "GL", category: "Marketing",                       accounts: "606001-606822",                                                             rule: "FLAG IF", text: "Same vendor accrued twice in one month without explanation" },
   { id: 25, source: "IS", category: "Administrative",                  accounts: "607005-607009, 607011-607018, 607022-607023, 607029, 607038",               rule: "FLAG IF", text: "Any administrative expense income statement account is negative for the current month or varies more than 25% from trailing 3-month average" },
   { id: 26, source: "IS", category: "Management Fee",                  accounts: "608001 External Management Fee Expense",                                    rule: "FLAG IF", text: "Fee as % of Total Revenue varies more than 1% from prior months" },
-  { id: 27, source: "GL", category: "Management Fee",                  accounts: "608001 External Management Fee Expense",                                    rule: "FLAG IF", text: "Negative management fee entry posts without explanation" },
-  { id: 28, source: "IS", category: "Insurance",                       accounts: "640001 Property Insurance",                                                 rule: "FLAG IF", text: "Amount changes vs prior month without documented policy change or new amortization schedule" },
-  { id: 29, source: "IS", category: "Debt Service",                    accounts: "701001-701010",                                                             rule: "FLAG IF", text: "Any expense line changes vs prior month by more than 2%" },
-  { id: 30, source: "IS", category: "Real Estate Taxes",               accounts: "630001 Real Estate Tax",                                                    rule: "FLAG IF", text: "Amount changes vs prior month without explanation" },
+  { id: 27, source: "GL", category: "Management Fee",                  accounts: "608001 External Management Fee Expense",                                    rule: "FLAG IF", text: "Negative management fee entry" },
+  { id: 28, source: "IS", category: "Insurance",                       accounts: "640001 Property Insurance",                                                 rule: "FLAG IF", text: "Amount changes vs prior month" },
+  { id: 29, source: "IS", category: "Debt Service",                    accounts: "701001-701010",                                                             rule: "FLAG IF", text: "Any expense line changes vs prior month by more than 3%" },
+  { id: 30, source: "IS", category: "Real Estate Taxes",               accounts: "630001 Real Estate Tax",                                                    rule: "FLAG IF", text: "Amount changes vs prior month" },
   { id: 31, source: "GL", category: "Legal",                           accounts: "607010 Legal - Evictions",                                                  rule: "FLAG IF", text: "Any legal fee entry appears - note for manager awareness regardless of amount" },
-  { id: 32, source: "IS", category: "Expense Trends",                  accounts: "",                                                                          rule: "CHECK",   text: "Identify any expense line present in 2+ prior months but zero in current month - note for review, do not flag" },
-  { id: 33, source: "IS", category: "Expense Trends",                  accounts: "",                                                                          rule: "CHECK",   text: "Flag any income statement account with large swing from positive to negative or vice versa in consecutive months" },
+  { id: 32, source: "IS", category: "Expense Trends",                  accounts: "",                                                                          rule: "FLAG IF", text: "Identify any expense line present in 2+ prior months but zero or negative in current month" },
+  { id: 33, source: "IS", category: "Expense Trends",                  accounts: "",                                                                          rule: "FLAG IF", text: "Flag any income statement account with large swing from positive to negative or vice versa in consecutive months" },
   { id: 34, source: "IS", category: "Expense Trends",                  accounts: "6xxxxx all expense accounts",                                               rule: "FLAG IF", text: "ANY expense account (6xxxxx) shows a negative month-ending balance on the income statement - flag every instance regardless of amount or category" },
 ];
 
 const CATEGORIES = [
-  "Accruals","Revenue - Gross Potential Rent","Revenue - Bad Debt","Revenue - Other Income",
+  "Accruals","Revenue - Total Rental Income","Revenue - Bad Debt","Revenue - Other Income",
   "Repairs & Maintenance","Turnover Expenses","Payroll","Utilities",
   "Contract Services","ILS Marketing","Marketing","Administrative","Management Fee","Insurance","Debt Service",
   "Real Estate Taxes","Legal","Expense Trends",
@@ -81,6 +78,86 @@ function parseAIChecklist(text) {
   return items.length ? items : null;
 }
 
+// ── IS detail parser ─────────────────────────────────────────────────────────
+// Returns { headers, dataRows, sumRow, isRange } or null
+function parseIsDetail(isText, accountNumber) {
+  if (!isText) return null;
+  const rangeMatch = accountNumber.match(/^(\d{5,6})-(\d{5,6})$/);
+  const isRange    = !!rangeMatch;
+  const rangeStart = isRange ? parseInt(rangeMatch[1]) : null;
+  const rangeEnd   = isRange ? parseInt(rangeMatch[2]) : null;
+
+  const lines = isText.split("\n");
+  let headers  = null;
+  const dataRows = [];
+
+  for (const line of lines) {
+    const cols = line.split(",").map(c => c.trim());
+    if (!headers) {
+      if (cols.some(c => /^\d{1,2}\/\d{2}\/\d{4}$/.test(c))) { headers = cols; continue; }
+    } else {
+      const acctNum = parseInt(cols[0]);
+      if (isRange) {
+        if (!isNaN(acctNum) && acctNum >= rangeStart && acctNum <= rangeEnd) dataRows.push(cols);
+      } else {
+        if (cols[0] === accountNumber || cols[0].startsWith(accountNumber + " ") || cols[0].startsWith(accountNumber + "-")) {
+          return { headers, dataRows: [cols], sumRow: null, isRange: false };
+        }
+      }
+    }
+  }
+  if (!headers || dataRows.length === 0) return null;
+
+  // Build sum row for ranges
+  const sumRow = headers.map((_, hi) => {
+    if (hi === 0) return accountNumber;
+    if (hi === 1) return "Total";
+    const sum = dataRows.reduce((acc, row) => {
+      const v = parseFloat(row[hi] ?? "");
+      return acc + (isNaN(v) ? 0 : v);
+    }, 0);
+    return sum.toFixed(2);
+  });
+  return { headers, dataRows, sumRow, isRange: true };
+}
+
+// ── GL detail parser ──────────────────────────────────────────────────────────
+// Returns entries array, or null (with isAccountRange flag for messaging)
+function parseGlDetail(glText, accountNumber) {
+  if (!glText) return null;
+  if (/^\d{5,6}-\d{5,6}$/.test(accountNumber)) return null; // range — caller handles message
+  const lines = glText.split("\n");
+  let inSection = false;
+  const entries = [];
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t || t.startsWith("//") || t.startsWith("FORMAT:")) continue;
+    if (/^6\d{4,5}\s+-/.test(t)) {
+      const m = t.match(/^(6\d{4,5})/);
+      inSection = m?.[1] === accountNumber;
+      continue;
+    }
+    if (!inSection) continue;
+    const parts = [];
+    let cur = "", inQ = false;
+    for (const ch of t) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { parts.push(cur); cur = ""; }
+      else { cur += ch; }
+    }
+    parts.push(cur);
+    const dt = parts[0]?.trim() ?? "";
+    if (!(dt.length === 10 && dt[2] === "/" && dt[5] === "/")) continue;
+    entries.push({
+      date:   dt,
+      desc:   parts.slice(1, parts.length - 2).join(", ").trim(),
+      debit:  parts[parts.length - 2]?.trim() ?? "",
+      credit: parts[parts.length - 1]?.trim() ?? "",
+    });
+  }
+  return entries.length > 0 ? entries : null;
+}
+
 async function callClaude(system, user, options = {}) {
   const res = await fetch("/api/claude", {
     method: "POST",
@@ -112,20 +189,87 @@ export default function App() {
   const [reviewError, setReviewError]         = useState("");
   const [budgetData, setBudgetData]           = useState("");
   const [budgetError, setBudgetError]         = useState("");
+  const [glFileName, setGlFileName]           = useState("");
 
   const [items, setItems]         = useState(DEFAULT_ITEMS);
-  const [prevItems, setPrevItems] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState({});
   const [adding, setAdding]       = useState(false);
   const [newItem, setNewItem]     = useState({ category: CATEGORIES[0], accounts: "", rule: "FLAG IF", source: "IS", text: "" });
-  const [importError, setImportError] = useState("");
+  const [importError, setImportError]     = useState("");
+  const [periodWarning, setPeriodWarning] = useState("");
+  const [checklistDirty, setChecklistDirty]   = useState(false);
+  const [checklistSaving, setChecklistSaving] = useState(false);
+  const [checklistSaveMsg, setChecklistSaveMsg] = useState("");
+
+  const [historyIndex, setHistoryIndex]       = useState([]);
+  const [historyLoaded, setHistoryLoaded]     = useState(false);
+  const [historyLoading, setHistoryLoading]   = useState(false);
+  const [expandedReview, setExpandedReview]   = useState(null); // { blobUrl, data|null, loading }
+  const [feedbackMode, setFeedbackMode]       = useState(null); // blobUrl of review in feedback mode
+  const [feedbackDraft, setFeedbackDraft]     = useState({ findings: {}, general: "" });
+  const [feedbackSaving, setFeedbackSaving]   = useState(false);
+  const [feedbackSaved, setFeedbackSaved]     = useState(false);
+  const [detailOpen, setDetailOpen]           = useState({});
+  const toggleDetail = (acct, type) => setDetailOpen(prev => ({
+    ...prev, [acct]: { ...prev[acct], [type]: !prev[acct]?.[type] }
+  }));
+  const [historyDetailOpen, setHistoryDetailOpen] = useState({});
+  const toggleHistoryDetail = (key, type) => setHistoryDetailOpen(prev => ({
+    ...prev, [key]: { ...prev[key], [type]: !prev[key]?.[type] }
+  }));
+
   const fileInputRef = useRef(null);
   const isFileRef    = useRef(null);
   const glFileRef    = useRef(null);
   const budgetFileRef = useRef(null);
-  const refineISFileRef = useRef(null);
-  const refineGLFileRef = useRef(null);
+
+  // Load checklist: localStorage first (instant), then sync from KV in background
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem("checklist");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) setItems(parsed);
+      }
+    } catch {}
+
+    fetch("/api/checklist")
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setItems(data);
+          localStorage.setItem("checklist", JSON.stringify(data));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveChecklist = async () => {
+    setChecklistSaving(true);
+    setChecklistSaveMsg("");
+    try {
+      const res = await fetch("/api/checklist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      localStorage.setItem("checklist", JSON.stringify(items));
+      setChecklistDirty(false);
+      setChecklistSaveMsg("Saved");
+      setTimeout(() => setChecklistSaveMsg(""), 2500);
+    } catch {
+      setChecklistSaveMsg("Save failed — try again");
+    } finally {
+      setChecklistSaving(false);
+    }
+  };
+
+  const updateItems = (newItems) => {
+    setItems(newItems);
+    setChecklistDirty(true);
+  };
 
   const readCsv = (file, setter) => {
     if (!file) return;
@@ -139,10 +283,44 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const raw = e.target.result;
+
+      // Detect wrong file type
+      if (/Posted Dt\./i.test(raw.slice(0, 2000))) {
+        setErr("This appears to be a GL report, not an income statement. Please upload the income statement CSV.");
+        return;
+      }
+
       const [yr, mo] = reviewMonth.split("-");
       const reviewDate = new Date(+yr, +mo - 1, 1);
 
       const lines = raw.split("\n");
+
+      // Pre-scan: find the most recent date in the IS before any column filtering
+      let maxISDate = null;
+      for (const line of lines) {
+        const cols = line.split(",");
+        const dateCols = cols.filter(c => { const t = c.trim(); return t.length === 10 && t[2] === "/" && t[5] === "/"; });
+        if (dateCols.length > 0) {
+          dateCols.forEach(c => {
+            const p = c.trim().split("/");
+            const colDate = new Date(+p[2], +p[0] - 1, 1);
+            if (!maxISDate || colDate > maxISDate) maxISDate = colDate;
+          });
+          break; // only need the header row
+        }
+      }
+      if (maxISDate) {
+        const monthsAhead = (maxISDate.getFullYear() - reviewDate.getFullYear()) * 12
+          + (maxISDate.getMonth() - reviewDate.getMonth());
+        if (monthsAhead >= 2) {
+          const isLabel = maxISDate.toLocaleString("en-US", { month: "long", year: "numeric" });
+          const rvLabel = reviewDate.toLocaleString("en-US", { month: "long", year: "numeric" });
+          setPeriodWarning(`Income statement runs through ${isLabel} but review period is set to ${rvLabel} — review period may be stale.`);
+        } else {
+          setPeriodWarning("");
+        }
+      }
+
       let keepCols = null; // will be set when we find the date header row
 
       const result = lines.map(line => {
@@ -178,7 +356,13 @@ export default function App() {
 
       const filtered = result.join("\n");
       if (!keepCols) {
-        setErr("Could not detect date columns in income statement. Check CSV format.");
+        setErr("Could not detect date columns in income statement. Expected month-ending dates (e.g. 04/30/2025) as column headers.");
+        return;
+      }
+      if (keepCols.length <= 2) {
+        const [y, m] = reviewMonth.split("-");
+        const label = new Date(+y, +m - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+        setErr(`No data columns found near ${label}. Check that the file covers the review period.`);
         return;
       }
       setErr("");
@@ -222,7 +406,9 @@ export default function App() {
       }
 
       if (budgetColIdx === null) {
-        setErr("No budget column found for the selected review period.");
+        const [y, m] = reviewMonth.split("-");
+        const label = new Date(+y, +m - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+        setErr(`No column found for ${label} in this budget file. Check that the review period matches the file.`);
         return;
       }
 
@@ -243,12 +429,24 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // For GL files: extract expense account section (6xxxxx), keep 2 months of entries + all totals
+  // For GL files: extract expense account section (6xxxxx), keep 2 months of entries
   const readGlCsv = (file, setter, setErr) => {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
       const raw = e.target.result;
+
+      // Detect IS file uploaded by mistake: IS has 3+ date columns in a single early row
+      const earlyLines = raw.split("\n").slice(0, 15);
+      const looksLikeIS = earlyLines.some(line => {
+        const dateCols = line.split(",").filter(c => { const t = c.trim(); return t.length === 10 && t[2] === "/" && t[5] === "/"; });
+        return dateCols.length >= 3;
+      });
+      if (looksLikeIS) {
+        setErr("This appears to be an income statement, not a GL report. Please upload the GL report CSV.");
+        return;
+      }
+
       const [yr, mo] = reviewMonth.split("-");
 
       const keepMonths = new Set();
@@ -260,6 +458,13 @@ export default function App() {
       }
 
       const lines = raw.split("\n");
+
+      // Check expense accounts exist before processing
+      const hasExpenseAccounts = lines.some(l => /^6\d{4,5}\s+-/.test(l));
+      if (!hasExpenseAccounts) {
+        setErr("No expense accounts (6xxxxx) found in this file. Check that a GL report with expense account sections was uploaded.");
+        return;
+      }
 
       let expenseStart = 0;
       for (let i = 0; i < lines.length; i++) {
@@ -283,24 +488,47 @@ export default function App() {
         if (/^Totals for 6/.test(t)) continue;
 
         // Journal entry lines — keep only if in the relevant months
-        const parts = t.split(",");
+        // Columns: [0] Posted Dt, [1] Doc Dt, [2] Doc, [3] Memo/Description,
+        //          [4] Dept, [5] Location, [6] Unit, [7] JNL, [8] Debit, [9] Credit, [10] Balance
+        // Use a quoted-CSV parser to handle commas inside quoted fields
+        const parts = [];
+        { let cur = "", inQ = false;
+          for (let ci = 0; ci < t.length; ci++) {
+            const ch = t[ci];
+            if (ch === '"') { inQ = !inQ; }
+            else if (ch === ',' && !inQ) { parts.push(cur); cur = ""; }
+            else { cur += ch; }
+          }
+          parts.push(cur);
+        }
         const dt = parts[0] ?? "";
         if (dt.length === 10 && dt[2] === "/" && dt[5] === "/") {
           const my = dt.slice(0, 3) + dt.slice(6, 10);
           if (keepMonths.has(my)) {
-            const doc      = (parts[1] ?? "").trim();
-            const desc     = (parts[2] ?? "").trim();
-            const debit    = (parts[7] ?? "").trim();
-            const credit   = (parts[8] ?? "").trim();
-            const docPart  = doc ? `,${doc}` : "";
-            const shortDesc = desc.includes("AP Invoices:") ? "AP" : desc;
-            result.push(`${dt}${docPart},${shortDesc},${debit},${credit}`);
+            // GL columns (right-to-left from end, robust to unquoted commas in description):
+            //   [length-1]=Balance, [length-2]=Credit, [length-3]=Debit, [length-4]=JNL,
+            //   [length-5]=Unit, [length-6]=Location, [length-7]=Department
+            //   [2]=Doc, [3..length-8]=Description (rejoin if extra commas present)
+            const n = parts.length;
+            const doc  = (parts[2] ?? "").trim();
+            // Rejoin any extra middle parts caused by unquoted commas in the description
+            const desc = parts.slice(3, n - 7).join(",").trim();
+            // Strip commas from numeric amounts (e.g. "1,500.00" → "1500.00")
+            const debit  = (parts[n - 3] ?? "").replace(/,/g, "").trim();
+            const credit = (parts[n - 2] ?? "").replace(/,/g, "").trim();
+            const docPart = doc ? `,${doc}` : "";
+            const apMatch = desc.match(/^AP Invoic[a-z]*[:\s-]+(.+)/i);
+            const shortDesc = apMatch ? "AP: " + apMatch[1].slice(0, 100) : desc;
+            // Quote description if it contains commas so debit/credit columns stay unambiguous
+            const safeDesc = shortDesc.includes(",") ? `"${shortDesc}"` : shortDesc;
+            result.push(`${dt}${docPart},${safeDesc},${debit},${credit}`);
           }
         }
       }
 
       if (result.length === 0) {
-        setErr("No expense entries found for the selected period. Check the review period matches your data.");
+        const monthList = [...keepMonths].join(" or ");
+        setErr(`No expense entries found for ${monthList}. Check that the GL report covers the review period.`);
         return;
       }
 
@@ -308,29 +536,22 @@ export default function App() {
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
       setter([
         "// GL: expense accounts, 2 months ending " + label + " (" + result.length + " lines)",
-        "FORMAT: Account | Date, [Doc], Description, Debit, Credit. AP = batch payment posting.",
+        "FORMAT: Account | Date, [Doc/invoice#], Description, Debit, Credit.",
         ...result
       ].join("\n"));
     };
     reader.readAsText(file);
   };
 
-  const [refineIS, setRefineIS]               = useState("");
-  const [refineGL, setRefineGL]               = useState("");
-  const [refineComments, setRefineComments]   = useState("");
-  const [refineAnalysis, setRefineAnalysis]   = useState("");
-  const [refining, setRefining]               = useState(false);
-  const [refineError, setRefineError]         = useState("");
-  const [refineApplied, setRefineApplied]     = useState(false);
 
-  const updateItem = (id, patch) => setItems(is => is.map(i => i.id === id ? { ...i, ...patch } : i));
-  const deleteItem = (id) => setItems(is => is.filter(i => i.id !== id));
+  const updateItem = (id, patch) => updateItems(items.map(i => i.id === id ? { ...i, ...patch } : i));
+  const deleteItem = (id) => updateItems(items.filter(i => i.id !== id));
   const startEdit  = (item) => { setEditingId(item.id); setEditDraft({ ...item }); };
   const cancelEdit = () => { setEditingId(null); setEditDraft({}); };
   const saveEdit   = () => { updateItem(editingId, editDraft); setEditingId(null); setEditDraft({}); };
   const addItem    = () => {
     if (!newItem.text.trim()) return;
-    setItems(is => [...is, { ...newItem, id: Date.now() }]);
+    updateItems([...items, { ...newItem, id: Date.now() }]);
     setNewItem({ category: CATEGORIES[0], accounts: "", rule: "FLAG IF", source: "IS", text: "" });
     setAdding(false);
   };
@@ -366,8 +587,7 @@ export default function App() {
           rule: item.rule === "CHECK" ? "CHECK" : "FLAG IF",
           text: item.text,
         }));
-        setPrevItems(items);
-        setItems(normalised);
+        updateItems(normalised);
         setImportError("");
       } catch {
         setImportError("Could not parse file. Make sure it is valid JSON.");
@@ -381,7 +601,7 @@ export default function App() {
     if (!incomeStatement.trim() && !glEntries.trim()) {
       setReviewError("Paste at least one of: Income Statement or GL Entries."); return;
     }
-    setReviewError(""); setReviewing(true); setFindings([]);
+    setReviewError(""); setReviewing(true); setFindings([]); setDetailOpen({});
     try {
       const [yr, mo] = reviewMonth.split("-");
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
@@ -392,7 +612,7 @@ export default function App() {
       // ── Call 1: Income Statement Review ──────────────────────────────────────
       if (incomeStatement.trim()) {
         setReviewStatus("Reviewing income statement...");
-        const isSys = "You are a senior multifamily property accountant performing a monthly financial review.\n\nYou must work through EVERY category in the checklist systematically from top to bottom. Do not stop early. Do not skip categories. Every FLAG IF rule must be evaluated against the data.\n\nRULES FOR READING THE DATA:\n- The review period column is the column whose header date matches the review period. Use only that column for current month balances.\n- When calculating trailing averages, use the 3 months immediately prior to the review period only. Do not include the current review month in the average.\n- Do not reference YTD totals, TTM columns, or any future month columns.\n- Flag every expense account (6xxxxx) that shows a negative month-ending balance in the review period as a finding.\n\nFOR EACH FLAG IF RULE:\n- If the data is present and the condition is NOT met, skip it silently.\n- If the data is present and the condition IS met, include it as a finding.\n- Only skip a rule if the account numbers listed do not appear anywhere in the income statement data at all.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: describe the specific issue with exact dollar amounts and variance percentages from the data\n  - action: what needs to be done\n- Order findings by accountNumber ascending.\n- Return an empty array [] if genuinely no issues are found.";
+        const isSys = "You are a senior multifamily property accountant performing a monthly financial review.\n\nYou must work through EVERY category in the checklist systematically from top to bottom. Do not stop early. Do not skip categories. Every FLAG IF rule must be evaluated against the data.\n\nRULES FOR READING THE DATA:\n- The review period column is the column whose header date matches the review period. Use only that column for current month balances.\n- When calculating trailing averages, use the 3 months immediately prior to the review period only. Do not include the current review month in the average.\n- Do not reference YTD totals, TTM columns, or any future month columns.\n- Flag every expense account (6xxxxx) that shows a negative month-ending balance in the review period as a finding.\n\nFOR EACH FLAG IF RULE:\n- If the data is present and the condition is NOT met, skip it silently.\n- If the data is present and the condition IS met, include it as a finding.\n- Only skip a rule if the account numbers listed do not appear anywhere in the income statement data at all.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: 1-2 sentences maximum. State the specific variance or anomaly with exact dollar amounts and the threshold breached. Nothing else.\n  - action: one directive sentence stating what to obtain or verify.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if genuinely no issues are found.";
 
         const isUsr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serializeBySource(items, "IS") + "\n\nINCOME STATEMENT:\n" + incomeStatement + "\n\nReview the " + label + " income statement against the checklist.";
 
@@ -410,7 +630,7 @@ export default function App() {
         : null;
       if (parallelStatus) setReviewStatus(parallelStatus);
 
-      const glSys = "You are a senior multifamily property accountant investigating GL journal entries.\n\nYou will receive two things: (1) a list of issues already identified from the income statement, and (2) GL journal entries to investigate.\n\nYour job has two parts:\nPART 1 - For each income statement finding provided, look at the GL entries for that account and add specific detail about the individual journal entries that explain or confirm the issue. Add context such as specific entry dates, descriptions, amounts, and whether accrual/reversal pairs are present.\nPART 2 - Apply the GL checklist rules independently to identify any additional issues visible only in the GL that the income statement would not show.\n\nDo NOT re-detect income statement variance issues. Do NOT recalculate month-ending balances or compare column totals. Only look at individual journal entry patterns: accruals, reversals, duplicate postings, missing pairs, suspicious descriptions, and timing anomalies.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: describe the specific issue with entry dates, descriptions, and amounts from the GL\n  - action: what needs to be done\n  - source: either \"IS\" if this augments an income statement finding, or \"GL\" if this is a new GL-only finding\n- If you cannot find the specific entries to evaluate a checklist rule, skip it entirely.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if no issues are found.";
+      const glSys = "You are a senior multifamily property accountant investigating GL journal entries.\n\nYou will receive two things: (1) a list of issues already identified from the income statement, and (2) GL journal entries to investigate.\n\nYour job has two parts:\nPART 1 - For each income statement finding, look at the GL entries for that account and add only the specific entry-level detail that explains or confirms the anomaly (dates, amounts, descriptions). Do not describe entries that are functioning correctly.\nPART 2 - Apply the GL checklist rules to identify issues visible only in the GL that the income statement would not show.\n\nCRITICAL RULES:\n- Only create a finding if there is a specific problem, error, or pattern risk. Do not create findings where GL activity is normal and consistent.\n- Do not describe entries that are working correctly. State only what is wrong.\n- Do not include findings where your conclusion is that activity looks accurate. If the GL simply explains an IS variance with no anomaly, do not add a GL finding — let the IS finding stand alone.\n- Do NOT re-detect income statement variance issues. Do NOT recalculate month-ending balances or compare column totals. Only look at individual journal entry patterns: accruals, reversals, duplicate postings, missing pairs, suspicious descriptions, and timing anomalies.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: 2-3 sentences maximum. State only the specific anomaly with the relevant entry dates and amounts. Do not narrate correct activity.\n  - action: one directive sentence stating what to obtain or verify.\n  - source: either \"IS\" if this augments an income statement finding, or \"GL\" if this is a new GL-only finding\n- If you cannot find the specific entries to evaluate a checklist rule, skip it entirely.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if no issues are found.";
       const glUsr = "REVIEW PERIOD: " + label + "\n\nINCOME STATEMENT FINDINGS ALREADY IDENTIFIED:\n" + JSON.stringify(isFindings, null, 2) + "\n\nGL CHECKLIST:\n" + serializeBySource(items, "GL") + "\n\nGL ENTRIES:\n" + glEntries + "\n\nInvestigate the GL entries for " + label + ".";
 
       const budSys = "You are a senior multifamily property accountant performing a budget variance review.  Apply exactly two checks to expense accounts (6xxxxx) only:  CHECK 1 — UNBUDGETED EXPENSES: Any expense account where the actual amount for the review period is greater than $0 but the budget is $0 or missing. Flag as potential miscoding to wrong account.  CHECK 2 — MATERIAL BUDGET OVERAGES: Any expense account where actual exceeds budget by more than 25% AND the dollar overage is greater than $500. Skip accounts where budget is $0 (those are caught by Check 1).  OUTPUT RULES: - Return a JSON array only. No preamble, no explanation, no markdown backticks. - Each object must have: { accountNumber, accountName, issue, action, checkType } where checkType is \"UNBUDGETED\" or \"BUDGET_OVERAGE\" - Include exact actual amount, budget amount, and variance % in the issue field. - Order by accountNumber ascending. - Return [] if no issues found.";
@@ -418,14 +638,14 @@ export default function App() {
 
       const [glResult, budResult] = await Promise.all([
         glEntries.trim()
-          ? callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 3000 }, max_tokens: 8000 })
+          ? callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 5000 }, max_tokens: 16000 })
               .then(raw => { const match = raw.match(/\[[\s\S]*\]/); return JSON.parse(match ? match[0] : raw); })
-              .catch(e => { setReviewError("GL parse error: " + e.message.slice(0, 200)); return []; })
+              .catch(e => { setReviewError("GL error: " + e.message.slice(0, 300)); return []; })
           : Promise.resolve([]),
         budgetData.trim()
           ? callClaude(budSys, budUsr, { thinking: { type: "enabled", budget_tokens: 3000 }, max_tokens: 16000 })
               .then(raw => { const match = raw.match(/\[[\s\S]*\]/); return JSON.parse(match ? match[0] : raw); })
-              .catch(e => { setReviewError("Budget parse error: " + e.message.slice(0, 200)); return []; })
+              .catch(e => { setReviewError("Budget error: " + e.message.slice(0, 300)); return []; })
           : Promise.resolve([]),
       ]);
 
@@ -462,6 +682,39 @@ export default function App() {
       setFindings(mergedArray);
       setTab("findings");
 
+      const propertyName = glFileName
+        ? glFileName.replace(/\.[^.]+$/, "").split("_").pop()
+        : "";
+
+      // Fire-and-forget email notification
+      fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ findings: mergedArray, label, propertyName })
+      }).catch(() => {});
+
+      // Fire-and-forget history save
+      fetch("/api/history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property:          propertyName,
+          period:            reviewMonth,
+          timestamp:         new Date().toISOString(),
+          findings:          mergedArray,
+          checklistSnapshot: items,
+          csvs: {
+            is:     incomeStatement,
+            gl:     glEntries,
+            budget: budgetData,
+          },
+        }),
+      }).then(r => r.json())
+        .then(d => {
+          if (d.ok) setHistoryLoaded(false); // invalidate so History tab refreshes
+        })
+        .catch(() => {});
+
     } catch(e) { setReviewError("Error: " + (e.message || "Please try again.")); }
     setReviewStatus("");
     setReviewing(false);
@@ -492,38 +745,10 @@ export default function App() {
     XLSX.writeFile(wb, "Accounting_Review_" + reviewMonth + ".xlsx");
   };
 
-  const analyseGaps = async () => {
-    if (!refineComments.trim()) { setRefineError("Manager comments are required."); return; }
-    if (!refineIS.trim() && !refineGL.trim()) { setRefineError("Paste at least the income statement or GL entries."); return; }
-    setRefineError(""); setRefining(true); setRefineAnalysis(""); setRefineApplied(false);
-    try {
-      const sys = "You are a senior multifamily accounting reviewer comparing what an AI checklist should have caught versus what a human manager identified.\nAnalyse the gap and produce:\n1. Issues the manager found that the checklist would have MISSED entirely\n2. Patterns in the data that should have triggered a flag\n3. Specific recommended changes (new FLAG IF rules, threshold adjustments, new categories)\nReference specific accounts and dollar amounts.\nFormat:\nGAPS IDENTIFIED:\n- ...\n\nPATTERNS MISSED:\n- ...\n\nRECOMMENDED CHECKLIST CHANGES:\n- ...";
-      const usr = "CURRENT CHECKLIST:\n" + serialize(items) + "\n\n" + (refineIS.trim() ? "INCOME STATEMENT (pre-correction):\n" + refineIS + "\n\n" : "") + (refineGL.trim() ? "GL ENTRIES (pre-correction):\n" + refineGL + "\n\n" : "") + "MANAGER COMMENTS:\n" + refineComments + "\n\nAnalyse what the checklist missed.";
-      setRefineAnalysis(await callClaude(sys, usr));
-    } catch(e) { setRefineError("Error running analysis. Please try again."); }
-    setRefining(false);
-  };
-
-  const applyUpdates = async () => {
-    if (!refineAnalysis.trim()) { setRefineError("Run the gap analysis first."); return; }
-    setRefineError(""); setRefining(true);
-    try {
-      const sys = "You are updating a multifamily property accounting review checklist.\nReturn ONLY new or modified checklist items — do not repeat existing unchanged items.\nAdd new FLAG IF or CHECK lines where gaps were found. Adjust thresholds as needed.\nFormat strictly:\nCATEGORY: X\nACCOUNTS: ... (if applicable)\nCHECK: ...\nFLAG IF: ...\n\nSeparate each item with a blank line. No preamble, no explanation, nothing else.";
-      const usr = "CURRENT CHECKLIST:\n" + serialize(items) + "\n\nGAP ANALYSIS:\n" + refineAnalysis + "\n\nThe following findings were not caught by the current checklist — suggest additions or modifications to address them:\n" + refineComments + "\n\nReturn only suggested new or modified checklist items.";
-      const result = await callClaude(sys, usr);
-      const parsed = parseAIChecklist(result);
-      if (parsed) { setPrevItems(items); setItems(parsed); setRefineApplied(true); }
-      else { setRefineError("Could not parse AI response. Try again."); }
-    } catch(e) { setRefineError("Error updating checklist. Please try again."); }
-    setRefining(false);
-  };
-
-  const revert = () => { if (prevItems) { setItems(prevItems); setPrevItems(null); setRefineApplied(false); } };
 
   const grouped = {};
   items.forEach(item => { if (!grouped[item.category]) grouped[item.category] = []; grouped[item.category].push(item); });
   const totalChecks = items.length;
-  const flagCount   = items.filter(i => i.rule === "FLAG IF").length;
 
   const monthLabel = (() => {
     try { const [y,m] = reviewMonth.split("-"); return new Date(+y,+m-1).toLocaleString("en-US",{month:"long",year:"numeric"}); }
@@ -567,14 +792,24 @@ export default function App() {
             {[
               {key:"review",    label:"01 · Run Review"},
               {key:"findings",  label:"02 · Findings",   dot: findings.length > 0},
-              {key:"refine",    label:"03 · Refine Checklist"},
-              {key:"checklist", label:"04 · Checklist",  badge: totalChecks},
+              {key:"checklist", label:"03 · Checklist",  badge: totalChecks},
+              {key:"history",   label:"04 · History",    badge: historyIndex.length || null},
             ].map(t => (
-              <button key={t.key} className="tab" onClick={() => setTab(t.key)}
+              <button key={t.key} className="tab" onClick={() => {
+                setTab(t.key);
+                if (t.key === "history" && !historyLoaded && !historyLoading) {
+                  setHistoryLoading(true);
+                  fetch("/api/history")
+                    .then(r => r.json())
+                    .then(data => { if (Array.isArray(data)) setHistoryIndex(data); setHistoryLoaded(true); })
+                    .catch(() => setHistoryLoaded(true))
+                    .finally(() => setHistoryLoading(false));
+                }
+              }}
                 style={{...s.tab,...(tab===t.key?s.tabActive:{})}}>
                 {t.label}
                 {t.dot && tab!=="findings" && <span style={s.dot}/>}
-                {t.badge && <span style={s.badge}>{t.badge}</span>}
+                {t.badge != null && <span style={s.badge}>{t.badge}</span>}
               </button>
             ))}
           </nav>
@@ -587,18 +822,24 @@ export default function App() {
           <div className="fade-up" style={s.panel}>
             <div style={s.panelHead}>
               <h2 style={s.panelTitle}>Run a Review</h2>
-              <p style={s.panelDesc}>Paste your income statement and/or GL entries. The AI reviews them against the current checklist ({totalChecks} checks, {flagCount} flags).</p>
+              <p style={s.panelDesc}>Paste your income statement and/or GL entries. The AI reviews them against the current checklist ({totalChecks} rules).</p>
             </div>
             <div style={{marginBottom:20}}>
               <label style={s.label}>Review Period</label>
               <div style={{display:"flex",alignItems:"center",gap:12,marginTop:8}}>
-                <input type="month" value={reviewMonth} onChange={e=>setReviewMonth(e.target.value)}
+                <input type="month" value={reviewMonth} onChange={e=>{ setReviewMonth(e.target.value); setPeriodWarning(""); }}
                   style={{background:"#0e0e0e",border:"1px solid #2a2a2a",borderRadius:8,color:"#e8c468",
                     fontFamily:"'Fira Code',monospace",fontSize:13,padding:"8px 14px",colorScheme:"dark"}}/>
                 <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>{monthLabel}</span>
               </div>
+              {periodWarning && (
+                <div style={{marginTop:8,padding:"7px 12px",background:"#2a1f00",border:"1px solid #7a5800",
+                  borderRadius:6,color:"#e8c468",fontFamily:"'Fira Code',monospace",fontSize:11,display:"flex",alignItems:"center",gap:8}}>
+                  <span>⚠</span><span>{periodWarning}</span>
+                </div>
+              )}
             </div>
-            <div style={s.twoCol}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20}}>
               <div style={s.inputGroup}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <label style={s.label}>Trailing Income Statement <span style={s.hint}>(CSV or plain text)</span></label>
@@ -621,25 +862,43 @@ export default function App() {
                     Upload CSV
                   </button>
                   <input ref={glFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
-                    onChange={e=>{ readGlCsv(e.target.files?.[0], setGlEntries, setReviewError); e.target.value=""; }}/>
+                    onChange={e=>{ const f = e.target.files?.[0]; readGlCsv(f, setGlEntries, setReviewError); setGlFileName(f?.name ?? ""); e.target.value=""; }}/>
                 </div>
                 <textarea style={{...s.textarea,minHeight:240}}
                   placeholder={"Date, Account, Description, Debit, Credit\n02/25/2026, 601002, RED SEAL FILL VALVE, 9589.33,\n02/25/2026, 601039, PAPER TOWEL ROLLS, 9589.33,"}
                   value={glEntries} onChange={e=>setGlEntries(e.target.value)}/>
               </div>
-            </div>
-            <div style={{...s.inputGroup,marginTop:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <label style={s.label}>Budget Statement <span style={s.hint}>Annual budget CSV — review month column will be extracted</span></label>
-                <button className="btn" onClick={()=>budgetFileRef.current?.click()}
-                  style={{...s.btnOutline,fontSize:10,padding:"3px 10px",marginBottom:4}}>
-                  Upload CSV
-                </button>
-                <input ref={budgetFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
-                  onChange={e=>{ readBudgetCsv(e.target.files?.[0], setBudgetData, setBudgetError); e.target.value=""; }}/>
+              <div style={s.inputGroup}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <label style={s.label}>Budget Statement <span style={s.hint}>Annual budget CSV</span></label>
+                  <button className="btn" onClick={()=>budgetFileRef.current?.click()}
+                    style={{...s.btnOutline,fontSize:10,padding:"3px 10px",marginBottom:4}}>
+                    Upload CSV
+                  </button>
+                  <input ref={budgetFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
+                    onChange={e=>{ readBudgetCsv(e.target.files?.[0], setBudgetData, setBudgetError); e.target.value=""; }}/>
+                </div>
+                <div style={{...s.textarea,minHeight:240,display:"flex",flexDirection:"column",justifyContent:"center",
+                  alignItems:"center",gap:8,cursor:"pointer",color:"#4b5563"}}
+                  onClick={()=>budgetFileRef.current?.click()}>
+                  {budgetError
+                    ? <span style={{color:"#f87171",fontSize:11,textAlign:"center"}}>{budgetError}</span>
+                    : budgetData
+                      ? <>
+                          <span style={{color:"#4ade80",fontSize:11}}>✓ Budget loaded</span>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280"}}>
+                            {budgetData.split("\n").length - 1} accounts · click to replace
+                          </span>
+                        </>
+                      : <>
+                          <span style={{fontSize:18,opacity:0.3}}>$</span>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,textAlign:"center",lineHeight:1.6}}>
+                            Upload annual budget CSV<br/>Review month column extracted automatically
+                          </span>
+                        </>
+                  }
+                </div>
               </div>
-              {budgetError && <div style={{...s.error,marginTop:6}}>{budgetError}</div>}
-              {budgetData && !budgetError && <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4ade80",marginTop:4}}>Budget loaded ({budgetData.split("\n").length - 1} accounts)</div>}
             </div>
             {reviewError && <div style={s.error}>{reviewError}</div>}
             <div style={{display:"flex",justifyContent:"flex-end",marginTop:20}}>
@@ -698,6 +957,121 @@ export default function App() {
                         <span style={{fontFamily:"'Lora',serif", fontSize:13, lineHeight:1.7, color:"#9ca3af"}}>{item.action}</span>
                       </div>
                     )}
+
+                    {/* IS / GL detail toggles */}
+                    <div style={{display:"flex",gap:6,marginTop:10}}>
+                      {incomeStatement && (
+                        <button className="btn" onClick={() => toggleDetail(item.accountNumber, "is")}
+                          style={{...s.btnOutline,fontSize:10,padding:"2px 10px",
+                            color: detailOpen[item.accountNumber]?.is ? "#e8c468" : "#4b5563",
+                            borderColor: detailOpen[item.accountNumber]?.is ? "#e8c468" : "#2a2a2a"}}>
+                          IS {detailOpen[item.accountNumber]?.is ? "▲" : "▼"}
+                        </button>
+                      )}
+                      {glEntries && (
+                        <button className="btn" onClick={() => toggleDetail(item.accountNumber, "gl")}
+                          style={{...s.btnOutline,fontSize:10,padding:"2px 10px",
+                            color: detailOpen[item.accountNumber]?.gl ? "#60a5fa" : "#4b5563",
+                            borderColor: detailOpen[item.accountNumber]?.gl ? "#60a5fa" : "#2a2a2a"}}>
+                          GL {detailOpen[item.accountNumber]?.gl ? "▲" : "▼"}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* IS detail table */}
+                    {detailOpen[item.accountNumber]?.is && (() => {
+                      const d = parseIsDetail(incomeStatement, item.accountNumber);
+                      if (!d) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No IS data found for {item.accountNumber}.</div>;
+                      const tblCell = (align, extra) => ({
+                        padding:"4px 10px", textAlign:align, borderBottom:"1px solid #141414",
+                        fontFamily:"'Fira Code',monospace", fontSize:11, whiteSpace:"nowrap", ...extra
+                      });
+                      return (
+                        <div style={{marginTop:10,overflowX:"auto",borderRadius:6,border:"1px solid #1e1e1e"}}>
+                          <table style={{borderCollapse:"collapse",width:"100%"}}>
+                            <thead>
+                              <tr style={{background:"#111"}}>
+                                {d.headers.map((h,hi) => (
+                                  <th key={hi} style={tblCell(hi<=1?"left":"right",{color:"#4b5563",fontWeight:400})}>
+                                    {h}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {d.dataRows.map((row,ri) => (
+                                <tr key={ri} style={{background: ri%2===0?"transparent":"#0a0a0a"}}>
+                                  {row.map((v,vi) => {
+                                    const num = vi >= 2 ? parseFloat(v) : NaN;
+                                    const fmt = !isNaN(num) ? num.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : v;
+                                    return (
+                                      <td key={vi} style={tblCell(vi<=1?"left":"right",{
+                                        color: vi<2 ? "#6b7280" : num<0 ? "#f87171" : num===0 ? "#374151" : "#d1d5db"
+                                      })}>
+                                        {fmt}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                              {d.sumRow && (
+                                <tr style={{background:"#0d1a0d",borderTop:"1px solid #2a3a2a"}}>
+                                  {d.sumRow.map((v,vi) => {
+                                    const num = vi >= 2 ? parseFloat(v) : NaN;
+                                    const fmt = !isNaN(num) ? num.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : v;
+                                    return (
+                                      <td key={vi} style={tblCell(vi<=1?"left":"right",{
+                                        color: vi<2 ? "#4ade80" : num<0 ? "#f87171" : num===0 ? "#374151" : "#4ade80",
+                                        fontWeight:600
+                                      })}>
+                                        {fmt}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+
+                    {/* GL detail table */}
+                    {detailOpen[item.accountNumber]?.gl && (() => {
+                      const isRangeAcct = /^\d{5,6}-\d{5,6}$/.test(item.accountNumber);
+                      if (isRangeAcct) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No GL entries for {item.accountNumber} due to multiple accounts.</div>;
+                      const entries = parseGlDetail(glEntries, item.accountNumber);
+                      if (!entries) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No GL entries found for {item.accountNumber}.</div>;
+                      const tblCell = (align, extra) => ({
+                        padding:"4px 10px", textAlign:align, borderBottom:"1px solid #141414",
+                        fontFamily:"'Fira Code',monospace", fontSize:11, ...extra
+                      });
+                      return (
+                        <div style={{marginTop:10,overflowX:"auto",borderRadius:6,border:"1px solid #1e1e1e"}}>
+                          <table style={{borderCollapse:"collapse",width:"100%"}}>
+                            <thead>
+                              <tr style={{background:"#111"}}>
+                                {["Date","Description","Debit","Credit"].map(h => (
+                                  <th key={h} style={tblCell(h==="Description"?"left":"right",{color:"#4b5563",fontWeight:400,whiteSpace:"nowrap"})}>
+                                    {h}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {entries.map((e,ei) => (
+                                <tr key={ei} style={{background: ei%2===0?"transparent":"#0a0a0a"}}>
+                                  <td style={tblCell("left",{color:"#6b7280",whiteSpace:"nowrap"})}>{e.date}</td>
+                                  <td style={tblCell("left",{color:"#9ca3af",maxWidth:380,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"})}>{e.desc}</td>
+                                  <td style={tblCell("right",{color:"#4ade80",whiteSpace:"nowrap"})}>{e.debit}</td>
+                                  <td style={tblCell("right",{color:"#f87171",whiteSpace:"nowrap"})}>{e.credit}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -711,101 +1085,6 @@ export default function App() {
           </div>
         )}
 
-        {tab==="refine" && (
-          <div className="fade-up" style={s.panel}>
-            <div style={s.panelHead}>
-              <h2 style={s.panelTitle}>Refine Checklist</h2>
-              <p style={s.panelDesc}>Upload the <strong style={{color:"#e8c468"}}>uncorrected</strong> financials from a period the manager has already reviewed, add their comments, and the AI will identify checklist gaps and improve the rules.</p>
-            </div>
-
-            <div style={{display:"flex",alignItems:"center",gap:0,marginBottom:28}}>
-              {["Provide financials & comments","Review gap analysis","Apply to checklist"].map((label,i)=>(
-                <div key={i} style={{display:"flex",alignItems:"center",flex:1}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                    <div style={{width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",
-                      fontFamily:"'Fira Code',monospace",fontSize:11,fontWeight:700,
-                      background:(i===0||(i===1&&refineAnalysis)||(i===2&&refineApplied))?"#e8c468":"#1e1e1e",
-                      color:(i===0||(i===1&&refineAnalysis)||(i===2&&refineApplied))?"#0e0e0e":"#4b5563"}}>
-                      {i+1}
-                    </div>
-                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563",whiteSpace:"nowrap"}}>{label}</span>
-                  </div>
-                  {i<2 && <div style={{flex:1,height:1,background:"#1e1e1e",margin:"0 10px"}}/>}
-                </div>
-              ))}
-            </div>
-
-            <div style={{marginBottom:20}}>
-              <div style={s.stepLabel}>Step 1 - Financials & Manager Comments</div>
-              <div style={s.twoCol}>
-                <div style={s.inputGroup}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <label style={s.label}>Trailing Income Statement <span style={s.hint}>(pre-correction)</span></label>
-                    <button className="btn" onClick={()=>refineISFileRef.current?.click()}
-                      style={{...s.btnOutline,fontSize:10,padding:"3px 10px",marginBottom:4}}>
-                      Upload CSV
-                    </button>
-                    <input ref={refineISFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
-                      onChange={e=>{ readIsCsv(e.target.files?.[0], setRefineIS, setRefineError); e.target.value=""; }}/>
-                  </div>
-                  <textarea style={{...s.textarea,minHeight:180}}
-                    placeholder="Paste income statement exactly as it was before any corrections..."
-                    value={refineIS} onChange={e=>setRefineIS(e.target.value)}/>
-                </div>
-                <div style={s.inputGroup}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <label style={s.label}>GL Entries <span style={s.hint}>(pre-correction)</span></label>
-                    <button className="btn" onClick={()=>refineGLFileRef.current?.click()}
-                      style={{...s.btnOutline,fontSize:10,padding:"3px 10px",marginBottom:4}}>
-                      Upload CSV
-                    </button>
-                    <input ref={refineGLFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
-                      onChange={e=>{ readGlCsv(e.target.files?.[0], setRefineGL, setRefineError); e.target.value=""; }}/>
-                  </div>
-                  <textarea style={{...s.textarea,minHeight:180}}
-                    placeholder="Paste GL entries exactly as they were before any corrections..."
-                    value={refineGL} onChange={e=>setRefineGL(e.target.value)}/>
-                </div>
-              </div>
-              <div style={{...s.inputGroup,marginTop:16}}>
-                <label style={s.label}>Manager Comments <span style={s.hint}>(every issue found, with context)</span></label>
-                <textarea style={{...s.textarea,minHeight:130}}
-                  placeholder={"Describe every issue the manager caught - what was wrong, the dollar amount, why it happened, and whether it was corrected.\n\nExample: 'PO accrual bug - $9,589.33 applied to 25 line items, total overstatement $239,733. Yardi bug when PO exceeds 20 lines. Reversed and re-accrued correctly.'\n\nExample: 'Insurance drop from $14,228 to $9,348 was intentional - new policy rate. Not an error.'"}
-                  value={refineComments} onChange={e=>setRefineComments(e.target.value)}/>
-              </div>
-            </div>
-
-            {refineError && <div style={s.error}>{refineError}</div>}
-            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:24}}>
-              <button className="btn" onClick={analyseGaps} disabled={refining} style={s.btnGold}>
-                {refining&&!refineAnalysis?<span className="pulsing">Analysing gaps...</span>:"Analyse Gaps →"}
-              </button>
-            </div>
-
-            {refineAnalysis && (
-              <div style={{marginBottom:24}}>
-                <div style={s.stepLabel}>Step 2 - Gap Analysis</div>
-                <div style={{background:"#0e0e0e",border:"1px solid #2a2a2a",borderRadius:8,padding:"18px 20px",maxHeight:300,overflowY:"auto",marginBottom:20}}>
-                  {refineAnalysis.split("\n").map((line,i)=>{
-                    const isH=/^(GAPS|PATTERNS|RECOMMENDED)/.test(line);
-                    const isB=line.trim().startsWith("- ");
-                    return <div key={i} style={{fontFamily:isH?"'Fira Code',monospace":"'Lora',serif",
-                      fontSize:isH?11:13,color:isH?"#e8c468":isB?"#d1d5db":"#6b7280",
-                      lineHeight:1.7,marginTop:isH?14:0,letterSpacing:isH?0.5:0}}>{line||<br/>}</div>;
-                  })}
-                </div>
-                <div style={s.stepLabel}>Step 3 - Apply to Checklist</div>
-                <div style={{display:"flex",gap:12,alignItems:"center"}}>
-                  {prevItems && <button className="btn" onClick={revert} style={s.btnOutline}>Revert</button>}
-                  <button className="btn" onClick={applyUpdates} disabled={refining} style={s.btnGold}>
-                    {refining&&refineAnalysis?<span className="pulsing">Updating...</span>:"Apply to Checklist →"}
-                  </button>
-                  {refineApplied && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4ade80"}}>Checklist updated - view in Checklist tab</span>}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {tab==="checklist" && (
           <div className="fade-up" style={s.panel}>
@@ -813,10 +1092,23 @@ export default function App() {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                 <div>
                   <h2 style={s.panelTitle}>Master Checklist</h2>
-                  <p style={s.panelDesc}>{totalChecks} checks across {Object.keys(grouped).length} categories - {flagCount} FLAG IF rules, {totalChecks-flagCount} CHECK rules.</p>
+                  <p style={s.panelDesc}>{totalChecks} rules across {Object.keys(grouped).length} categories.</p>
                 </div>
-                <div style={{display:"flex",gap:8,flexShrink:0}}>
-                  <button className="btn" onClick={()=>setItems(DEFAULT_ITEMS)} style={{...s.btnOutline,fontSize:11,padding:"5px 12px"}}>Reset</button>
+                <div style={{display:"flex",gap:8,flexShrink:0,alignItems:"center"}}>
+                  {checklistSaveMsg && (
+                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,
+                      color: checklistSaveMsg === "Saved" ? "#4ade80" : "#f87171"}}>
+                      {checklistSaveMsg}
+                    </span>
+                  )}
+                  {checklistDirty && !checklistSaveMsg && (
+                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468"}}>unsaved</span>
+                  )}
+                  <button className="btn" onClick={saveChecklist} disabled={!checklistDirty || checklistSaving}
+                    style={{...s.btnGold,fontSize:11,padding:"5px 14px",opacity:(!checklistDirty||checklistSaving)?0.4:1}}>
+                    {checklistSaving ? "Saving..." : "Save"}
+                  </button>
+                  <button className="btn" onClick={()=>updateItems(DEFAULT_ITEMS)} style={{...s.btnOutline,fontSize:11,padding:"5px 12px"}}>Reset</button>
                   <button className="btn" onClick={exportJson} style={{...s.btnOutline,fontSize:11,padding:"5px 12px"}}>Export JSON</button>
                   <button className="btn" onClick={()=>fileInputRef.current?.click()} style={{...s.btnOutline,fontSize:11,padding:"5px 12px"}}>Import JSON</button>
                   <input ref={fileInputRef} type="file" accept=".json" style={{display:"none"}} onChange={handleImport}/>
@@ -832,18 +1124,11 @@ export default function App() {
             {adding && (
               <div style={{background:"#0a1a0a",border:"1px solid #1a3a1a",borderRadius:10,padding:"16px 18px",marginBottom:24}}>
                 <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4ade80",marginBottom:12,letterSpacing:0.5}}>NEW CHECK</div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:12}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
                   <div style={s.inputGroup}>
                     <label style={s.label}>Category</label>
                     <select value={newItem.category} onChange={e=>setNewItem(n=>({...n,category:e.target.value}))} style={s.select}>
                       {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div style={s.inputGroup}>
-                    <label style={s.label}>Rule Type</label>
-                    <select value={newItem.rule} onChange={e=>setNewItem(n=>({...n,rule:e.target.value}))} style={s.select}>
-                      <option value="FLAG IF">FLAG IF</option>
-                      <option value="CHECK">CHECK</option>
                     </select>
                   </div>
                   <div style={s.inputGroup}>
@@ -891,18 +1176,11 @@ export default function App() {
 
                     {editingId===item.id ? (
                       <div style={{flex:1}}>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                           <div style={s.inputGroup}>
                             <label style={s.label}>Category</label>
                             <select value={editDraft.category} onChange={e=>setEditDraft(d=>({...d,category:e.target.value}))} style={s.select}>
                               {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
-                            </select>
-                          </div>
-                          <div style={s.inputGroup}>
-                            <label style={s.label}>Rule Type</label>
-                            <select value={editDraft.rule} onChange={e=>setEditDraft(d=>({...d,rule:e.target.value}))} style={s.select}>
-                              <option value="FLAG IF">FLAG IF</option>
-                              <option value="CHECK">CHECK</option>
                             </select>
                           </div>
                           <div style={s.inputGroup}>
@@ -929,14 +1207,7 @@ export default function App() {
                       </div>
                     ) : (
                       <>
-                        <div style={{flexShrink:0,marginTop:1,display:"flex",gap:4}}>
-                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,fontWeight:600,
-                            padding:"2px 6px",borderRadius:3,whiteSpace:"nowrap",
-                            background:item.rule==="FLAG IF"?"#2a1a0a":"#0a1a2a",
-                            color:item.rule==="FLAG IF"?"#f59e0b":"#60a5fa",
-                            border:"1px solid "+(item.rule==="FLAG IF"?"#3a2a0a":"#1a2a3a")}}>
-                            {item.rule}
-                          </span>
+                        <div style={{flexShrink:0,marginTop:1}}>
                           <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,fontWeight:600,
                             padding:"2px 6px",borderRadius:3,whiteSpace:"nowrap",
                             background:(item.source||"IS")==="IS"?"#0a1a0a":"#1a0a1a",
@@ -966,6 +1237,422 @@ export default function App() {
                 ))}
               </div>
             ))}
+          </div>
+        )}
+
+        {tab==="history" && (
+          <div className="fade-up" style={s.panel}>
+            <div style={s.panelHead}>
+              <h2 style={s.panelTitle}>Review History</h2>
+              <p style={s.panelDesc}>Every review is saved automatically with its source data and checklist snapshot.</p>
+            </div>
+
+            {historyLoading && (
+              <div style={{textAlign:"center",padding:"40px 0",fontFamily:"'Fira Code',monospace",fontSize:12,color:"#4b5563"}}>
+                Loading history…
+              </div>
+            )}
+
+            {!historyLoading && historyLoaded && historyIndex.length === 0 && (
+              <div style={s.empty}>
+                <div style={{fontSize:28,color:"#2a2a2a",marginBottom:12}}>◈</div>
+                <div style={{fontFamily:"'Lora',serif",fontSize:14,fontStyle:"italic",color:"#4b5563"}}>No reviews saved yet — run your first review to start building history.</div>
+              </div>
+            )}
+
+            {!historyLoading && historyIndex.length > 0 && (() => {
+              // Group by property
+              const grouped = {};
+              historyIndex.forEach(r => {
+                const key = r.property || "Unknown Property";
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(r);
+              });
+              return Object.entries(grouped).map(([prop, reviews]) => (
+                <div key={prop} style={{marginBottom:32}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                    <div style={{width:6,height:6,borderRadius:"50%",background:"#e8c468",flexShrink:0}}/>
+                    <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13,color:"#f5f5f5"}}>{prop}</span>
+                    <div style={{flex:1,height:1,background:"#1e1e1e"}}/>
+                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563"}}>{reviews.length} review{reviews.length!==1?"s":""}</span>
+                  </div>
+                  {reviews.map((r, i) => {
+                    const [y, m] = r.period.split("-");
+                    const periodLabel = new Date(+y, +m-1).toLocaleString("en-US", {month:"long",year:"numeric"});
+                    const dateLabel   = new Date(r.timestamp).toLocaleString("en-US", {month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});
+                    const isExpanded    = expandedReview?.blobUrl === r.blobUrl;
+                    const isFeedback    = feedbackMode === r.blobUrl;
+                    const loadReview    = () => {
+                      if (expandedReview?.blobUrl === r.blobUrl) return Promise.resolve();
+                      return new Promise(resolve => {
+                        setExpandedReview({ blobUrl: r.blobUrl, data: null, loading: true });
+                        fetch(`/api/history?url=${encodeURIComponent(r.blobUrl)}`)
+                          .then(res => res.json())
+                          .then(data => { setExpandedReview({ blobUrl: r.blobUrl, data, loading: false }); resolve(data); })
+                          .catch(() => { setExpandedReview({ blobUrl: r.blobUrl, data: null, loading: false, error: true }); resolve(null); });
+                      });
+                    };
+                    return (
+                      <div key={i} style={{borderBottom:"1px solid #1a1a1a",paddingBottom:12,marginBottom:12}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                          <div style={{display:"flex",alignItems:"center",gap:14,flex:1,flexWrap:"wrap"}}>
+                            <span style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:13,color:"#f5f5f5"}}>{periodLabel}</span>
+                            <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563"}}>{r.findingCount} finding{r.findingCount!==1?"s":""}</span>
+                            <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#374151"}}>{dateLabel}</span>
+                            {r.hasFeedback && (
+                              <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,padding:"2px 7px",
+                                background: r.feedbackCommitted ? "#052e16" : "#1c1a0a",
+                                border: `1px solid ${r.feedbackCommitted ? "#4ade80" : "#e8c468"}`,
+                                borderRadius:4,
+                                color: r.feedbackCommitted ? "#4ade80" : "#e8c468"}}>
+                                {r.feedbackCommitted ? "✓ committed" : "feedback"}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{display:"flex",gap:6,flexShrink:0}}>
+                            <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"4px 12px"}}
+                              onClick={() => {
+                                if (isExpanded && !isFeedback) { setExpandedReview(null); return; }
+                                setFeedbackMode(null);
+                                loadReview();
+                              }}>
+                              {isExpanded && !isFeedback ? "Collapse" : "View"}
+                            </button>
+                            <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"4px 12px",
+                              borderColor: isFeedback ? "#e8c468" : "#4b5563", color: isFeedback ? "#e8c468" : "#d1d5db"}}
+                              onClick={() => {
+                                if (isFeedback) { setFeedbackMode(null); return; }
+                                // Load review first, then load any existing feedback
+                                loadReview().then(() => {
+                                  fetch(`/api/feedback?blobUrl=${encodeURIComponent(r.blobUrl)}`)
+                                    .then(res => res.json())
+                                    .then(existing => {
+                                      setFeedbackDraft({
+                                        findings: existing?.findings || {},
+                                        general:  existing?.general  || "",
+                                      });
+                                      setFeedbackMode(r.blobUrl);
+                                      setFeedbackSaved(false);
+                                    })
+                                    .catch(() => {
+                                      setFeedbackDraft({ findings: {}, general: "" });
+                                      setFeedbackMode(r.blobUrl);
+                                    });
+                                });
+                              }}>
+                              {isFeedback ? "Cancel" : "Add Feedback"}
+                            </button>
+                            {r.hasFeedback && !r.feedbackCommitted && !isFeedback && (
+                              <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"4px 12px",
+                                borderColor:"#4ade80",color:"#4ade80"}}
+                                onClick={async () => {
+                                  if (!window.confirm("Commit this feedback for training? This marks it as manager-approved.")) return;
+                                  try {
+                                    const res = await fetch("/api/feedback", {
+                                      method: "POST",
+                                      headers: {"Content-Type":"application/json"},
+                                      body: JSON.stringify({ blobUrl: r.blobUrl, action: "commit" }),
+                                    });
+                                    if (!res.ok) throw new Error();
+                                    setHistoryIndex(prev => prev.map(e =>
+                                      e.blobUrl === r.blobUrl ? { ...e, feedbackCommitted: true } : e
+                                    ));
+                                  } catch { alert("Failed to commit feedback — please try again."); }
+                                }}>
+                                Commit Feedback
+                              </button>
+                            )}
+                            {r.feedbackCommitted && !isFeedback && (
+                              <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"4px 12px",
+                                borderColor:"#6b7280",color:"#6b7280"}}
+                                onClick={async () => {
+                                  if (!window.confirm("Uncommit this feedback? It will no longer be marked for training.")) return;
+                                  try {
+                                    const res = await fetch("/api/feedback", {
+                                      method: "POST",
+                                      headers: {"Content-Type":"application/json"},
+                                      body: JSON.stringify({ blobUrl: r.blobUrl, action: "uncommit" }),
+                                    });
+                                    if (!res.ok) throw new Error();
+                                    setHistoryIndex(prev => prev.map(e =>
+                                      e.blobUrl === r.blobUrl ? { ...e, feedbackCommitted: false } : e
+                                    ));
+                                  } catch { alert("Failed to uncommit feedback — please try again."); }
+                                }}>
+                                Uncommit
+                              </button>
+                            )}
+                            <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"4px 12px",
+                              borderColor:"#7f1d1d",color:"#f87171"}}
+                              onClick={async () => {
+                                if (!window.confirm(`Delete this review (${periodLabel})? This cannot be undone.`)) return;
+                                try {
+                                  const res = await fetch("/api/history", {
+                                    method: "DELETE",
+                                    headers: {"Content-Type":"application/json"},
+                                    body: JSON.stringify({ blobUrl: r.blobUrl }),
+                                  });
+                                  if (!res.ok) throw new Error();
+                                  setHistoryIndex(prev => prev.filter(e => e.blobUrl !== r.blobUrl));
+                                  if (expandedReview?.blobUrl === r.blobUrl) setExpandedReview(null);
+                                  if (feedbackMode === r.blobUrl) setFeedbackMode(null);
+                                } catch { alert("Failed to delete review — please try again."); }
+                              }}>
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+
+                        {isExpanded && expandedReview.loading && (
+                          <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",paddingTop:12}}>Loading…</div>
+                        )}
+                        {isExpanded && expandedReview.error && (
+                          <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#f87171",paddingTop:12}}>Failed to load review.</div>
+                        )}
+                        {isExpanded && expandedReview.data && (
+                          <div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap"}}>
+                            {[
+                              { key:"is",     label:"Income Statement" },
+                              { key:"gl",     label:"GL Report" },
+                              { key:"budget", label:"Budget" },
+                            ].map(({key, label}) => {
+                              const csv = expandedReview.data.csvs?.[key];
+                              if (!csv) return null;
+                              return (
+                                <a key={key}
+                                  href={URL.createObjectURL(new Blob([csv], {type:"text/csv"}))}
+                                  download={`${r.property}-${r.period}-${label.replace(/ /g,"-")}.csv`}
+                                  style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",
+                                    border:"1px solid #2a2a1a",borderRadius:5,padding:"4px 10px",
+                                    textDecoration:"none",background:"transparent"}}>
+                                  ↓ {label}
+                                </a>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {isExpanded && expandedReview.data?.findings && (
+                          <div style={{marginTop:16}}>
+                            {expandedReview.data.findings.map((item, fi) => {
+                              const fb = feedbackDraft.findings[item.accountNumber] || {};
+                              return (
+                                <div key={fi} style={{borderBottom:"1px solid #161616",padding:"12px 0"}}>
+                                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:13,color:"#f5f5f5",marginBottom:6}}>
+                                    {item.accountName} ({item.accountNumber})
+                                  </div>
+                                  {item.isIssue && <div style={{marginBottom:4}}>
+                                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#e8c468"}}>IS · </span>
+                                    <span style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,color:"#9ca3af"}}>{item.isIssue}</span>
+                                  </div>}
+                                  {item.glIssue && <div style={{marginBottom:4}}>
+                                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#60a5fa"}}>GL · </span>
+                                    <span style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,color:"#9ca3af"}}>{item.glIssue}</span>
+                                  </div>}
+                                  {item.budgetIssue && <div style={{marginBottom:4}}>
+                                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#f97316"}}>BUD · </span>
+                                    <span style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,color:"#9ca3af"}}>{item.budgetIssue}</span>
+                                  </div>}
+                                  {item.action && <div>
+                                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4ade80"}}>Action · </span>
+                                    <span style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,color:"#9ca3af"}}>{item.action}</span>
+                                  </div>}
+
+                                  {/* History IS / GL detail toggles — only shown in feedback mode */}
+                                  {isFeedback && (() => {
+                                    const hKey = `${r.blobUrl}:${item.accountNumber}`;
+                                    const hd   = historyDetailOpen[hKey] || {};
+                                    const isCs = expandedReview.data.csvs?.is;
+                                    const glCs = expandedReview.data.csvs?.gl;
+                                    const tblCell = (align, extra) => ({
+                                      padding:"4px 10px", textAlign:align, borderBottom:"1px solid #141414",
+                                      fontFamily:"'Fira Code',monospace", fontSize:11, ...extra
+                                    });
+                                    return (
+                                      <>
+                                        <div style={{display:"flex",gap:6,marginTop:10}}>
+                                          {isCs && (
+                                            <button className="btn"
+                                              onClick={() => toggleHistoryDetail(hKey,"is")}
+                                              style={{...s.btnOutline,fontSize:10,padding:"2px 10px",
+                                                color: hd.is ? "#e8c468" : "#4b5563",
+                                                borderColor: hd.is ? "#e8c468" : "#2a2a2a"}}>
+                                              IS {hd.is ? "▲" : "▼"}
+                                            </button>
+                                          )}
+                                          {glCs && (
+                                            <button className="btn"
+                                              onClick={() => toggleHistoryDetail(hKey,"gl")}
+                                              style={{...s.btnOutline,fontSize:10,padding:"2px 10px",
+                                                color: hd.gl ? "#60a5fa" : "#4b5563",
+                                                borderColor: hd.gl ? "#60a5fa" : "#2a2a2a"}}>
+                                              GL {hd.gl ? "▲" : "▼"}
+                                            </button>
+                                          )}
+                                        </div>
+
+                                        {hd.is && (() => {
+                                          const d = parseIsDetail(isCs, item.accountNumber);
+                                          if (!d) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No IS data for {item.accountNumber}.</div>;
+                                          return (
+                                            <div style={{marginTop:10,overflowX:"auto",borderRadius:6,border:"1px solid #1e1e1e"}}>
+                                              <table style={{borderCollapse:"collapse",width:"100%"}}>
+                                                <thead>
+                                                  <tr style={{background:"#111"}}>
+                                                    {d.headers.map((h,hi) => (
+                                                      <th key={hi} style={tblCell(hi<=1?"left":"right",{color:"#4b5563",fontWeight:400,whiteSpace:"nowrap"})}>{h}</th>
+                                                    ))}
+                                                  </tr>
+                                                </thead>
+                                                <tbody>
+                                                  {d.dataRows.map((row,ri) => (
+                                                    <tr key={ri} style={{background:ri%2===0?"transparent":"#0a0a0a"}}>
+                                                      {row.map((v,vi) => {
+                                                        const num = vi>=2 ? parseFloat(v) : NaN;
+                                                        const fmt = !isNaN(num) ? num.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : v;
+                                                        return <td key={vi} style={tblCell(vi<=1?"left":"right",{color:vi<2?"#6b7280":num<0?"#f87171":num===0?"#374151":"#d1d5db"})}>{fmt}</td>;
+                                                      })}
+                                                    </tr>
+                                                  ))}
+                                                  {d.sumRow && (
+                                                    <tr style={{background:"#0d1a0d",borderTop:"1px solid #2a3a2a"}}>
+                                                      {d.sumRow.map((v,vi) => {
+                                                        const num = vi>=2 ? parseFloat(v) : NaN;
+                                                        const fmt = !isNaN(num) ? num.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) : v;
+                                                        return <td key={vi} style={tblCell(vi<=1?"left":"right",{color:vi<2?"#4ade80":num<0?"#f87171":num===0?"#374151":"#4ade80",fontWeight:600})}>{fmt}</td>;
+                                                      })}
+                                                    </tr>
+                                                  )}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                          );
+                                        })()}
+
+                                        {hd.gl && (() => {
+                                          const isRangeAcct = /^\d{5,6}-\d{5,6}$/.test(item.accountNumber);
+                                          if (isRangeAcct) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No GL entries for {item.accountNumber} due to multiple accounts.</div>;
+                                          const entries = parseGlDetail(glCs, item.accountNumber);
+                                          if (!entries) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No GL entries for {item.accountNumber}.</div>;
+                                          return (
+                                            <div style={{marginTop:10,overflowX:"auto",borderRadius:6,border:"1px solid #1e1e1e"}}>
+                                              <table style={{borderCollapse:"collapse",width:"100%"}}>
+                                                <thead>
+                                                  <tr style={{background:"#111"}}>
+                                                    {["Date","Description","Debit","Credit"].map(h => (
+                                                      <th key={h} style={tblCell(h==="Description"?"left":"right",{color:"#4b5563",fontWeight:400,whiteSpace:"nowrap"})}>{h}</th>
+                                                    ))}
+                                                  </tr>
+                                                </thead>
+                                                <tbody>
+                                                  {entries.map((e,ei) => (
+                                                    <tr key={ei} style={{background:ei%2===0?"transparent":"#0a0a0a"}}>
+                                                      <td style={tblCell("left",{color:"#6b7280",whiteSpace:"nowrap"})}>{e.date}</td>
+                                                      <td style={tblCell("left",{color:"#9ca3af",maxWidth:340,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"})}>{e.desc}</td>
+                                                      <td style={tblCell("right",{color:"#4ade80",whiteSpace:"nowrap"})}>{e.debit}</td>
+                                                      <td style={tblCell("right",{color:"#f87171",whiteSpace:"nowrap"})}>{e.credit}</td>
+                                                    </tr>
+                                                  ))}
+                                                </tbody>
+                                              </table>
+                                            </div>
+                                          );
+                                        })()}
+                                      </>
+                                    );
+                                  })()}
+
+                                  {isFeedback && (
+                                    <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #1a1a1a"}}>
+                                      <div style={{display:"flex",gap:6,marginBottom:8}}>
+                                        {[
+                                          {val:"correct",        label:"✓ Correct",           color:"#4ade80"},
+                                          {val:"false_positive", label:"✗ False Positive",    color:"#f87171"},
+                                          {val:"needs_review",   label:"? Needs Review",      color:"#e8c468"},
+                                        ].map(opt => (
+                                          <button key={opt.val} className="btn"
+                                            onClick={() => setFeedbackDraft(d => ({
+                                              ...d,
+                                              findings: {
+                                                ...d.findings,
+                                                [item.accountNumber]: { ...fb, rating: fb.rating === opt.val ? undefined : opt.val }
+                                              }
+                                            }))}
+                                            style={{fontFamily:"'Fira Code',monospace",fontSize:10,padding:"3px 10px",
+                                              background: fb.rating === opt.val ? opt.color + "22" : "transparent",
+                                              border: `1px solid ${fb.rating === opt.val ? opt.color : "#2a2a2a"}`,
+                                              borderRadius:4, color: fb.rating === opt.val ? opt.color : "#4b5563"}}>
+                                            {opt.label}
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <textarea
+                                        placeholder="Optional note on this finding…"
+                                        value={fb.note || ""}
+                                        onChange={e => setFeedbackDraft(d => ({
+                                          ...d,
+                                          findings: {
+                                            ...d.findings,
+                                            [item.accountNumber]: { ...fb, note: e.target.value }
+                                          }
+                                        }))}
+                                        style={{...s.textarea,minHeight:48,fontSize:12,width:"100%"}}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+
+                            {isFeedback && (
+                              <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid #1e1e1e"}}>
+                                <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",marginBottom:8,letterSpacing:0.5}}>
+                                  GENERAL FEEDBACK
+                                </div>
+                                <textarea
+                                  placeholder="Additional observations, missed issues, context, or suggestions for improving future reviews…"
+                                  value={feedbackDraft.general}
+                                  onChange={e => setFeedbackDraft(d => ({...d, general: e.target.value}))}
+                                  style={{...s.textarea,minHeight:90,width:"100%",marginBottom:12}}
+                                />
+                                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                                  <button className="btn" disabled={feedbackSaving}
+                                    onClick={async () => {
+                                      setFeedbackSaving(true);
+                                      setFeedbackSaved(false);
+                                      try {
+                                        const res = await fetch("/api/feedback", {
+                                          method: "POST",
+                                          headers: {"Content-Type":"application/json"},
+                                          body: JSON.stringify({
+                                            blobUrl:  r.blobUrl,
+                                            feedback: {
+                                              ...feedbackDraft,
+                                              reviewMeta: { property: r.property, period: r.period, timestamp: r.timestamp },
+                                            },
+                                          }),
+                                        });
+                                        if (!res.ok) throw new Error();
+                                        setFeedbackSaved(true);
+                                        setFeedbackMode(null);
+                                      } catch { alert("Failed to save feedback — please try again."); }
+                                      finally { setFeedbackSaving(false); }
+                                    }}
+                                    style={{...s.btnGold,fontSize:12,padding:"6px 20px"}}>
+                                    {feedbackSaving ? "Saving…" : "Submit Feedback"}
+                                  </button>
+                                  {feedbackSaved && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4ade80"}}>Saved</span>}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ));
+            })()}
           </div>
         )}
 
