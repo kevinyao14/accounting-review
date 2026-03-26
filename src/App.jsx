@@ -132,8 +132,8 @@ function parseGlDetail(glText, accountNumber) {
   for (const line of lines) {
     const t = line.trim();
     if (!t || t.startsWith("//") || t.startsWith("FORMAT:")) continue;
-    if (/^6\d{4,5}\s+-/.test(t)) {
-      const m = t.match(/^(6\d{4,5})/);
+    if (/^(?:4[4-9]\d{3,4}|[5-9]\d{4,5})\s+-/.test(t)) {
+      const m = t.match(/^(\d{5,6})/);
       inSection = m?.[1] === accountNumber;
       continue;
     }
@@ -468,7 +468,7 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  // For GL files: extract expense account section (6xxxxx), keep 2 months of entries
+  // For GL files: extract revenue (4[4-9]xxxx) + expense (5-9xxxxx) sections, keep 2 months of entries
   const readGlCsv = (file, setter, setErr) => {
     if (!file) return;
     const reader = new FileReader();
@@ -498,33 +498,36 @@ export default function App() {
 
       const lines = raw.split("\n");
 
-      // Check expense accounts exist before processing
-      const hasExpenseAccounts = lines.some(l => /^6\d{4,5}\s+-/.test(l));
-      if (!hasExpenseAccounts) {
-        setErr("No expense accounts (6xxxxx) found in this file. Check that a GL report with expense account sections was uploaded.");
+      // Regex matching revenue (440001+) and expense (5xxxxx, 6xxxxx, 7xxxxx+) account headers
+      const acctHdrRe = /^(?:4[4-9]\d{3,4}|[5-9]\d{4,5})\s+-/;
+
+      // Check relevant accounts exist before processing
+      const hasAccounts = lines.some(l => acctHdrRe.test(l));
+      if (!hasAccounts) {
+        setErr("No revenue (44xxxx+) or expense (6xxxxx) accounts found. Check that a GL report with account sections was uploaded.");
         return;
       }
 
-      let expenseStart = 0;
+      let acctStart = 0;
       for (let i = 0; i < lines.length; i++) {
-        if (/^6\d{4,5}\s+-/.test(lines[i])) { expenseStart = i; break; }
+        if (acctHdrRe.test(lines[i])) { acctStart = i; break; }
       }
 
-      const source = expenseStart > 0 ? lines.slice(expenseStart) : lines;
+      const source = acctStart > 0 ? lines.slice(acctStart) : lines;
       const result = [];
 
       for (const line of source) {
         const t = line.trim();
 
         // Account header — keep just account number and name
-        if (/^6\d{4,5}\s+-/.test(t)) {
-          const m = t.match(/^(6\d{4,5}\s+-[^(]+)/);
+        if (acctHdrRe.test(t)) {
+          const m = t.match(/^(\d{5,6}\s+-[^(]+)/);
           result.push(m ? m[1].trim() : t);
           continue;
         }
 
         // Skip totals rows
-        if (/^Totals for 6/.test(t)) continue;
+        if (/^Totals for \d/.test(t)) continue;
 
         // Journal entry lines — keep only if in the relevant months
         // Columns: [0] Posted Dt, [1] Doc Dt, [2] Doc, [3] Memo/Description,
@@ -574,7 +577,7 @@ export default function App() {
       setErr("");
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
       setter([
-        "// GL: expense accounts, 2 months ending " + label + " (" + result.length + " lines)",
+        "// GL: revenue (440001+) and expense (6xxxxx) accounts, 2 months ending " + label + " (" + result.length + " lines)",
         "FORMAT: Account | Date, [Doc/invoice#], Description, Debit, Credit.",
         ...result
       ].join("\n"));
@@ -651,7 +654,7 @@ export default function App() {
       // ── Call 1: Income Statement Review ──────────────────────────────────────
       if (incomeStatement.trim()) {
         setReviewStatus("Reviewing income statement...");
-        const isSys = "You are a senior multifamily property accountant performing a monthly financial review.\n\nYou must work through EVERY category in the checklist systematically from top to bottom. Do not stop early. Do not skip categories. Every FLAG IF rule must be evaluated against the data.\n\nRULES FOR READING THE DATA:\n- The review period column is the column whose header date matches the review period. Use only that column for current month balances.\n- When calculating trailing averages, use the 3 months immediately prior to the review period only. Do not include the current review month in the average.\n- Do not reference YTD totals, TTM columns, or any future month columns.\n- Flag every expense account (6xxxxx) that shows a negative month-ending balance in the review period as a finding.\n\nFOR EACH FLAG IF RULE:\n- If the data is present and the condition is NOT met, skip it silently.\n- If the data is present and the condition IS met, include it as a finding.\n- Only skip a rule if the account numbers listed do not appear anywhere in the income statement data at all.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: 1-2 sentences maximum. State the specific variance or anomaly with exact dollar amounts and the threshold breached. Nothing else.\n  - action: one directive sentence stating what to obtain or verify.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if genuinely no issues are found.";
+        const isSys = "You are a senior multifamily property accountant performing a monthly financial review.\n\nYou must work through EVERY category in the checklist systematically from top to bottom. Do not stop early. Do not skip categories. Every FLAG IF rule must be evaluated against the data.\n\nRULES FOR READING THE DATA:\n- The review period column is the column whose header date matches the review period. Use only that column for current month balances.\n- When calculating trailing averages, use the 3 months immediately prior to the review period only. Do not include the current review month in the average.\n- Do not reference YTD totals, TTM columns, or any future month columns.\n- Revenue accounts are in the 4xxxxx range (e.g. 411001–440032). Expense accounts are in the 6xxxxx range (e.g. 601001–640001).\n- Flag every expense account (6xxxxx) that shows a negative month-ending balance in the review period as a finding.\n\nFOR EACH FLAG IF RULE:\n- If the data is present and the condition is NOT met, skip it silently.\n- If the data is present and the condition IS met, include it as a finding.\n- Only skip a rule if the account numbers listed do not appear anywhere in the income statement data at all.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: 1-2 sentences maximum. State the specific variance or anomaly with exact dollar amounts and the threshold breached. Nothing else.\n  - action: one directive sentence stating what to obtain or verify.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if genuinely no issues are found.";
 
         const isUsr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serializeBySource(items, "IS") + "\n\nINCOME STATEMENT:\n" + incomeStatement + "\n\nReview the " + label + " income statement against the checklist.";
 
@@ -669,7 +672,7 @@ export default function App() {
         : null;
       if (parallelStatus) setReviewStatus(parallelStatus);
 
-      const glSys = "You are a senior multifamily property accountant investigating GL journal entries.\n\nYou will receive two things: (1) a list of issues already identified from the income statement, and (2) GL journal entries to investigate.\n\nYour job has two parts:\nPART 1 - For each income statement finding, look at the GL entries for that account and add only the specific entry-level detail that explains or confirms the anomaly (dates, amounts, descriptions). Do not describe entries that are functioning correctly.\nPART 2 - Apply the GL checklist rules to identify issues visible only in the GL that the income statement would not show.\n\nCRITICAL RULES:\n- Only create a finding if there is a specific problem, error, or pattern risk. Do not create findings where GL activity is normal and consistent.\n- Do not describe entries that are working correctly. State only what is wrong.\n- Do not include findings where your conclusion is that activity looks accurate. If the GL simply explains an IS variance with no anomaly, do not add a GL finding — let the IS finding stand alone.\n- Do NOT re-detect income statement variance issues. Do NOT recalculate month-ending balances or compare column totals. Only look at individual journal entry patterns: accruals, reversals, duplicate postings, missing pairs, suspicious descriptions, and timing anomalies.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: 2-3 sentences maximum. State only the specific anomaly with the relevant entry dates and amounts. Do not narrate correct activity.\n  - action: one directive sentence stating what to obtain or verify.\n  - source: either \"IS\" if this augments an income statement finding, or \"GL\" if this is a new GL-only finding\n- If you cannot find the specific entries to evaluate a checklist rule, skip it entirely.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if no issues are found.";
+      const glSys = "You are a senior multifamily property accountant investigating GL journal entries.\n\nACCOUNT RANGES: Revenue accounts are in the 4xxxxx range (e.g. 411001–440032). Expense accounts are in the 6xxxxx range (e.g. 601001–640001). Debt service accounts are in the 7xxxxx range.\n\nYou will receive two things: (1) a list of issues already identified from the income statement, and (2) GL journal entries to investigate.\n\nYour job has two parts:\nPART 1 - For each income statement finding, look at the GL entries for that account and add only the specific entry-level detail that explains or confirms the anomaly (dates, amounts, descriptions). Do not describe entries that are functioning correctly.\nPART 2 - Apply the GL checklist rules to identify issues visible only in the GL that the income statement would not show.\n\nCRITICAL RULES:\n- Only create a finding if there is a specific problem, error, or pattern risk. Do not create findings where GL activity is normal and consistent.\n- Do not describe entries that are working correctly. State only what is wrong.\n- Do not include findings where your conclusion is that activity looks accurate. If the GL simply explains an IS variance with no anomaly, do not add a GL finding — let the IS finding stand alone.\n- Do NOT re-detect income statement variance issues. Do NOT recalculate month-ending balances or compare column totals. Only look at individual journal entry patterns: accruals, reversals, duplicate postings, missing pairs, suspicious descriptions, and timing anomalies.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: 2-3 sentences maximum. State only the specific anomaly with the relevant entry dates and amounts. Do not narrate correct activity.\n  - action: one directive sentence stating what to obtain or verify.\n  - source: either \"IS\" if this augments an income statement finding, or \"GL\" if this is a new GL-only finding\n- If you cannot find the specific entries to evaluate a checklist rule, skip it entirely.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if no issues are found.";
       const glUsr = "REVIEW PERIOD: " + label + "\n\nINCOME STATEMENT FINDINGS ALREADY IDENTIFIED:\n" + JSON.stringify(isFindings, null, 2) + "\n\nGL CHECKLIST:\n" + serializeBySource(items, "GL") + "\n\nGL ENTRIES:\n" + glEntries + "\n\nInvestigate the GL entries for " + label + ".";
 
       const budSys = "You are a senior multifamily property accountant performing a budget variance review.  Apply exactly two checks to expense accounts (6xxxxx) only:  CHECK 1 — UNBUDGETED EXPENSES: Any expense account where the actual amount for the review period is greater than $0 but the budget is $0 or missing. Flag as potential miscoding to wrong account.  CHECK 2 — MATERIAL BUDGET OVERAGES: Any expense account where actual exceeds budget by more than 25% AND the dollar overage is greater than $500. Skip accounts where budget is $0 (those are caught by Check 1).  OUTPUT RULES: - Return a JSON array only. No preamble, no explanation, no markdown backticks. - Each object must have: { accountNumber, accountName, issue, action, checkType } where checkType is \"UNBUDGETED\" or \"BUDGET_OVERAGE\" - Include exact actual amount, budget amount, and variance % in the issue field. - Order by accountNumber ascending. - Return [] if no issues found.";
