@@ -1690,6 +1690,9 @@ export default function App() {
                                         if (!res.ok) throw new Error();
                                         setFeedbackSaved(true);
                                         setFeedbackMode(null);
+                                        setHistoryIndex(prev => prev.map(e =>
+                                          e.blobUrl === r.blobUrl ? { ...e, hasFeedback: true } : e
+                                        ));
                                       } catch { alert("Failed to save feedback — please try again."); }
                                       finally { setFeedbackSaving(false); }
                                     }}
