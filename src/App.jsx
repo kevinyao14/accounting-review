@@ -1647,6 +1647,18 @@ export default function App() {
                                           </button>
                                         ))}
                                       </div>
+                                      <textarea
+                                        placeholder="Review comments for this finding (optional)"
+                                        value={fb.note || ""}
+                                        onChange={e => setFeedbackDraft(d => ({
+                                          ...d,
+                                          findings: {
+                                            ...d.findings,
+                                            [item.accountNumber]: { ...fb, note: e.target.value }
+                                          }
+                                        }))}
+                                        style={{...s.textarea,minHeight:44,fontSize:12,width:"100%",marginTop:6}}
+                                      />
                                     </div>
                                   )}
                                 </div>
