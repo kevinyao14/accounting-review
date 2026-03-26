@@ -158,6 +158,45 @@ function parseGlDetail(glText, accountNumber) {
   return entries.length > 0 ? entries : null;
 }
 
+// ── GL reconciliation check ───────────────────────────────────────────────────
+// Returns { glNet, isAmount, match } or null (null = skip check, show table)
+function glPeriodCheck(entries, isData, period) {
+  if (!entries || !isData || !period) return null;
+  const [year, month] = period.split("-").map(Number);
+  if (!year || !month) return null;
+
+  // Find IS column matching the review period (header format: "MM/DD/YYYY")
+  const colIdx = isData.headers.findIndex(h => {
+    const m = h.match(/^(\d{1,2})\/\d{2}\/(\d{4})$/);
+    return m && parseInt(m[1]) === month && parseInt(m[2]) === year;
+  });
+  if (colIdx === -1) return null;
+
+  const row = isData.dataRows[0];
+  if (!row) return null;
+  const isAmount = parseFloat((row[colIdx] ?? "").replace(/,/g, ""));
+  if (isNaN(isAmount)) return null;
+
+  // Sum GL entries whose date falls in the review period
+  let sumDebit = 0, sumCredit = 0, count = 0;
+  for (const e of entries) {
+    const parts = e.date.split("/");
+    if (parts.length !== 3) continue;
+    const eMonth = parseInt(parts[0]), eYear = parseInt(parts[2]);
+    if (eMonth === month && eYear === year) {
+      sumDebit  += parseFloat(e.debit.replace(/,/g, ""))  || 0;
+      sumCredit += parseFloat(e.credit.replace(/,/g, "")) || 0;
+      count++;
+    }
+  }
+  if (count === 0) return null; // no period entries — can't reconcile
+
+  const glNet = sumDebit - sumCredit;
+  // Allow $1.00 rounding tolerance; check both sign conventions (expense vs revenue)
+  const match = Math.abs(glNet - isAmount) <= 1.00 || Math.abs(-glNet - isAmount) <= 1.00;
+  return { glNet, isAmount, match };
+}
+
 async function callClaude(system, user, options = {}) {
   const res = await fetch("/api/claude", {
     method: "POST",
@@ -1042,6 +1081,14 @@ export default function App() {
                       if (isRangeAcct) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No GL entries for {item.accountNumber} due to multiple accounts.</div>;
                       const entries = parseGlDetail(glEntries, item.accountNumber);
                       if (!entries) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No GL entries found for {item.accountNumber}.</div>;
+                      const isData = parseIsDetail(incomeStatement, item.accountNumber);
+                      const check  = glPeriodCheck(entries, isData, reviewMonth);
+                      if (check && !check.match) {
+                        const fmt = n => (n < 0 ? "(" : "") + "$" + Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) + (n < 0 ? ")" : "");
+                        return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#fbbf24",marginTop:8,padding:"8px 12px",border:"1px solid #92400e",borderRadius:6,background:"#1c1000"}}>
+                          ⚠ GL does not reconcile with IS for {reviewMonth}. GL net (debit − credit): {fmt(check.glNet)} · IS: {fmt(check.isAmount)}
+                        </div>;
+                      }
                       const tblCell = (align, extra) => ({
                         padding:"4px 10px", textAlign:align, borderBottom:"1px solid #141414",
                         fontFamily:"'Fira Code',monospace", fontSize:11, ...extra
@@ -1534,6 +1581,14 @@ export default function App() {
                                           if (isRangeAcct) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No GL entries for {item.accountNumber} due to multiple accounts.</div>;
                                           const entries = parseGlDetail(glCs, item.accountNumber);
                                           if (!entries) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginTop:8}}>No GL entries for {item.accountNumber}.</div>;
+                                          const isData = parseIsDetail(isCs, item.accountNumber);
+                                          const check  = glPeriodCheck(entries, isData, r.period);
+                                          if (check && !check.match) {
+                                            const fmt = n => (n < 0 ? "(" : "") + "$" + Math.abs(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}) + (n < 0 ? ")" : "");
+                                            return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#fbbf24",marginTop:8,padding:"8px 12px",border:"1px solid #92400e",borderRadius:6,background:"#1c1000"}}>
+                                              ⚠ GL does not reconcile with IS for {r.period}. GL net (debit − credit): {fmt(check.glNet)} · IS: {fmt(check.isAmount)}
+                                            </div>;
+                                          }
                                           return (
                                             <div style={{marginTop:10,overflowX:"auto",borderRadius:6,border:"1px solid #1e1e1e"}}>
                                               <table style={{borderCollapse:"collapse",width:"100%"}}>
