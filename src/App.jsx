@@ -249,6 +249,11 @@ export default function App() {
   const [feedbackDraft, setFeedbackDraft]     = useState({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
   const [feedbackSaving, setFeedbackSaving]   = useState(false);
   const [feedbackSaved, setFeedbackSaved]     = useState(false);
+  const [reviewBlobUrl, setReviewBlobUrl]         = useState(null);
+  const [findingsFbMode, setFindingsFbMode]       = useState(false);
+  const [findingsFbDraft, setFindingsFbDraft]     = useState({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
+  const [findingsFbSaving, setFindingsFbSaving]   = useState(false);
+  const [findingsFbSaved, setFindingsFbSaved]     = useState(false);
   const [detailOpen, setDetailOpen]           = useState({});
   const toggleDetail = (acct, type) => setDetailOpen(prev => ({
     ...prev, [acct]: { ...prev[acct], [type]: !prev[acct]?.[type] }
@@ -650,6 +655,8 @@ export default function App() {
       setReviewError("Paste at least one of: Income Statement or GL Entries."); return;
     }
     setReviewError(""); setReviewing(true); setFindings([]); setDetailOpen({});
+    setReviewBlobUrl(null); setFindingsFbMode(false); setFindingsFbSaved(false);
+    setFindingsFbDraft({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
     try {
       const [yr, mo] = reviewMonth.split("-");
       const label = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
@@ -759,7 +766,7 @@ export default function App() {
         }),
       }).then(r => r.json())
         .then(d => {
-          if (d.ok) setHistoryLoaded(false); // invalidate so History tab refreshes
+          if (d.ok) { setHistoryLoaded(false); setReviewBlobUrl(d.blobUrl); }
         })
         .catch(() => {});
 
@@ -967,7 +974,15 @@ export default function App() {
                   : "No findings yet - run a review first."}
               </p>
               {findings.length > 0 && (
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+                  {reviewBlobUrl && (
+                    <button className="btn" onClick={() => { setFindingsFbMode(m => !m); setFindingsFbSaved(false); }}
+                      style={{...s.btnOutline, fontSize:11, padding:"5px 14px",
+                        borderColor: findingsFbMode ? "#e8c468" : "#4b5563",
+                        color:       findingsFbMode ? "#e8c468" : "#d1d5db"}}>
+                      {findingsFbMode ? "Cancel Feedback" : "Add Feedback"}
+                    </button>
+                  )}
                   <button className="btn" onClick={downloadXlsx} style={s.btnOutline}>
                     Download .xlsx
                   </button>
@@ -1179,8 +1194,135 @@ export default function App() {
                         </div>
                       );
                     })()}
+
+                    {/* Per-finding feedback (findings tab) */}
+                    {findingsFbMode && (() => {
+                      const fb = findingsFbDraft.findings[item.accountNumber] || {};
+                      return (
+                        <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #1a1a1a"}}>
+                          <div style={{display:"flex",gap:6,marginBottom:8}}>
+                            {[
+                              {val:"correct",        label:"✓ Correct",        color:"#4ade80"},
+                              {val:"false_positive", label:"✗ False Positive", color:"#f87171"},
+                              {val:"needs_review",   label:"? Needs Review",   color:"#e8c468"},
+                            ].map(opt => (
+                              <button key={opt.val} className="btn"
+                                onClick={() => setFindingsFbDraft(d => ({
+                                  ...d, findings: { ...d.findings,
+                                    [item.accountNumber]: { ...fb, rating: fb.rating === opt.val ? undefined : opt.val }
+                                  }
+                                }))}
+                                style={{fontFamily:"'Fira Code',monospace",fontSize:10,padding:"3px 10px",
+                                  background: fb.rating === opt.val ? opt.color + "22" : "transparent",
+                                  border: `1px solid ${fb.rating === opt.val ? opt.color : "#2a2a2a"}`,
+                                  borderRadius:4, color: fb.rating === opt.val ? opt.color : "#4b5563"}}>
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                          <textarea
+                            placeholder="Review comments for this finding (optional)"
+                            value={fb.note || ""}
+                            onChange={e => setFindingsFbDraft(d => ({
+                              ...d, findings: { ...d.findings,
+                                [item.accountNumber]: { ...fb, note: e.target.value }
+                              }
+                            }))}
+                            style={{...s.textarea,minHeight:44,fontSize:12,width:"100%",marginTop:2}}
+                          />
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
+
+                {/* Account-specific notes + general + submit (findings tab) */}
+                {findingsFbMode && (
+                  <>
+                    <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid #1e1e1e"}}>
+                      <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",marginBottom:12,letterSpacing:0.5}}>
+                        ACCOUNT-SPECIFIC FEEDBACK
+                      </div>
+                      {findingsFbDraft.accountNotes.map(row => (
+                        <div key={row.id} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:8}}>
+                          <input type="text" placeholder="Account #" value={row.accountNumber}
+                            onChange={e => setFindingsFbDraft(d => ({
+                              ...d, accountNotes: d.accountNotes.map(r => r.id === row.id ? {...r, accountNumber: e.target.value} : r)
+                            }))}
+                            style={{...s.textarea,minHeight:0,height:36,fontSize:12,width:110,flexShrink:0,padding:"6px 10px"}}
+                          />
+                          <textarea
+                            placeholder="Account-specific feedback not mentioned above: be as specific as possible"
+                            value={row.note}
+                            onChange={e => setFindingsFbDraft(d => ({
+                              ...d, accountNotes: d.accountNotes.map(r => r.id === row.id ? {...r, note: e.target.value} : r)
+                            }))}
+                            style={{...s.textarea,minHeight:36,fontSize:12,flex:1}}
+                          />
+                          {findingsFbDraft.accountNotes.length > 1 && (
+                            <button className="btn" onClick={() => setFindingsFbDraft(d => ({
+                              ...d, accountNotes: d.accountNotes.filter(r => r.id !== row.id)
+                            }))}
+                              style={{fontFamily:"'Fira Code',monospace",fontSize:12,padding:"6px 10px",
+                                color:"#4b5563",border:"1px solid #1e1e1e",borderRadius:4,
+                                background:"transparent",flexShrink:0,cursor:"pointer"}}>
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button className="btn" onClick={() => setFindingsFbDraft(d => ({
+                        ...d, accountNotes: [...d.accountNotes, { id: Date.now(), accountNumber: "", note: "" }]
+                      }))}
+                        style={{fontFamily:"'Fira Code',monospace",fontSize:11,padding:"4px 14px",
+                          color:"#4b5563",border:"1px solid #1e1e1e",borderRadius:4,
+                          background:"transparent",cursor:"pointer",marginTop:2}}>
+                        + Add Account
+                      </button>
+                    </div>
+                    <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid #1e1e1e"}}>
+                      <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",marginBottom:8,letterSpacing:0.5}}>
+                        GENERAL FEEDBACK
+                      </div>
+                      <textarea
+                        placeholder="Additional observations, missed issues, context, or suggestions for improving future reviews…"
+                        value={findingsFbDraft.general}
+                        onChange={e => setFindingsFbDraft(d => ({...d, general: e.target.value}))}
+                        style={{...s.textarea,minHeight:90,width:"100%",marginBottom:12}}
+                      />
+                      <div style={{display:"flex",alignItems:"center",gap:12}}>
+                        <button className="btn" disabled={findingsFbSaving}
+                          onClick={async () => {
+                            setFindingsFbSaving(true);
+                            try {
+                              const res = await fetch("/api/feedback", {
+                                method: "POST",
+                                headers: {"Content-Type":"application/json"},
+                                body: JSON.stringify({
+                                  blobUrl: reviewBlobUrl,
+                                  feedback: {
+                                    ...findingsFbDraft,
+                                    reviewMeta: { property: propertyName, period: reviewMonth, timestamp: new Date().toISOString() },
+                                  },
+                                }),
+                              });
+                              if (!res.ok) throw new Error();
+                              setFindingsFbSaved(true);
+                              setFindingsFbMode(false);
+                              setHistoryIndex(prev => prev.map(e =>
+                                e.blobUrl === reviewBlobUrl ? { ...e, hasFeedback: true } : e
+                              ));
+                            } catch { alert("Failed to save feedback — please try again."); }
+                            finally { setFindingsFbSaving(false); }
+                          }}
+                          style={{...s.btnGold,fontSize:12,padding:"6px 20px"}}>
+                          {findingsFbSaving ? "Saving…" : "Submit Feedback"}
+                        </button>
+                        {findingsFbSaved && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4ade80"}}>Saved ✓</span>}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div style={s.empty}>
