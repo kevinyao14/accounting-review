@@ -419,9 +419,8 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ audience, context, period: periodLabel, property: r.property || "Unknown Property" }),
       });
-      if (!res.ok) throw new Error("Report API returned an error.");
       const result = await res.json();
-      if (result.error) throw new Error(result.error);
+      if (!res.ok || result.error) throw new Error(result.error || `HTTP ${res.status}`);
       setReportContent(result.content);
     } catch(e) {
       setReportError(e.message || "Failed to generate report.");
