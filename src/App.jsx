@@ -2224,6 +2224,39 @@ export default function App() {
                         {label}
                       </button>
                     ))}
+                    <button className="btn" style={{...s.btnGold,fontSize:11,padding:"5px 14px"}}
+                      onClick={async () => {
+                        try {
+                          const [yr, mo] = (reportMeta?.period || "").split("-");
+                          const periodLabel = yr && mo
+                            ? new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" })
+                            : reportMeta?.period || "";
+                          const res = await fetch("/api/export-report", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              reportText: reportContent,
+                              audience:   reportAudience,
+                              property:   reportMeta?.property || "",
+                              period:     periodLabel,
+                            }),
+                          });
+                          if (!res.ok) { alert("Export failed: " + (await res.text())); return; }
+                          const blob = await res.blob();
+                          const url  = URL.createObjectURL(blob);
+                          const a    = document.createElement("a");
+                          const safeProp   = (reportMeta?.property || "Report").replace(/[^a-zA-Z0-9 _-]/g, "").trim().replace(/ +/g, "_");
+                          const safePeriod = periodLabel.replace(/[^a-zA-Z0-9 _-]/g, "").trim().replace(/ +/g, "_");
+                          a.href = url;
+                          a.download = `${safeProp}_${safePeriod}_${reportAudience}.docx`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch (e) {
+                          alert("Export failed: " + e.message);
+                        }
+                      }}>
+                      ↓ Download .docx
+                    </button>
                   </div>
                 )}
               </div>
