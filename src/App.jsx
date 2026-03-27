@@ -249,7 +249,6 @@ export default function App() {
   const [feedbackMode, setFeedbackMode]       = useState(null); // blobUrl of review in feedback mode
   const [feedbackDraft, setFeedbackDraft]     = useState({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
   const [feedbackSaving, setFeedbackSaving]   = useState(false);
-  const [feedbackSaved, setFeedbackSaved]     = useState(false);
   const [isPropertyName, setIsPropertyName]         = useState("");
   const [reviewBlobUrl, setReviewBlobUrl]           = useState(null);
   const [reviewPropertyName, setReviewPropertyName] = useState("");
@@ -316,13 +315,6 @@ export default function App() {
   const updateItems = (newItems) => {
     setItems(newItems);
     setChecklistDirty(true);
-  };
-
-  const readCsv = (file, setter) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => setter(e.target.result);
-    reader.readAsText(file);
   };
 
   const readIsCsv = (file, setter, setErr) => {
@@ -1617,7 +1609,6 @@ export default function App() {
                                         general:      existing?.general      || "",
                                       });
                                       setFeedbackMode(r.blobUrl);
-                                      setFeedbackSaved(false);
                                     })
                                     .catch(() => {
                                       setFeedbackDraft({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
@@ -2015,7 +2006,6 @@ export default function App() {
                                   <button className="btn" disabled={feedbackSaving}
                                     onClick={async () => {
                                       setFeedbackSaving(true);
-                                      setFeedbackSaved(false);
                                       try {
                                         const res = await fetch("/api/feedback", {
                                           method: "POST",
@@ -2029,7 +2019,6 @@ export default function App() {
                                           }),
                                         });
                                         if (!res.ok) throw new Error();
-                                        setFeedbackSaved(true);
                                         setFeedbackMode(null);
                                         setHistoryIndex(prev => prev.map(e =>
                                           e.blobUrl === r.blobUrl ? { ...e, hasFeedback: true } : e
@@ -2040,7 +2029,6 @@ export default function App() {
                                     style={{...s.btnGold,fontSize:12,padding:"6px 20px"}}>
                                     {feedbackSaving ? "Saving…" : "Submit Feedback"}
                                   </button>
-                                  {feedbackSaved && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4ade80"}}>Saved</span>}
                                 </div>
                               </div>
                             )}
