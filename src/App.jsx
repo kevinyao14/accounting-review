@@ -335,10 +335,11 @@ export default function App() {
     ...prev, [key]: { ...prev[key], [type]: !prev[key]?.[type] }
   }));
 
-  const fileInputRef = useRef(null);
-  const isFileRef    = useRef(null);
-  const glFileRef    = useRef(null);
-  const budgetFileRef = useRef(null);
+  const fileInputRef      = useRef(null);
+  const isFileRef         = useRef(null);
+  const glFileRef         = useRef(null);
+  const budgetFileRef     = useRef(null);
+  const expandedReviewRef = useRef(null);
 
   // Load checklist: localStorage first (instant), then sync from KV in background
   useEffect(() => {
@@ -360,6 +361,29 @@ export default function App() {
       })
       .catch(() => {});
   }, []);
+
+  // Collapse expanded review on outside click, unless feedback draft has content
+  useEffect(() => {
+    function hasDraftContent(draft) {
+      if (!draft) return false;
+      if (draft.general?.trim()) return true;
+      if (draft.accountNotes?.some(n => n.accountNumber?.trim() || n.note?.trim())) return true;
+      if (Object.values(draft.findings || {}).some(v => v?.trim())) return true;
+      return false;
+    }
+    function handleMouseDown(e) {
+      if (!expandedReview) return;
+      const el = expandedReviewRef.current;
+      if (!el) return;
+      if (el.contains(e.target)) return; // click inside the box — ignore
+      // If feedback panel is open and has typed content, don't collapse
+      if (feedbackMode && hasDraftContent(feedbackDraft)) return;
+      setExpandedReview(null);
+      setFeedbackMode(null);
+    }
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [expandedReview, feedbackMode, feedbackDraft]);
 
   const saveChecklist = async () => {
     setChecklistSaving(true);
@@ -1696,7 +1720,7 @@ export default function App() {
                       });
                     };
                     return (
-                      <div key={i} style={{borderBottom:"1px solid #1a1a1a",paddingBottom:12,marginBottom:12}}>
+                      <div key={i} ref={isExpanded ? expandedReviewRef : null} style={{borderBottom:"1px solid #1a1a1a",paddingBottom:12,marginBottom:12}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
                           <div style={{display:"flex",alignItems:"center",gap:14,flex:1,flexWrap:"wrap"}}>
                             <span style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:13,color:"#f5f5f5"}}>{periodLabel}</span>
