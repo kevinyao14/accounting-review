@@ -1505,18 +1505,13 @@ export default function App() {
                 const props = [...new Set(historyIndex.map(r => r.property || "Unknown Property"))].sort();
                 if (props.length <= 1) return null;
                 return (
-                  <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:14}}>
-                    {["", ...props].map(p => (
-                      <button key={p || "__all__"} className="btn"
-                        onClick={() => setHistoryPropertyFilter(p)}
-                        style={{fontFamily:"'Fira Code',monospace",fontSize:10,padding:"3px 12px",
-                          borderRadius:4,cursor:"pointer",
-                          background: historyPropertyFilter === p ? "#e8c468" : "transparent",
-                          border: `1px solid ${historyPropertyFilter === p ? "#e8c468" : "#2a2a2a"}`,
-                          color:  historyPropertyFilter === p ? "#0e0e0e" : "#4b5563"}}>
-                        {p || "All Properties"}
-                      </button>
-                    ))}
+                  <div style={{marginTop:12}}>
+                    <select value={historyPropertyFilter}
+                      onChange={e => setHistoryPropertyFilter(e.target.value)}
+                      style={{...s.select, fontSize:11, padding:"5px 10px", minWidth:220}}>
+                      <option value="">All Properties</option>
+                      {props.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
                   </div>
                 );
               })()}
