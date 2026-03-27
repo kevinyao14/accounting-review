@@ -441,9 +441,10 @@ export default function App() {
         return;
       }
 
-      // Extract property name from first non-empty cell (A1)
-      const firstCell = raw.split("\n")[0]?.split(",")?.[0]?.trim() ?? "";
-      if (firstCell && !/^\d/.test(firstCell)) setIsPropertyName(firstCell);
+      // Extract property name from "Property: [Name]" pattern in first 10 lines
+      const propMatch = raw.split("\n").slice(0, 10).join("\n").match(/Property:\s*([^,\r\n]+)/i);
+      const propertyFromFile = propMatch?.[1]?.trim() ?? "";
+      if (propertyFromFile) setIsPropertyName(propertyFromFile);
 
       const [yr, mo] = reviewMonth.split("-");
       const reviewDate = new Date(+yr, +mo - 1, 1);
@@ -800,7 +801,22 @@ export default function App() {
       const glUsr = "REVIEW PERIOD: " + label + "\n\nINCOME STATEMENT FINDINGS ALREADY IDENTIFIED:\n" + JSON.stringify(isFindings, null, 2) + "\n\nGL CHECKLIST:\n" + serializeBySource(items, "GL") + "\n\nGL ENTRIES:\n" + glEntries + "\n\nInvestigate the GL entries for " + label + ".";
 
       const budSys = "You are a senior multifamily property accountant performing a budget variance review.  Apply exactly two checks to expense accounts (6xxxxx) only:  CHECK 1 — UNBUDGETED EXPENSES: Any expense account where the actual amount for the review period is greater than $0 but the budget is $0 or missing. Flag as potential miscoding to wrong account.  CHECK 2 — MATERIAL BUDGET OVERAGES: Any expense account where actual exceeds budget by more than 25% AND the dollar overage is greater than $500. Skip accounts where budget is $0 (those are caught by Check 1).  OUTPUT RULES: - Return a JSON array only. No preamble, no explanation, no markdown backticks. - Each object must have: { accountNumber, accountName, issue, action, checkType } where checkType is \"UNBUDGETED\" or \"BUDGET_OVERAGE\" - Include exact actual amount, budget amount, and variance % in the issue field. - Order by accountNumber ascending. - Return [] if no issues found.";
-      const budUsr = "REVIEW PERIOD: " + label + "\n\nACTUAL (from income statement, review month column only):\n" + incomeStatement + "\n\nBUDGET (review month only):\n" + budgetData + "\n\nApply the two budget checks for " + label + ".";
+      // Filter budget to review month only for AI (display keeps all 3 months)
+      const budgetForAI = (() => {
+        if (!budgetData) return "";
+        const lines = budgetData.split("\n");
+        const [byr, bmo] = reviewMonth.split("-").map(Number);
+        const hdrIdx = lines.findIndex(l => l.split(",").some(c => /^\d{1,2}\/\d{2}\/\d{4}$/.test(c.trim())));
+        if (hdrIdx === -1) return budgetData;
+        const hdrs = lines[hdrIdx].split(",").map(c => c.trim());
+        const revCol = hdrs.findIndex(c => {
+          const m = c.match(/^(\d{1,2})\/\d{2}\/(\d{4})$/);
+          return m && parseInt(m[1]) === bmo && parseInt(m[2]) === byr;
+        });
+        if (revCol === -1) return budgetData;
+        return lines.map(l => { const p = l.split(","); return [p[0]??"", p[1]??"", p[revCol]??""].join(","); }).join("\n");
+      })();
+      const budUsr = "REVIEW PERIOD: " + label + "\n\nACTUAL (from income statement, review month column only):\n" + incomeStatement + "\n\nBUDGET (review month only):\n" + budgetForAI + "\n\nApply the two budget checks for " + label + ".";
 
       const [glResult, budResult] = await Promise.all([
         glEntries.trim()
