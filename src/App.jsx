@@ -912,6 +912,9 @@ export default function App() {
                   <input ref={isFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
                     onChange={e=>{ readIsCsv(e.target.files?.[0], setIncomeStatement, setReviewError); e.target.value=""; }}/>
                 </div>
+                <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563",marginBottom:6,letterSpacing:0.3}}>
+                  T12.2 T12 Income Statement – Detail Level
+                </div>
                 <textarea style={{...s.textarea,minHeight:240}}
                   placeholder={"Account Number, Account Name, Apr 2025, May 2025, ...\n411001, Residential Income, 466989, 466831, ...\n414000, Vacancy Loss, -30349, -23254, ..."}
                   value={incomeStatement} onChange={e=>setIncomeStatement(e.target.value)}/>
@@ -926,6 +929,9 @@ export default function App() {
                   <input ref={glFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
                     onChange={e=>{ const f = e.target.files?.[0]; readGlCsv(f, setGlEntries, setReviewError); setGlFileName(f?.name ?? ""); e.target.value=""; }}/>
                 </div>
+                <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563",marginBottom:6,letterSpacing:0.3}}>
+                  General Ledger Report – 3 months
+                </div>
                 <textarea style={{...s.textarea,minHeight:240}}
                   placeholder={"Date, Account, Description, Debit, Credit\n02/25/2026, 601002, RED SEAL FILL VALVE, 9589.33,\n02/25/2026, 601039, PAPER TOWEL ROLLS, 9589.33,"}
                   value={glEntries} onChange={e=>setGlEntries(e.target.value)}/>
@@ -939,6 +945,9 @@ export default function App() {
                   </button>
                   <input ref={budgetFileRef} type="file" accept=".csv,.txt" style={{display:"none"}}
                     onChange={e=>{ readBudgetCsv(e.target.files?.[0], setBudgetData, setBudgetError); e.target.value=""; }}/>
+                </div>
+                <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563",marginBottom:6,letterSpacing:0.3}}>
+                  OS.9 Operating Statement – Budget
                 </div>
                 <div style={{...s.textarea,minHeight:240,display:"flex",flexDirection:"column",justifyContent:"center",
                   alignItems:"center",gap:8,cursor:"pointer",color:"#4b5563"}}
