@@ -197,6 +197,68 @@ function glPeriodCheck(entries, isData, period) {
   return { glNet, isAmount, match };
 }
 
+// ── Report helpers ────────────────────────────────────────────────────────────
+const AUDIENCE_LABELS = {
+  accounting_manager: "Accounting Manager",
+  property_manager:   "Property Manager",
+  asset_manager:      "Asset Manager",
+};
+
+function buildReportContext(findings, isText, budText, feedback) {
+  const fmtRow = row => row.map((v, i) => i >= 2 ? (parseFloat(v) || 0).toFixed(2) : v).join(" | ");
+  const sections = findings.map(item => {
+    const lines = [`[${item.accountNumber}] ${item.accountName}`];
+    const isData = parseIsDetail(isText, item.accountNumber);
+    if (isData) {
+      lines.push("Income Statement:");
+      isData.dataRows.forEach(row => lines.push("  " + fmtRow(row)));
+      if (isData.sumRow) lines.push("  TOTAL | " + fmtRow(isData.sumRow));
+    }
+    if (budText) {
+      const budData = parseIsDetail(budText, item.accountNumber);
+      if (budData) {
+        lines.push("Budget:");
+        budData.dataRows.forEach(row => lines.push("  " + fmtRow(row)));
+        if (budData.sumRow) lines.push("  TOTAL | " + fmtRow(budData.sumRow));
+      }
+    }
+    if (item.isIssue)     lines.push(`IS Finding: ${item.isIssue}`);
+    if (item.glIssue)     lines.push(`GL Finding: ${item.glIssue}`);
+    if (item.budgetIssue) lines.push(`Budget Finding: ${item.budgetIssue}`);
+    if (item.action)      lines.push(`Action: ${item.action}`);
+    const fb = feedback?.findings?.[item.accountNumber];
+    if (fb?.rating) lines.push(`Reviewer Feedback: ${fb.rating.replace(/_/g, " ")}${fb.note ? " — " + fb.note : ""}`);
+    return lines.join("\n");
+  });
+  if (feedback?.general) sections.push(`GENERAL REVIEWER NOTES:\n${feedback.general}`);
+  return sections.join("\n\n---\n\n");
+}
+
+function inlineBold(text) {
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return parts.map((p, i) => i % 2 === 1 ? <strong key={i} style={{color:"#f5f5f5"}}>{p}</strong> : p);
+}
+
+function SimpleMarkdown({ content }) {
+  return (
+    <div>
+      {content.split("\n").map((line, i) => {
+        if (line.startsWith("## "))
+          return <h2 key={i} style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:17,color:"#f5f5f5",marginTop:28,marginBottom:10,paddingBottom:6,borderBottom:"1px solid #1e1e1e"}}>{line.slice(3)}</h2>;
+        if (line.startsWith("### "))
+          return <h3 key={i} style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:14,color:"#e8c468",marginTop:18,marginBottom:6}}>{line.slice(4)}</h3>;
+        if (/^\*\*.+\*\*$/.test(line.trim()))
+          return <p key={i} style={{fontWeight:600,color:"#f5f5f5",marginBottom:4,fontFamily:"'Syne',sans-serif"}}>{line.replace(/\*\*/g,"")}</p>;
+        if (line.startsWith("- ") || line.startsWith("• "))
+          return <div key={i} style={{display:"flex",gap:8,marginBottom:5,paddingLeft:8}}><span style={{color:"#e8c468",flexShrink:0,marginTop:2}}>·</span><span style={{fontFamily:"'Lora',serif",fontSize:14,lineHeight:1.7,color:"#9ca3af"}}>{inlineBold(line.slice(2))}</span></div>;
+        if (line.trim() === "" || line.trim() === "---")
+          return <div key={i} style={{height:10}} />;
+        return <p key={i} style={{fontFamily:"'Lora',serif",fontSize:14,lineHeight:1.75,color:"#9ca3af",marginBottom:6}}>{inlineBold(line)}</p>;
+      })}
+    </div>
+  );
+}
+
 async function callClaude(system, user, options = {}) {
   const res = await fetch("/api/claude", {
     method: "POST",
@@ -256,6 +318,14 @@ export default function App() {
   const [findingsFbDraft, setFindingsFbDraft]     = useState({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
   const [findingsFbSaving, setFindingsFbSaving]   = useState(false);
   const [findingsFbSaved, setFindingsFbSaved]     = useState(false);
+
+  const [reportContent, setReportContent]         = useState(null);
+  const [reportLoading, setReportLoading]         = useState(false);
+  const [reportError, setReportError]             = useState("");
+  const [reportAudience, setReportAudience]       = useState("");
+  const [reportMeta, setReportMeta]               = useState(null);
+  const [reportPickerBlobUrl, setReportPickerBlobUrl] = useState(null);
+
   const [detailOpen, setDetailOpen]           = useState({});
   const toggleDetail = (acct, type) => setDetailOpen(prev => ({
     ...prev, [acct]: { ...prev[acct], [type]: !prev[acct]?.[type] }
@@ -315,6 +385,49 @@ export default function App() {
   const updateItems = (newItems) => {
     setItems(newItems);
     setChecklistDirty(true);
+  };
+
+  const generateReport = async (r, audience) => {
+    setReportPickerBlobUrl(null);
+    setReportLoading(true);
+    setReportError("");
+    setReportContent(null);
+    setReportAudience(audience);
+    setReportMeta({ property: r.property, period: r.period });
+    setTab("reports");
+    try {
+      // Load review data if not already expanded
+      let data = expandedReview?.blobUrl === r.blobUrl ? expandedReview.data : null;
+      if (!data) {
+        const res = await fetch(`/api/history?url=${encodeURIComponent(r.blobUrl)}`);
+        data = await res.json();
+      }
+      if (!data?.findings?.length) throw new Error("No findings in this review.");
+      // Fetch feedback (best effort)
+      let feedback = null;
+      try {
+        const fbRes = await fetch(`/api/feedback?blobUrl=${encodeURIComponent(r.blobUrl)}`);
+        if (fbRes.ok) feedback = await fbRes.json();
+      } catch {}
+      const isText  = data.csvs?.is     || "";
+      const budText = data.csvs?.budget || "";
+      const [yr, mo] = r.period.split("-");
+      const periodLabel = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+      const context = buildReportContext(data.findings, isText, budText, feedback);
+      const res = await fetch("/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audience, context, period: periodLabel, property: r.property || "Unknown Property" }),
+      });
+      if (!res.ok) throw new Error("Report API returned an error.");
+      const result = await res.json();
+      if (result.error) throw new Error(result.error);
+      setReportContent(result.content);
+    } catch(e) {
+      setReportError(e.message || "Failed to generate report.");
+    } finally {
+      setReportLoading(false);
+    }
   };
 
   const readIsCsv = (file, setter, setErr) => {
@@ -848,6 +961,7 @@ export default function App() {
               {key:"findings",  label:"02 · Findings",   dot: findings.length > 0},
               {key:"checklist", label:"03 · Checklist",  badge: totalChecks},
               {key:"history",   label:"04 · History",    badge: historyIndex.length || null},
+              {key:"reports",   label:"05 · Reports",    dot: !!reportContent},
             ].map(t => (
               <button key={t.key} className="tab" onClick={() => {
                 setTab(t.key);
@@ -1676,6 +1790,30 @@ export default function App() {
                               }}>
                               Delete
                             </button>
+                            <div style={{position:"relative"}}>
+                              <button className="btn"
+                                style={{...s.btnOutline,fontSize:11,padding:"4px 12px",
+                                  borderColor: reportPickerBlobUrl === r.blobUrl ? "#e8c468" : "#4b5563",
+                                  color:       reportPickerBlobUrl === r.blobUrl ? "#e8c468" : "#d1d5db"}}
+                                onClick={() => setReportPickerBlobUrl(reportPickerBlobUrl === r.blobUrl ? null : r.blobUrl)}>
+                                Report ▾
+                              </button>
+                              {reportPickerBlobUrl === r.blobUrl && (
+                                <div style={{position:"absolute",right:0,top:"calc(100% + 4px)",
+                                  background:"#111",border:"1px solid #2a2a2a",borderRadius:8,
+                                  padding:8,zIndex:50,whiteSpace:"nowrap",display:"flex",flexDirection:"column",gap:4,minWidth:180}}>
+                                  {Object.entries(AUDIENCE_LABELS).map(([key, label]) => (
+                                    <button key={key} className="btn"
+                                      onClick={() => generateReport(r, key)}
+                                      style={{fontFamily:"'Fira Code',monospace",fontSize:11,padding:"5px 14px",
+                                        background:"transparent",border:"1px solid #1e1e1e",borderRadius:6,
+                                        color:"#d1d5db",cursor:"pointer",textAlign:"left"}}>
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -2040,6 +2178,72 @@ export default function App() {
                 </div>
               ));
             })()}
+          </div>
+        )}
+
+        {tab === "reports" && (
+          <div className="fade-up" style={s.panel}>
+            <div style={s.panelHead}>
+              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:16}}>
+                <div>
+                  <h2 style={s.panelTitle}>
+                    {reportMeta
+                      ? `${reportMeta.property} — ${AUDIENCE_LABELS[reportAudience] || reportAudience}`
+                      : "Reports"}
+                  </h2>
+                  {reportMeta && (() => {
+                    const [yr, mo] = reportMeta.period.split("-");
+                    const lbl = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
+                    return <p style={s.panelDesc}>{lbl}</p>;
+                  })()}
+                </div>
+                {reportContent && !reportLoading && (
+                  <div style={{display:"flex",gap:8,flexShrink:0}}>
+                    <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"5px 14px"}}
+                      onClick={() => { setReportContent(null); setTab("history"); }}>
+                      ← History
+                    </button>
+                    {Object.entries(AUDIENCE_LABELS).filter(([k]) => k !== reportAudience).map(([key, label]) => (
+                      <button key={key} className="btn" style={{...s.btnOutline,fontSize:11,padding:"5px 14px"}}
+                        onClick={() => generateReport({ blobUrl: expandedReview?.blobUrl || "", property: reportMeta?.property, period: reportMeta?.period }, key)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {reportLoading && (
+              <div style={{textAlign:"center",padding:"60px 0"}}>
+                <div style={{fontFamily:"'Fira Code',monospace",fontSize:12,color:"#e8c468",marginBottom:8,letterSpacing:0.5}}>
+                  GENERATING REPORT
+                </div>
+                <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>
+                  Preparing {AUDIENCE_LABELS[reportAudience] || ""} view…
+                </div>
+              </div>
+            )}
+
+            {reportError && !reportLoading && (
+              <div style={s.error}>{reportError}</div>
+            )}
+
+            {reportContent && !reportLoading && (
+              <SimpleMarkdown content={reportContent} />
+            )}
+
+            {!reportContent && !reportLoading && !reportError && (
+              <div style={s.empty}>
+                <div style={{fontSize:28,color:"#2a2a2a",marginBottom:12}}>◈</div>
+                <div style={{fontFamily:"'Lora',serif",fontSize:14,fontStyle:"italic",color:"#4b5563",marginBottom:16}}>
+                  Generate a report from a saved review in the History tab.
+                </div>
+                <button className="btn" onClick={() => setTab("history")} style={s.btnGold}>
+                  Go to History →
+                </button>
+              </div>
+            )}
           </div>
         )}
 
