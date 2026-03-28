@@ -443,7 +443,9 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ audience, context, period: periodLabel, property: r.property || "Unknown Property" }),
       });
-      const result = await res.json();
+      const raw = await res.text();
+      let result;
+      try { result = JSON.parse(raw); } catch { throw new Error(`Server error: ${raw.slice(0, 300)}`); }
       if (!res.ok || result.error) throw new Error(result.error || `HTTP ${res.status}`);
       setReportContent(result.content);
     } catch(e) {

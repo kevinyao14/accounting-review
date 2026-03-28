@@ -1,3 +1,7 @@
 {
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
+  "functions": {
+    "api/report.js":        { "maxDuration": 120 },
+    "api/export-report.js": { "maxDuration": 60 }
+  }
 }
