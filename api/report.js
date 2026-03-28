@@ -36,18 +36,26 @@ Rules:
 - Bold subheader with account name and current month amount per item
 - One tight paragraph per finding`,
 
-  asset_manager: `You are preparing a monthly financial review summary for an Asset Manager.
+  asset_manager: `You are preparing a monthly financial review summary for an Asset Manager at a multifamily property management company.
 
-Sort all findings from highest to lowest financial risk and NOI impact.
+Sort all findings from highest to lowest financial risk and NOI impact. Skip routine items with no financial significance to NOI.
+
+FORMAT — each finding must follow this exact structure:
+
+[Account Name] [[Account Number or Range]]
+One dense paragraph containing all of the following in this order:
+1. Current month amount, $ change from prior month (+/−) and % change, $ change from budget (+/−) and % change
+2. Any notable GL-level detail visible in the data (e.g. prior-period postings, duplicate entries, accrual reversals, vendor names and dates where relevant)
+3. Explicit "Trend:" statement — include the four trailing period amounts in chronological order and characterize direction (worsening / improving / stable / volatile)
+4. One action sentence — only if a clear, direct financial follow-up is warranted; state exactly what to obtain or confirm
 
 Rules:
-- Bold subheader with account name
-- Lead with dollar impact and % variance from budget or prior month
-- Note trend direction (improving / worsening / stable) and NOI impact
-- If a clear financial action is warranted, state it in one sentence
-- Do NOT speculate on root causes, suggest operational explanations, or recommend actions not directly tied to the numbers
-- Skip routine items with no financial significance to NOI
-- One tight paragraph per finding maximum`
+- Every dollar figure must include cents (e.g. $1,430.04 not $1,430)
+- Always state both the $ and % variance from prior month AND from budget (if budget data is provided)
+- The Trend statement must include the actual four-period numbers, not just a direction word
+- Do NOT speculate on root causes, suggest business explanations, or recommend actions not directly tied to the numbers
+- Do NOT use bullet points — each finding is a single paragraph
+- Account header is plain text (not markdown bold), formatted as: Account Name [AccountNumber]`
 };
 
 const AUDIENCE_LABELS = {
@@ -84,7 +92,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 4000,
+        max_tokens: 10000,
         system: systemPrompt,
         messages: [{
           role: "user",
