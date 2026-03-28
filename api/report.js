@@ -64,7 +64,7 @@ const AUDIENCE_LABELS = {
   asset_manager:      "Asset Manager",
 };
 
-export const config = { maxDuration: 120 };
+export const config = { maxDuration: 180 };
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -92,7 +92,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 10000,
+        max_tokens: 6000,
         system: systemPrompt,
         messages: [{
           role: "user",
