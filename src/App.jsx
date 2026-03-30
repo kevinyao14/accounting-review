@@ -275,7 +275,35 @@ async function callClaude(system, user, options = {}) {
   return data.content?.[0]?.text ?? "";
 }
 
-export default function App() {
+function PasswordGate({ onAuth }) {
+  const [pw, setPw] = useState("");
+  const [err, setErr] = useState(false);
+  const attempt = () => { if (pw === "Styl$") { sessionStorage.setItem("ar_auth","1"); onAuth(); } else setErr(true); };
+  return (
+    <div style={{minHeight:"100vh",background:"#0e0e0e",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{background:"#111",border:"1px solid #1e1e1e",borderRadius:12,padding:"40px 48px",display:"flex",flexDirection:"column",alignItems:"center",gap:20,minWidth:320}}>
+        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:22,color:"#f5f5f5",letterSpacing:1}}>STYL</div>
+        <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",letterSpacing:0.5}}>Accounting Review</div>
+        <input
+          type="password"
+          placeholder="Password"
+          value={pw}
+          onChange={e => { setPw(e.target.value); setErr(false); }}
+          onKeyDown={e => e.key === "Enter" && attempt()}
+          autoFocus
+          style={{width:"100%",background:"#0e0e0e",border:`1px solid ${err ? "#f87171" : "#2a2a2a"}`,borderRadius:6,padding:"9px 14px",color:"#f5f5f5",fontFamily:"'Fira Code',monospace",fontSize:13,outline:"none"}}
+        />
+        {err && <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#f87171"}}>Incorrect password</div>}
+        <button style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:6,padding:"9px 0",color:"#d1d5db",fontFamily:"'Fira Code',monospace",fontSize:12,cursor:"pointer"}}
+          onClick={attempt}>
+          Sign In
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AppInner() {
   const [tab, setTab] = useState("review");
 
   const [reviewMonth, setReviewMonth] = useState(() => {
@@ -2366,3 +2394,9 @@ const s = {
   error:      {marginTop:12,padding:"10px 14px",background:"#1a0a0a",border:"1px solid #3a1a1a",
                borderRadius:6,fontFamily:"'Fira Code',monospace",fontSize:12,color:"#ef4444"},
 };
+
+export default function App() {
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem("ar_auth") === "1");
+  if (!authed) return <PasswordGate onAuth={() => setAuthed(true)} />;
+  return <AppInner />;
+}
