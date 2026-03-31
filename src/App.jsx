@@ -956,29 +956,66 @@ function AppInner() {
     setReviewing(false);
   };
 
+  const RATING_LABELS = { correct: "Correct", false_positive: "False Positive", needs_review: "Needs Review" };
+
+  const buildXlsxRows = (findingsArr, fbObj) => {
+    const rows = findingsArr.map(item => {
+      const itemFb = fbObj?.findings?.[item.accountNumber] || {};
+      return {
+        "Account Number": item.accountNumber,
+        "Account Name":   item.accountName,
+        "IS Finding":     item.isIssue     || "",
+        "GL Finding":     item.glIssue     || "",
+        "Action":         item.action      || "",
+        "Feedback":       RATING_LABELS[itemFb.rating] || "",
+        "Comments":       itemFb.note      || "",
+      };
+    });
+    (fbObj?.accountNotes || []).forEach(row => {
+      if (!row.accountNumber?.trim() && !row.note?.trim()) return;
+      rows.push({
+        "Account Number": row.accountNumber || "",
+        "Account Name":   "",
+        "IS Finding":     "",
+        "GL Finding":     "",
+        "Action":         "",
+        "Feedback":       "",
+        "Comments":       row.note || "",
+      });
+    });
+    return rows;
+  };
+
   const downloadXlsx = () => {
-    const rows = findings.map(item => ({
-      "Account Number": item.accountNumber,
-      "Account Name": item.accountName,
-      "IS Finding": item.isIssue || "",
-      "GL Finding": item.glIssue || "",
-      "Action": item.action || ""
-    }));
-
+    const rows = buildXlsxRows(findings, findingsFbDraft);
     const ws = XLSX.utils.json_to_sheet(rows);
-
-    ws["!cols"] = [
-      { wch: 16 },
-      { wch: 36 },
-      { wch: 60 },
-      { wch: 60 },
-      { wch: 50 },
-    ];
-
+    ws["!cols"] = [{ wch:16 },{ wch:36 },{ wch:60 },{ wch:60 },{ wch:50 },{ wch:16 },{ wch:50 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Findings");
-
     XLSX.writeFile(wb, "Accounting_Review_" + reviewMonth + ".xlsx");
+  };
+
+  const downloadHistoryXlsx = async (r) => {
+    try {
+      let data = expandedReview?.blobUrl === r.blobUrl ? expandedReview.data : null;
+      if (!data) {
+        const res = await fetch(`/api/history?url=${encodeURIComponent(r.blobUrl)}`);
+        data = await res.json();
+      }
+      if (!data?.findings?.length) { alert("No findings to download."); return; }
+      let fb = null;
+      try {
+        const fbRes = await fetch(`/api/feedback?blobUrl=${encodeURIComponent(r.blobUrl)}`);
+        if (fbRes.ok) fb = await fbRes.json();
+      } catch {}
+      const rows = buildXlsxRows(data.findings, fb);
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = [{ wch:16 },{ wch:36 },{ wch:60 },{ wch:60 },{ wch:50 },{ wch:16 },{ wch:50 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Findings");
+      const [yr, mo] = r.period.split("-");
+      XLSX.writeFile(wb, `Accounting_Review_${r.property || "Review"}_${r.period}.xlsx`);
+    } catch { alert("Download failed — please try again."); }
   };
 
 
@@ -1880,6 +1917,14 @@ function AppInner() {
                                       {label}
                                     </button>
                                   ))}
+                                  <div style={{borderTop:"1px solid #1e1e1e",margin:"4px 0"}} />
+                                  <button className="btn"
+                                    onClick={() => { setReportPickerBlobUrl(null); downloadHistoryXlsx(r); }}
+                                    style={{fontFamily:"'Fira Code',monospace",fontSize:11,padding:"5px 14px",
+                                      background:"transparent",border:"1px solid #1e1e1e",borderRadius:6,
+                                      color:"#9ca3af",cursor:"pointer",textAlign:"left"}}>
+                                    ↓ Download .xlsx
+                                  </button>
                                 </div>
                               )}
                             </div>
