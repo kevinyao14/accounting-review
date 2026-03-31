@@ -418,9 +418,9 @@ function AppInner() {
   // Claude API status (polls Anthropic Statuspage every 2 minutes)
   useEffect(() => {
     const fetchStatus = () => {
-      fetch("https://status.anthropic.com/api/v2/status.json")
+      fetch("/api/status")
         .then(r => r.json())
-        .then(d => setClaudeStatus(d?.status?.indicator ?? "none"))
+        .then(d => setClaudeStatus(d?.indicator ?? "none"))
         .catch(() => setClaudeStatus(null));
     };
     fetchStatus();
