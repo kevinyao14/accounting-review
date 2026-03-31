@@ -352,6 +352,8 @@ function AppInner() {
   const [reportError, setReportError]             = useState("");
   const [reportAudience, setReportAudience]       = useState("");
   const [reportMeta, setReportMeta]               = useState(null);
+
+  const [claudeStatus, setClaudeStatus]           = useState(null); // null=loading, "none"|"minor"|"major"|"critical"
   const [reportPickerBlobUrl, setReportPickerBlobUrl] = useState(null);
 
   const [detailOpen, setDetailOpen]           = useState({});
@@ -412,6 +414,19 @@ function AppInner() {
     document.addEventListener("mousedown", handleMouseDown);
     return () => document.removeEventListener("mousedown", handleMouseDown);
   }, [expandedReview, feedbackMode, feedbackDraft]);
+
+  // Claude API status (polls Anthropic Statuspage every 2 minutes)
+  useEffect(() => {
+    const fetchStatus = () => {
+      fetch("https://status.anthropic.com/api/v2/status.json")
+        .then(r => r.json())
+        .then(d => setClaudeStatus(d?.status?.indicator ?? "none"))
+        .catch(() => setClaudeStatus(null));
+    };
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 120000);
+    return () => clearInterval(interval);
+  }, []);
 
   const saveChecklist = async () => {
     setChecklistSaving(true);
@@ -1095,7 +1110,23 @@ function AppInner() {
         {tab==="review" && (
           <div className="fade-up" style={s.panel}>
             <div style={s.panelHead}>
-              <h2 style={s.panelTitle}>Run a Review</h2>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:6}}>
+                <h2 style={{...s.panelTitle,marginBottom:0}}>Run a Review</h2>
+                {claudeStatus !== null && (() => {
+                  const cfg = claudeStatus === "none"
+                    ? { color:"#4ade80", bg:"#052e16", border:"#166534", label:"Claude API: Operational" }
+                    : claudeStatus === "minor"
+                    ? { color:"#e8c468", bg:"#2a1f00", border:"#7a5800", label:"Claude API: Degraded" }
+                    : { color:"#f87171", bg:"#1a0a0a", border:"#7f1d1d", label:"Claude API: Disruption" };
+                  return (
+                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,padding:"3px 10px",
+                      background:cfg.bg,border:`1px solid ${cfg.border}`,borderRadius:20,color:cfg.color,
+                      letterSpacing:0.3}}>
+                      ● {cfg.label}
+                    </span>
+                  );
+                })()}
+              </div>
               <p style={s.panelDesc}>Paste your income statement and/or GL entries. The AI reviews them against the current checklist ({totalChecks} rules).</p>
             </div>
             <div style={{marginBottom:20}}>
