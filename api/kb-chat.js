@@ -8,20 +8,25 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const { userMessage, currentSource, scope } = req.body;
-    if (!userMessage) return res.status(400).json({ error: "userMessage required" });
+    const { userMessage, currentSource, scope, mode } = req.body;
+    if (mode !== "clarify" && !userMessage) return res.status(400).json({ error: "userMessage required" });
 
-    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 4000,
-        system: `You are a knowledge base manager for a multifamily property accounting firm. The user will describe knowledge they want to add, update, or remove.
+    const isClarify = mode === "clarify";
+
+    const system = isClarify
+      ? `You are reviewing an accounting knowledge base for a multifamily property management firm to identify gaps that would reduce its usefulness during automated financial reviews.
+
+Respond with a JSON object only — no markdown, no backticks, no preamble:
+{
+  "questions": ["question 1", "question 2", ...]
+}
+
+Rules:
+- Ask only questions whose answers would materially change how a rule is applied — a missing dollar threshold, an unspecified condition, an ambiguous account range, or a missing exception
+- Do not ask about things already clearly defined in the source
+- Do not ask generic or obvious questions
+- If the source is thorough and no meaningful clarifications are needed, return an empty array`
+      : `You are a knowledge base manager for a multifamily property accounting firm. The user will describe knowledge they want to add, update, or remove.
 
 Respond with a JSON object only — no markdown, no backticks, no preamble:
 {
@@ -37,13 +42,24 @@ Rules for proposedSource:
 - Prefix account-specific rules with [ACCOUNT: XXXXX] or [ACCOUNTS: XXXXX-XXXXX]
 - Prefix category rules with [CATEGORY NAME]
 - General principles first, then account-specific rules
-- Current scope: ${scope === "global" ? "Global firm-wide SOPs" : "Property-specific rules"}`,
-        messages: [
-          {
-            role: "user",
-            content: `Current knowledge base:\n${currentSource || "(empty)"}\n\nUser request: ${userMessage}`,
-          },
-        ],
+- Current scope: ${scope === "global" ? "Global firm-wide SOPs" : "Property-specific rules"}`;
+
+    const userContent = isClarify
+      ? `Review this knowledge base and ask any questions whose answers would materially improve the precision of its rules:\n\n${currentSource || "(empty)"}`
+      : `Current knowledge base:\n${currentSource || "(empty)"}\n\nUser request: ${userMessage}`;
+
+    const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 4000,
+        system,
+        messages: [{ role: "user", content: userContent }],
       }),
     });
 

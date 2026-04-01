@@ -367,9 +367,11 @@ function AppInner() {
   const [kbCompressed, setKbCompressed]   = useState("");
   const [kbTokenCount, setKbTokenCount]   = useState(0);
   const [kbLoading, setKbLoading]         = useState(false);
-  const [kbChatInput, setKbChatInput]     = useState("");
-  const [kbChatLoading, setKbChatLoading] = useState(false);
-  const [kbPending, setKbPending]         = useState(null); // { action, preview, proposedSource }
+  const [kbChatInput, setKbChatInput]         = useState("");
+  const [kbChatLoading, setKbChatLoading]     = useState(false);
+  const [kbPending, setKbPending]             = useState(null); // { action, preview, proposedSource }
+  const [kbClarifyQuestions, setKbClarifyQuestions] = useState([]);
+  const [kbClarifyLoading, setKbClarifyLoading]     = useState(false);
   const [kbSaving, setKbSaving]           = useState(false);
   const [kbCompressing, setKbCompressing] = useState(false);
   const [kbError, setKbError]             = useState("");
@@ -1092,6 +1094,7 @@ function AppInner() {
         body: JSON.stringify({ type: kbScope, name: kbPropertyName, source }),
       });
       setKbSource(source);
+      setKbClarifyQuestions([]);
       if (!source.trim()) { setKbCompressed(""); setKbTokenCount(0); }
       if (triggerCompress && source.trim()) {
         setKbCompressing(true);
@@ -1110,7 +1113,7 @@ function AppInner() {
 
   const sendKbChat = async () => {
     if (!kbChatInput.trim()) return;
-    setKbChatLoading(true); setKbError("");
+    setKbChatLoading(true); setKbError(""); setKbClarifyQuestions([]);
     try {
       const res = await fetch("/api/kb-chat", {
         method: "POST",
@@ -1123,6 +1126,21 @@ function AppInner() {
       setKbChatInput("");
     } catch(e) { setKbError(e.message || "Chat failed."); }
     finally { setKbChatLoading(false); }
+  };
+
+  const askKbClarify = async () => {
+    setKbClarifyLoading(true); setKbError(""); setKbClarifyQuestions([]);
+    try {
+      const res = await fetch("/api/kb-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "clarify", currentSource: kbSource, scope: kbScope }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setKbClarifyQuestions(data.questions || []);
+    } catch(e) { setKbError(e.message || "Clarify failed."); }
+    finally { setKbClarifyLoading(false); }
   };
 
   const confirmKbPending = async () => {
@@ -2685,13 +2703,34 @@ function AppInner() {
                           onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendKbChat(); }}
                           style={{...s.textarea, flex:1, minHeight:72, resize:"vertical"}}
                         />
-                        <button className="btn" style={{...s.btnGold, fontSize:12, padding:"10px 18px", whiteSpace:"nowrap", alignSelf:"flex-end"}}
-                          disabled={kbChatLoading || !kbChatInput.trim()}
-                          onClick={sendKbChat}>
-                          {kbChatLoading ? "Thinking…" : "Send →"}
-                        </button>
+                        <div style={{display:"flex",flexDirection:"column",gap:6,alignSelf:"flex-end"}}>
+                          <button className="btn" style={{...s.btnGold, fontSize:12, padding:"10px 18px", whiteSpace:"nowrap"}}
+                            disabled={kbChatLoading || !kbChatInput.trim()}
+                            onClick={sendKbChat}>
+                            {kbChatLoading ? "Thinking…" : "Send →"}
+                          </button>
+                          <button className="btn" style={{fontSize:11, padding:"8px 14px", whiteSpace:"nowrap", background:"transparent", border:"1px solid #3a3a3a", color:"#9ca3af", borderRadius:6, cursor: kbClarifyLoading || !kbSource.trim() ? "not-allowed" : "pointer", opacity: kbClarifyLoading || !kbSource.trim() ? 0.5 : 1}}
+                            disabled={kbClarifyLoading || !kbSource.trim()}
+                            onClick={askKbClarify}>
+                            {kbClarifyLoading ? "Reviewing…" : "Ask AI →"}
+                          </button>
+                        </div>
                       </div>
 
+                      {/* Clarifying questions */}
+                      {kbClarifyQuestions.length > 0 && (
+                        <div style={{marginTop:12,padding:"14px 16px",background:"#0d1117",border:"1px solid #2a3a2a",borderRadius:8}}>
+                          <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6ee7a0",marginBottom:10,letterSpacing:0.5}}>
+                            CLARIFYING QUESTIONS — review and answer any that apply
+                          </div>
+                          <ol style={{margin:0,paddingLeft:18,display:"flex",flexDirection:"column",gap:8}}>
+                            {kbClarifyQuestions.map((q,i) => (
+                              <li key={i} style={{fontFamily:"'Lora',serif",fontSize:13,color:"#d1d5db",lineHeight:1.6}}>{q}</li>
+                            ))}
+                          </ol>
+                          <button style={{marginTop:10,fontSize:11,background:"none",border:"none",color:"#6b7280",cursor:"pointer",padding:0}} onClick={()=>setKbClarifyQuestions([])}>Dismiss</button>
+                        </div>
+                      )}
                       {/* Pending change preview */}
                       {kbPending && (
                         <div style={{marginTop:16,padding:"14px 16px",background:"#0e0e0e",border:"1px solid #2a2a2a",borderRadius:8}}>
