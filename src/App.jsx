@@ -356,6 +356,26 @@ function AppInner() {
   const [claudeStatus, setClaudeStatus]           = useState(null); // null=loading, "none"|"minor"|"major"|"critical"
   const [reportPickerBlobUrl, setReportPickerBlobUrl] = useState(null);
 
+  // Knowledge Base states
+  const [kbAuthed, setKbAuthed]           = useState(() => sessionStorage.getItem("kb_auth") === "1");
+  const [kbPw, setKbPw]                   = useState("");
+  const [kbPwErr, setKbPwErr]             = useState(false);
+  const [kbScope, setKbScope]             = useState("global"); // "global" | "property"
+  const [kbPropertyName, setKbPropertyName] = useState("");
+  const [kbPropertyList, setKbPropertyList] = useState([]);
+  const [kbSource, setKbSource]           = useState("");
+  const [kbCompressed, setKbCompressed]   = useState("");
+  const [kbTokenCount, setKbTokenCount]   = useState(0);
+  const [kbLoading, setKbLoading]         = useState(false);
+  const [kbChatInput, setKbChatInput]     = useState("");
+  const [kbChatLoading, setKbChatLoading] = useState(false);
+  const [kbPending, setKbPending]         = useState(null); // { action, preview, proposedSource }
+  const [kbSaving, setKbSaving]           = useState(false);
+  const [kbCompressing, setKbCompressing] = useState(false);
+  const [kbError, setKbError]             = useState("");
+  const [kbFeedbackQueue, setKbFeedbackQueue] = useState([]); // committed feedback not yet in KB
+  const [kbFeedbackLoading, setKbFeedbackLoading] = useState(false);
+
   const [detailOpen, setDetailOpen]           = useState({});
   const toggleDetail = (acct, type) => setDetailOpen(prev => ({
     ...prev, [acct]: { ...prev[acct], [type]: !prev[acct]?.[type] }
@@ -1033,6 +1053,108 @@ function AppInner() {
     } catch { alert("Download failed — please try again."); }
   };
 
+  // ── Knowledge Base helpers ────────────────────────────────────────────────────
+  const loadKb = async (scope, propertyName) => {
+    setKbLoading(true); setKbError("");
+    try {
+      const url = scope === "global"
+        ? "/api/kb?type=global"
+        : `/api/kb?type=property&name=${encodeURIComponent(propertyName)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      setKbSource(data.source || "");
+      setKbCompressed(data.compressed || "");
+      setKbTokenCount(data.tokenCount || 0);
+    } catch { setKbError("Failed to load knowledge base."); }
+    finally { setKbLoading(false); }
+  };
+
+  const loadKbPropertyList = async () => {
+    try {
+      const res = await fetch("/api/kb?type=property-list");
+      const list = await res.json();
+      // Merge with property names from history index
+      const historyProps = [...new Set(historyIndex.map(r => r.property).filter(Boolean))];
+      const merged = [...new Set([...list, ...historyProps])].sort();
+      setKbPropertyList(merged);
+    } catch {}
+  };
+
+  const saveKbSource = async (source, triggerCompress = true) => {
+    setKbSaving(true); setKbError("");
+    try {
+      await fetch("/api/kb", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: kbScope, name: kbPropertyName, source }),
+      });
+      setKbSource(source);
+      if (triggerCompress && source.trim()) {
+        setKbCompressing(true);
+        fetch("/api/kb-compress", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: kbScope, name: kbPropertyName, source }),
+        })
+          .then(r => r.json())
+          .then(d => { setKbCompressed(d.compressed || ""); setKbTokenCount(d.tokenCount || 0); })
+          .finally(() => setKbCompressing(false));
+      }
+    } catch { setKbError("Failed to save."); }
+    finally { setKbSaving(false); }
+  };
+
+  const sendKbChat = async () => {
+    if (!kbChatInput.trim()) return;
+    setKbChatLoading(true); setKbError("");
+    try {
+      const res = await fetch("/api/kb-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userMessage: kbChatInput, currentSource: kbSource, scope: kbScope }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setKbPending(data);
+      setKbChatInput("");
+    } catch(e) { setKbError(e.message || "Chat failed."); }
+    finally { setKbChatLoading(false); }
+  };
+
+  const confirmKbPending = async () => {
+    if (!kbPending) return;
+    await saveKbSource(kbPending.proposedSource);
+    setKbPending(null);
+  };
+
+  const deletePropertyKb = async (name) => {
+    if (!window.confirm(`Delete the entire knowledge base for "${name}"? This cannot be undone.`)) return;
+    try {
+      await fetch("/api/kb", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      setKbPropertyList(prev => prev.filter(p => p !== name));
+      if (kbPropertyName === name) { setKbPropertyName(""); setKbSource(""); setKbCompressed(""); setKbTokenCount(0); }
+    } catch { setKbError("Failed to delete."); }
+  };
+
+  const loadKbFeedbackQueue = async () => {
+    setKbFeedbackLoading(true);
+    try {
+      const committed = historyIndex.filter(r => r.feedbackCommitted);
+      const queue = await Promise.all(committed.map(async r => {
+        try {
+          const res = await fetch(`/api/feedback?blobUrl=${encodeURIComponent(r.blobUrl)}`);
+          const fb = await res.json();
+          return { ...r, feedback: fb };
+        } catch { return null; }
+      }));
+      setKbFeedbackQueue(queue.filter(Boolean));
+    } catch {}
+    finally { setKbFeedbackLoading(false); }
+  };
 
   const grouped = {};
   items.forEach(item => { if (!grouped[item.category]) grouped[item.category] = []; grouped[item.category].push(item); });
@@ -1083,6 +1205,7 @@ function AppInner() {
               {key:"checklist", label:"03 · Checklist",  badge: totalChecks},
               {key:"history",   label:"04 · History",    badge: historyIndex.length || null},
               {key:"reports",   label:"05 · Reports",    dot: !!reportContent},
+              {key:"kb",        label:"06 · Knowledge Base"},
             ].map(t => (
               <button key={t.key} className="tab" onClick={() => {
                 setTab(t.key);
@@ -1093,6 +1216,10 @@ function AppInner() {
                     .then(data => { if (Array.isArray(data)) setHistoryIndex(data); setHistoryLoaded(true); })
                     .catch(() => setHistoryLoaded(true))
                     .finally(() => setHistoryLoading(false));
+                }
+                if (t.key === "kb" && kbAuthed) {
+                  loadKbPropertyList();
+                  if (kbScope === "global" && !kbSource) loadKb("global", "");
                 }
               }}
                 style={{...s.tab,...(tab===t.key?s.tabActive:{})}}>
@@ -2421,6 +2548,220 @@ function AppInner() {
                   Go to History →
                 </button>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 06 · Knowledge Base ─────────────────────────────────────────────── */}
+        {tab === "kb" && (
+          <div className="fade-up">
+            {!kbAuthed ? (
+              <div style={{...s.panel, maxWidth:380, margin:"60px auto"}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18,color:"#f5f5f5",marginBottom:6}}>Knowledge Base</div>
+                <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginBottom:24}}>Manager access required</div>
+                <input type="password" placeholder="Password" value={kbPw}
+                  onChange={e => { setKbPw(e.target.value); setKbPwErr(false); }}
+                  onKeyDown={e => { if (e.key === "Enter") { if (kbPw === "Genius$") { sessionStorage.setItem("kb_auth","1"); setKbAuthed(true); setKbPw(""); loadKbPropertyList(); } else setKbPwErr(true); } }}
+                  autoFocus
+                  style={{...s.input, marginBottom:8, border:`1px solid ${kbPwErr ? "#f87171" : "#2a2a2a"}`}} />
+                {kbPwErr && <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#f87171",marginBottom:8}}>Incorrect password</div>}
+                <button className="btn" style={{...s.btnGold, width:"100%", marginTop:4}}
+                  onClick={() => { if (kbPw === "Genius$") { sessionStorage.setItem("kb_auth","1"); setKbAuthed(true); setKbPw(""); loadKbPropertyList(); } else setKbPwErr(true); }}>
+                  Sign In
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Scope selector */}
+                <div style={{...s.panel, marginBottom:20}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+                    <div style={{display:"flex",gap:8}}>
+                      {["global","property"].map(sc => (
+                        <button key={sc} className="btn"
+                          onClick={() => { setKbScope(sc); setKbPending(null); setKbError(""); setKbSource(""); setKbCompressed(""); setKbTokenCount(0); if (sc === "global") loadKb("global",""); }}
+                          style={{fontFamily:"'Fira Code',monospace",fontSize:11,padding:"5px 14px",
+                            background: kbScope === sc ? "#1a1a1a" : "transparent",
+                            border:`1px solid ${kbScope === sc ? "#e8c468" : "#2a2a2a"}`,
+                            borderRadius:6, color: kbScope === sc ? "#e8c468" : "#4b5563"}}>
+                          {sc === "global" ? "Global SOPs" : "Property"}
+                        </button>
+                      ))}
+                    </div>
+                    {kbScope === "property" && (
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <select value={kbPropertyName}
+                          onChange={e => { const n = e.target.value; setKbPropertyName(n); setKbPending(null); setKbSource(""); setKbCompressed(""); setKbTokenCount(0); if (n) loadKb("property", n); }}
+                          style={{...s.select, width:"auto", minWidth:220}}>
+                          <option value="">Select property…</option>
+                          {kbPropertyList.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                        {kbPropertyName && (
+                          <button className="btn"
+                            onClick={() => deletePropertyKb(kbPropertyName)}
+                            style={{...s.btnOutline,fontSize:11,padding:"5px 12px",borderColor:"#7f1d1d",color:"#f87171"}}>
+                            Delete KB
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {(kbScope === "global" || kbPropertyName) && (
+                  <>
+                    {/* Chat input */}
+                    <div style={{...s.panel, marginBottom:20}}>
+                      <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",letterSpacing:0.5,marginBottom:12}}>
+                        ADD / UPDATE KNOWLEDGE
+                      </div>
+                      <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+                        <textarea
+                          placeholder={`Describe what you want to add, update, or remove from the ${kbScope === "global" ? "global" : kbPropertyName} knowledge base…`}
+                          value={kbChatInput}
+                          onChange={e => setKbChatInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendKbChat(); }}
+                          style={{...s.textarea, flex:1, minHeight:72, resize:"vertical"}}
+                        />
+                        <button className="btn" style={{...s.btnGold, fontSize:12, padding:"10px 18px", whiteSpace:"nowrap", alignSelf:"flex-end"}}
+                          disabled={kbChatLoading || !kbChatInput.trim()}
+                          onClick={sendKbChat}>
+                          {kbChatLoading ? "Thinking…" : "Send →"}
+                        </button>
+                      </div>
+
+                      {/* Pending change preview */}
+                      {kbPending && (
+                        <div style={{marginTop:16,padding:"14px 16px",background:"#0e0e0e",border:"1px solid #2a2a2a",borderRadius:8}}>
+                          <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#e8c468",marginBottom:6,letterSpacing:0.5}}>
+                            PROPOSED CHANGE — {kbPending.action.toUpperCase()}
+                          </div>
+                          <div style={{fontFamily:"'Lora',serif",fontSize:13,color:"#d1d5db",lineHeight:1.6,marginBottom:12}}>
+                            {kbPending.preview}
+                          </div>
+                          <div style={{display:"flex",gap:8}}>
+                            <button className="btn" style={{...s.btnGold,fontSize:11,padding:"5px 14px"}}
+                              disabled={kbSaving} onClick={confirmKbPending}>
+                              {kbSaving ? "Saving…" : "Confirm"}
+                            </button>
+                            <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"5px 14px"}}
+                              onClick={() => setKbPending(null)}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {kbError && <div style={{...s.error,marginTop:12}}>{kbError}</div>}
+                    </div>
+
+                    {/* Source viewer */}
+                    <div style={{...s.panel, marginBottom:20}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                        <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",letterSpacing:0.5}}>
+                          FULL SOURCE
+                        </div>
+                        <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"4px 12px"}}
+                          disabled={kbSaving} onClick={() => saveKbSource(kbSource)}>
+                          {kbSaving ? "Saving…" : "Save"}
+                        </button>
+                      </div>
+                      {kbLoading
+                        ? <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>Loading…</div>
+                        : <textarea value={kbSource} onChange={e => setKbSource(e.target.value)}
+                            placeholder="No knowledge base content yet. Use the chat above to add knowledge."
+                            style={{...s.textarea, minHeight:280, resize:"vertical", width:"100%"}} />
+                      }
+                    </div>
+
+                    {/* Compressed preview */}
+                    <div style={{...s.panel, marginBottom:20}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                        <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",letterSpacing:0.5}}>
+                          COMPRESSED PREVIEW
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:12}}>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,
+                            color: kbTokenCount > (kbScope === "global" ? 1500 : 500) ? "#f87171" : "#4ade80"}}>
+                            {kbCompressing ? "Compressing…" : `~${kbTokenCount} / ${kbScope === "global" ? 1500 : 500} tokens`}
+                          </span>
+                          <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"4px 12px"}}
+                            disabled={kbCompressing || !kbSource.trim()}
+                            onClick={() => {
+                              setKbCompressing(true);
+                              fetch("/api/kb-compress", {
+                                method:"POST", headers:{"Content-Type":"application/json"},
+                                body: JSON.stringify({ type: kbScope, name: kbPropertyName, source: kbSource }),
+                              }).then(r=>r.json()).then(d=>{setKbCompressed(d.compressed||"");setKbTokenCount(d.tokenCount||0);}).finally(()=>setKbCompressing(false));
+                            }}>
+                            Recompress
+                          </button>
+                        </div>
+                      </div>
+                      <textarea readOnly value={kbCompressed}
+                        placeholder="Compressed version will appear here after saving."
+                        style={{...s.textarea, minHeight:180, resize:"vertical", width:"100%", color:"#6b7280"}} />
+                    </div>
+
+                    {/* Committed feedback queue */}
+                    <div style={s.panel}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                        <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",letterSpacing:0.5}}>
+                          COMMITTED FEEDBACK QUEUE
+                        </div>
+                        <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"4px 12px"}}
+                          disabled={kbFeedbackLoading} onClick={loadKbFeedbackQueue}>
+                          {kbFeedbackLoading ? "Loading…" : "Load Queue"}
+                        </button>
+                      </div>
+                      {kbFeedbackQueue.length === 0
+                        ? <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>
+                            Click "Load Queue" to see committed feedback not yet added to the knowledge base.
+                          </div>
+                        : kbFeedbackQueue.map((item, i) => {
+                            const [y,m] = item.period.split("-");
+                            const periodLabel = new Date(+y,+m-1).toLocaleString("en-US",{month:"long",year:"numeric"});
+                            const fb = item.feedback;
+                            const findingNotes = Object.entries(fb?.findings || {}).filter(([,v]) => v?.note?.trim());
+                            const accountNotes = (fb?.accountNotes || []).filter(n => n.note?.trim());
+                            const general = fb?.general?.trim();
+                            return (
+                              <div key={i} style={{borderBottom:"1px solid #1a1a1a",paddingBottom:16,marginBottom:16}}>
+                                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                                  <div>
+                                    <span style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:13,color:"#f5f5f5"}}>{item.property}</span>
+                                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563",marginLeft:10}}>{periodLabel}</span>
+                                  </div>
+                                  <button className="btn" style={{...s.btnOutline,fontSize:10,padding:"3px 10px"}}
+                                    onClick={() => {
+                                      const lines = [];
+                                      if (general) lines.push(`General: ${general}`);
+                                      findingNotes.forEach(([acct,v]) => lines.push(`Account ${acct}: ${v.note}`));
+                                      accountNotes.forEach(n => lines.push(`Account ${n.accountNumber}: ${n.note}`));
+                                      setKbScope(kbScope);
+                                      setKbChatInput(lines.join("\n"));
+                                    }}>
+                                    Add to KB →
+                                  </button>
+                                </div>
+                                {general && <div style={{fontFamily:"'Lora',serif",fontSize:12,color:"#9ca3af",marginBottom:4}}>{general}</div>}
+                                {findingNotes.map(([acct,v]) => (
+                                  <div key={acct} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",marginBottom:2}}>
+                                    <span style={{color:"#e8c468"}}>{acct}</span> — {v.note}
+                                  </div>
+                                ))}
+                                {accountNotes.map((n,ni) => (
+                                  <div key={ni} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",marginBottom:2}}>
+                                    <span style={{color:"#e8c468"}}>{n.accountNumber}</span> — {n.note}
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })
+                      }
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </div>
         )}
