@@ -2613,6 +2613,65 @@ function AppInner() {
 
                 {(kbScope === "global" || kbPropertyName) && (
                   <>
+                    {/* Committed feedback queue — property only */}
+                    {kbScope === "property" && kbPropertyName && (
+                    <div style={{...s.panel, marginBottom:20}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                        <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",letterSpacing:0.5}}>
+                          COMMITTED FEEDBACK QUEUE
+                        </div>
+                        <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"4px 12px"}}
+                          disabled={kbFeedbackLoading} onClick={loadKbFeedbackQueue}>
+                          {kbFeedbackLoading ? "Loading…" : "Load Queue"}
+                        </button>
+                      </div>
+                      {kbFeedbackQueue.length === 0
+                        ? <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>
+                            Click "Load Queue" to see committed feedback not yet added to the knowledge base.
+                          </div>
+                        : kbFeedbackQueue.map((item, i) => {
+                            const [y,m] = item.period.split("-");
+                            const periodLabel = new Date(+y,+m-1).toLocaleString("en-US",{month:"long",year:"numeric"});
+                            const fb = item.feedback;
+                            const findingNotes = Object.entries(fb?.findings || {}).filter(([,v]) => v?.note?.trim());
+                            const accountNotes = (fb?.accountNotes || []).filter(n => n.note?.trim());
+                            const general = fb?.general?.trim();
+                            return (
+                              <div key={i} style={{borderBottom:"1px solid #1a1a1a",paddingBottom:16,marginBottom:16}}>
+                                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                                  <div>
+                                    <span style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:13,color:"#f5f5f5"}}>{item.property}</span>
+                                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563",marginLeft:10}}>{periodLabel}</span>
+                                  </div>
+                                  <button className="btn" style={{...s.btnOutline,fontSize:10,padding:"3px 10px"}}
+                                    onClick={() => {
+                                      const lines = [];
+                                      if (general) lines.push(`General: ${general}`);
+                                      findingNotes.forEach(([acct,v]) => lines.push(`Account ${acct}: ${v.note}`));
+                                      accountNotes.forEach(n => lines.push(`Account ${n.accountNumber}: ${n.note}`));
+                                      setKbChatInput(lines.join("\n"));
+                                    }}>
+                                    Add to KB →
+                                  </button>
+                                </div>
+                                {general && <div style={{fontFamily:"'Lora',serif",fontSize:12,color:"#9ca3af",marginBottom:4}}>{general}</div>}
+                                {findingNotes.map(([acct,v]) => (
+                                  <div key={acct} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",marginBottom:2}}>
+                                    <span style={{color:"#e8c468"}}>{acct}</span> — {v.note}
+                                  </div>
+                                ))}
+                                {accountNotes.map((n,ni) => (
+                                  <div key={ni} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",marginBottom:2}}>
+                                    <span style={{color:"#e8c468"}}>{n.accountNumber}</span> — {n.note}
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })
+                      }
+                    </div>
+                    )}
+
                     {/* Chat input */}
                     <div style={{...s.panel, marginBottom:20}}>
                       <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",letterSpacing:0.5,marginBottom:12}}>
@@ -2706,63 +2765,6 @@ function AppInner() {
                         style={{...s.textarea, minHeight:180, resize:"vertical", width:"100%", color:"#6b7280"}} />
                     </div>
 
-                    {/* Committed feedback queue */}
-                    <div style={s.panel}>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-                        <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",letterSpacing:0.5}}>
-                          COMMITTED FEEDBACK QUEUE
-                        </div>
-                        <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"4px 12px"}}
-                          disabled={kbFeedbackLoading} onClick={loadKbFeedbackQueue}>
-                          {kbFeedbackLoading ? "Loading…" : "Load Queue"}
-                        </button>
-                      </div>
-                      {kbFeedbackQueue.length === 0
-                        ? <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>
-                            Click "Load Queue" to see committed feedback not yet added to the knowledge base.
-                          </div>
-                        : kbFeedbackQueue.map((item, i) => {
-                            const [y,m] = item.period.split("-");
-                            const periodLabel = new Date(+y,+m-1).toLocaleString("en-US",{month:"long",year:"numeric"});
-                            const fb = item.feedback;
-                            const findingNotes = Object.entries(fb?.findings || {}).filter(([,v]) => v?.note?.trim());
-                            const accountNotes = (fb?.accountNotes || []).filter(n => n.note?.trim());
-                            const general = fb?.general?.trim();
-                            return (
-                              <div key={i} style={{borderBottom:"1px solid #1a1a1a",paddingBottom:16,marginBottom:16}}>
-                                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-                                  <div>
-                                    <span style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:13,color:"#f5f5f5"}}>{item.property}</span>
-                                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563",marginLeft:10}}>{periodLabel}</span>
-                                  </div>
-                                  <button className="btn" style={{...s.btnOutline,fontSize:10,padding:"3px 10px"}}
-                                    onClick={() => {
-                                      const lines = [];
-                                      if (general) lines.push(`General: ${general}`);
-                                      findingNotes.forEach(([acct,v]) => lines.push(`Account ${acct}: ${v.note}`));
-                                      accountNotes.forEach(n => lines.push(`Account ${n.accountNumber}: ${n.note}`));
-                                      setKbScope(kbScope);
-                                      setKbChatInput(lines.join("\n"));
-                                    }}>
-                                    Add to KB →
-                                  </button>
-                                </div>
-                                {general && <div style={{fontFamily:"'Lora',serif",fontSize:12,color:"#9ca3af",marginBottom:4}}>{general}</div>}
-                                {findingNotes.map(([acct,v]) => (
-                                  <div key={acct} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",marginBottom:2}}>
-                                    <span style={{color:"#e8c468"}}>{acct}</span> — {v.note}
-                                  </div>
-                                ))}
-                                {accountNotes.map((n,ni) => (
-                                  <div key={ni} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",marginBottom:2}}>
-                                    <span style={{color:"#e8c468"}}>{n.accountNumber}</span> — {n.note}
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })
-                      }
-                    </div>
                   </>
                 )}
               </>
