@@ -204,7 +204,7 @@ const AUDIENCE_LABELS = {
   asset_manager:      "Asset Manager",
 };
 
-function buildReportContext(findings, isText, budText, feedback) {
+function buildReportContext(findings, isText, budText, feedback, generalFindings) {
   const fmtRow = row => row.map((v, i) => i >= 2 ? (parseFloat(v) || 0).toFixed(2) : v).join(" | ");
   const sections = findings.map(item => {
     const lines = [`[${item.accountNumber}] ${item.accountName}`];
@@ -230,6 +230,10 @@ function buildReportContext(findings, isText, budText, feedback) {
     if (fb?.rating) lines.push(`Reviewer Feedback: ${fb.rating.replace(/_/g, " ")}${fb.note ? " — " + fb.note : ""}`);
     return lines.join("\n");
   });
+  if (generalFindings?.length > 0) {
+    const genLines = generalFindings.map(gf => `- ${gf.isIssue || gf.glIssue || ""}${gf.action ? " Action: " + gf.action : ""}`).join("\n");
+    sections.unshift(`GENERAL PROCESS FINDINGS:\n${genLines}`);
+  }
   if (feedback?.general) sections.push(`GENERAL REVIEWER NOTES:\n${feedback.general}`);
   return sections.join("\n\n---\n\n");
 }
@@ -313,6 +317,7 @@ function AppInner() {
   const [incomeStatement, setIncomeStatement] = useState("");
   const [glEntries, setGlEntries]             = useState("");
   const [findings, setFindings]               = useState([]);
+  const [generalFindings, setGeneralFindings] = useState([]);
   const [reviewing, setReviewing]             = useState(false);
   const [reviewStatus, setReviewStatus]       = useState("");
   const [reviewError, setReviewError]         = useState("");
@@ -502,7 +507,7 @@ function AppInner() {
       const budText = data.csvs?.budget || "";
       const [yr, mo] = r.period.split("-");
       const periodLabel = new Date(+yr, +mo - 1).toLocaleString("en-US", { month: "long", year: "numeric" });
-      const context = buildReportContext(data.findings, isText, budText, feedback);
+      const context = buildReportContext(data.findings, isText, budText, feedback, data.generalFindings || []);
       const res = await fetch("/api/report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -857,7 +862,7 @@ function AppInner() {
     if (!incomeStatement.trim() && !glEntries.trim()) {
       setReviewError("Paste at least one of: Income Statement or GL Entries."); return;
     }
-    setReviewError(""); setReviewing(true); setFindings([]); setDetailOpen({});
+    setReviewError(""); setReviewing(true); setFindings([]); setGeneralFindings([]); setDetailOpen({});
     setReviewBlobUrl(null); setFindingsFbMode(false); setFindingsFbSaved(false);
     setFindingsFbDraft({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
     try {
@@ -870,7 +875,7 @@ function AppInner() {
       // ── Call 1: Income Statement Review ──────────────────────────────────────
       if (incomeStatement.trim()) {
         setReviewStatus("Reviewing income statement...");
-        const isSys = "You are a senior multifamily property accountant performing a monthly financial review.\n\nYou must work through EVERY category in the checklist systematically from top to bottom. Do not stop early. Do not skip categories. Every FLAG IF rule must be evaluated against the data.\n\nRULES FOR READING THE DATA:\n- The review period column is the column whose header date matches the review period. Use only that column for current month balances.\n- When calculating trailing averages, use the 3 months immediately prior to the review period only. Do not include the current review month in the average.\n- Do not reference YTD totals, TTM columns, or any future month columns.\n- Revenue accounts are in the 4xxxxx range (e.g. 411001–440032). Expense accounts are in the 6xxxxx range (e.g. 601001–640001).\n- Flag every expense account (6xxxxx) that shows a negative month-ending balance in the review period as a finding.\n\nFOR EACH FLAG IF RULE:\n- If the data is present and the condition is NOT met, skip it silently.\n- If the data is present and the condition IS met, include it as a finding.\n- Only skip a rule if the account numbers listed do not appear anywhere in the income statement data at all.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: 1-2 sentences maximum. State the specific variance or anomaly with exact dollar amounts and the threshold breached. Nothing else.\n  - action: one directive sentence stating what to obtain or verify.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if genuinely no issues are found.";
+        const isSys = "You are a senior multifamily property accountant performing a monthly financial review.\n\nYou must work through EVERY category in the checklist systematically from top to bottom. Do not stop early. Do not skip categories. Every FLAG IF rule must be evaluated against the data.\n\nRULES FOR READING THE DATA:\n- The review period column is the column whose header date matches the review period. Use only that column for current month balances.\n- When calculating trailing averages, use the 3 months immediately prior to the review period only. Do not include the current review month in the average.\n- Do not reference YTD totals, TTM columns, or any future month columns.\n- Revenue accounts are in the 4xxxxx range (e.g. 411001–440032). Expense accounts are in the 6xxxxx range (e.g. 601001–640001).\n- Flag every expense account (6xxxxx) that shows a negative month-ending balance in the review period as a finding.\n\nFOR EACH FLAG IF RULE:\n- If the data is present and the condition is NOT met, skip it silently.\n- If the data is present and the condition IS met, include it as a finding.\n- Only skip a rule if the account numbers listed do not appear anywhere in the income statement data at all.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: 1-2 sentences maximum. State the specific variance or anomaly with exact dollar amounts and the threshold breached. Nothing else.\n  - action: one directive sentence stating what to obtain or verify.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if genuinely no issues are found.\n- Exception — PROCESS-LEVEL FINDINGS ONLY: if a finding cannot be attributed to any specific account number (e.g., a required accrual process appears to have not been run for the period), use accountNumber: \"GENERAL\" and accountName: \"General Finding\". Use this ONLY when there is truly no account to attach the issue to. Do not use GENERAL for any finding that can be linked to a specific account.";
 
         const isUsr = "REVIEW PERIOD: " + label + "\n\nCHECKLIST:\n" + serializeBySource(items, "IS") + "\n\nINCOME STATEMENT:\n" + incomeStatement + "\n\nReview the " + label + " income statement against the checklist.";
 
@@ -888,7 +893,7 @@ function AppInner() {
         : null;
       if (parallelStatus) setReviewStatus(parallelStatus);
 
-      const glSys = "You are a senior multifamily property accountant investigating GL journal entries.\n\nACCOUNT RANGES: Revenue accounts are in the 4xxxxx range (e.g. 411001–440032). Expense accounts are in the 6xxxxx range (e.g. 601001–640001). Debt service accounts are in the 7xxxxx range.\n\nYou will receive two things: (1) a list of issues already identified from the income statement, and (2) GL journal entries to investigate.\n\nYour job has two parts:\nPART 1 - For each income statement finding, look at the GL entries for that account and add only the specific entry-level detail that explains or confirms the anomaly (dates, amounts, descriptions). Do not describe entries that are functioning correctly.\nPART 2 - Apply the GL checklist rules to identify issues visible only in the GL that the income statement would not show.\n\nCRITICAL RULES:\n- Only create a finding if there is a specific problem, error, or pattern risk. Do not create findings where GL activity is normal and consistent.\n- Do not describe entries that are working correctly. State only what is wrong.\n- Do not include findings where your conclusion is that activity looks accurate. If the GL simply explains an IS variance with no anomaly, do not add a GL finding — let the IS finding stand alone.\n- Do NOT re-detect income statement variance issues. Do NOT recalculate month-ending balances or compare column totals. Only look at individual journal entry patterns: accruals, reversals, duplicate postings, missing pairs, suspicious descriptions, and timing anomalies.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: 2-3 sentences maximum. State only the specific anomaly with the relevant entry dates and amounts. Do not narrate correct activity.\n  - action: one directive sentence stating what to obtain or verify.\n  - source: either \"IS\" if this augments an income statement finding, or \"GL\" if this is a new GL-only finding\n- If you cannot find the specific entries to evaluate a checklist rule, skip it entirely.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if no issues are found.";
+      const glSys = "You are a senior multifamily property accountant investigating GL journal entries.\n\nACCOUNT RANGES: Revenue accounts are in the 4xxxxx range (e.g. 411001–440032). Expense accounts are in the 6xxxxx range (e.g. 601001–640001). Debt service accounts are in the 7xxxxx range.\n\nYou will receive two things: (1) a list of issues already identified from the income statement, and (2) GL journal entries to investigate.\n\nYour job has two parts:\nPART 1 - For each income statement finding, look at the GL entries for that account and add only the specific entry-level detail that explains or confirms the anomaly (dates, amounts, descriptions). Do not describe entries that are functioning correctly.\nPART 2 - Apply the GL checklist rules to identify issues visible only in the GL that the income statement would not show.\n\nCRITICAL RULES:\n- Only create a finding if there is a specific problem, error, or pattern risk. Do not create findings where GL activity is normal and consistent.\n- Do not describe entries that are working correctly. State only what is wrong.\n- Do not include findings where your conclusion is that activity looks accurate. If the GL simply explains an IS variance with no anomaly, do not add a GL finding — let the IS finding stand alone.\n- Do NOT re-detect income statement variance issues. Do NOT recalculate month-ending balances or compare column totals. Only look at individual journal entry patterns: accruals, reversals, duplicate postings, missing pairs, suspicious descriptions, and timing anomalies.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each finding must be an object with exactly these fields:\n  - accountNumber: the specific account number as a string e.g. \"601005\"\n  - accountName: the specific account name e.g. \"Roof Supplies & Repairs\"\n  - issue: 2-3 sentences maximum. State only the specific anomaly with the relevant entry dates and amounts. Do not narrate correct activity.\n  - action: one directive sentence stating what to obtain or verify.\n  - source: either \"IS\" if this augments an income statement finding, or \"GL\" if this is a new GL-only finding\n- If you cannot find the specific entries to evaluate a checklist rule, skip it entirely.\n- Order findings by accountNumber ascending.\n- Return an empty array [] if no issues are found.\n- Exception — PROCESS-LEVEL FINDINGS ONLY: if a finding cannot be attributed to any specific account number, use accountNumber: \"GENERAL\" and accountName: \"General Finding\". Use ONLY when no account number can be identified. Do not use GENERAL for any finding that can be linked to a specific account.";
       const glUsr = "REVIEW PERIOD: " + label + "\n\nINCOME STATEMENT FINDINGS ALREADY IDENTIFIED:\n" + JSON.stringify(isFindings, null, 2) + "\n\nGL CHECKLIST:\n" + serializeBySource(items, "GL") + "\n\nGL ENTRIES:\n" + glEntries + "\n\nInvestigate the GL entries for " + label + ".";
 
       const budSys = "You are a senior multifamily property accountant performing a budget variance review.  Apply exactly two checks to expense accounts (6xxxxx) only:  CHECK 1 — UNBUDGETED EXPENSES: Any expense account where the actual amount for the review period is greater than $0 but the budget is $0 or missing. Flag as potential miscoding to wrong account.  CHECK 2 — MATERIAL BUDGET OVERAGES: Any expense account where actual exceeds budget by more than 25% AND the dollar overage is greater than $500. Skip accounts where budget is $0 (those are caught by Check 1).  OUTPUT RULES: - Return a JSON array only. No preamble, no explanation, no markdown backticks. - Each object must have: { accountNumber, accountName, issue, action, checkType } where checkType is \"UNBUDGETED\" or \"BUDGET_OVERAGE\" - Include exact actual amount, budget amount, and variance % in the issue field. - Order by accountNumber ascending. - Return [] if no issues found.";
@@ -952,7 +957,10 @@ function AppInner() {
       });
 
       const mergedArray = Object.values(merged).sort((a, b) => a.accountNumber.localeCompare(b.accountNumber));
-      setFindings(mergedArray);
+      const generalArr  = mergedArray.filter(f => f.accountNumber === "GENERAL");
+      const accountArr  = mergedArray.filter(f => f.accountNumber !== "GENERAL");
+      setGeneralFindings(generalArr);
+      setFindings(accountArr);
       setTab("findings");
 
       const propertyName = isPropertyName
@@ -963,7 +971,7 @@ function AppInner() {
       fetch("/api/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ findings: mergedArray, label, propertyName })
+        body: JSON.stringify({ findings: accountArr, label, propertyName })
       }).catch(() => {});
 
       // Fire-and-forget history save
@@ -974,7 +982,8 @@ function AppInner() {
           property:          propertyName,
           period:            reviewMonth,
           timestamp:         new Date().toISOString(),
-          findings:          mergedArray,
+          generalFindings:   generalArr,
+          findings:          accountArr,
           checklistSnapshot: items,
           csvs: {
             is:     incomeStatement,
@@ -993,7 +1002,7 @@ function AppInner() {
     setReviewing(false);
   };
 
-  const RATING_LABELS = { correct: "Correct", false_positive: "False Positive", needs_review: "Needs Review" };
+  const RATING_LABELS = { correct: "Review Correct: No Actions", false_positive: "Review Error Present", needs_review: "Review Correct: Actions Required" };
 
   const buildXlsxRows = (findingsArr, fbObj) => {
     const rows = findingsArr.map(item => {
@@ -1397,8 +1406,22 @@ function AppInner() {
                 </div>
               )}
             </div>
-            {findings.length > 0 ? (
+            {(findings.length > 0 || generalFindings.length > 0) ? (
               <div style={s.findingsBox}>
+                {generalFindings.length > 0 && (
+                  <div style={{borderBottom:"1px solid #1e1e1e", padding:"16px 0 16px 0", marginBottom:4}}>
+                    <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#a78bfa",letterSpacing:0.5,marginBottom:10}}>GENERAL FINDINGS</div>
+                    {generalFindings.map((gf, i) => (
+                      <div key={i} style={{marginBottom: i < generalFindings.length - 1 ? 12 : 0}}>
+                        <div style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,color:"#9ca3af"}}>{gf.isIssue || gf.glIssue || ""}</div>
+                        {gf.action && <div style={{marginTop:4}}>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6ee7a0",letterSpacing:0.5}}>Action · </span>
+                          <span style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,color:"#9ca3af"}}>{gf.action}</span>
+                        </div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {findings.map((item, i) => (
                   <div key={i} style={{borderBottom:"1px solid #1e1e1e", padding:"16px 0"}}>
                     <div style={{fontFamily:"'Syne',sans-serif", fontWeight:600, fontSize:14, color:"#f5f5f5", marginBottom:8}}>
@@ -1610,9 +1633,9 @@ function AppInner() {
                         <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #1a1a1a"}}>
                           <div style={{display:"flex",gap:6,marginBottom:8}}>
                             {[
-                              {val:"correct",        label:"✓ Correct",        color:"#4ade80"},
-                              {val:"false_positive", label:"✗ False Positive", color:"#f87171"},
-                              {val:"needs_review",   label:"? Needs Review",   color:"#e8c468"},
+                              {val:"correct",        label:"✓ Review Correct: No Actions",     color:"#4ade80"},
+                              {val:"false_positive", label:"✗ Review Error Present",            color:"#f87171"},
+                              {val:"needs_review",   label:"? Review Correct: Actions Required",color:"#e8c468"},
                             ].map(opt => (
                               <button key={opt.val} className="btn"
                                 onClick={() => setFindingsFbDraft(d => ({
@@ -2140,6 +2163,21 @@ function AppInner() {
                           </div>
                         )}
 
+                        {isExpanded && expandedReview.data?.generalFindings?.length > 0 && (
+                          <div style={{marginTop:16, marginBottom:4, paddingBottom:12, borderBottom:"1px solid #1a1a1a"}}>
+                            <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#a78bfa",letterSpacing:0.5,marginBottom:8}}>GENERAL FINDINGS</div>
+                            {expandedReview.data.generalFindings.map((gf, i) => (
+                              <div key={i} style={{marginBottom: i < expandedReview.data.generalFindings.length - 1 ? 10 : 0}}>
+                                <div style={{fontFamily:"'Lora',serif",fontSize:12,lineHeight:1.7,color:"#9ca3af"}}>{gf.isIssue || gf.glIssue || ""}</div>
+                                {gf.action && <div>
+                                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6ee7a0",letterSpacing:0.5}}>Action · </span>
+                                  <span style={{fontFamily:"'Lora',serif",fontSize:12,lineHeight:1.7,color:"#9ca3af"}}>{gf.action}</span>
+                                </div>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                         {isExpanded && expandedReview.data?.findings && (
                           <div style={{marginTop:16}}>
                             {expandedReview.data.findings.map((item, fi) => {
@@ -2330,9 +2368,9 @@ function AppInner() {
                                     <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid #1a1a1a"}}>
                                       <div style={{display:"flex",gap:6,marginBottom:8}}>
                                         {[
-                                          {val:"correct",        label:"✓ Correct",           color:"#4ade80"},
-                                          {val:"false_positive", label:"✗ False Positive",    color:"#f87171"},
-                                          {val:"needs_review",   label:"? Needs Review",      color:"#e8c468"},
+                                          {val:"correct",        label:"✓ Review Correct: No Actions",      color:"#4ade80"},
+                                          {val:"false_positive", label:"✗ Review Error Present",            color:"#f87171"},
+                                          {val:"needs_review",   label:"? Review Correct: Actions Required",color:"#e8c468"},
                                         ].map(opt => (
                                           <button key={opt.val} className="btn"
                                             onClick={() => setFeedbackDraft(d => ({
@@ -2712,7 +2750,7 @@ function AppInner() {
                           <button className="btn" style={{fontSize:11, padding:"8px 14px", whiteSpace:"nowrap", background:"transparent", border:"1px solid #3a3a3a", color:"#9ca3af", borderRadius:6, cursor: kbClarifyLoading || !kbSource.trim() ? "not-allowed" : "pointer", opacity: kbClarifyLoading || !kbSource.trim() ? 0.5 : 1}}
                             disabled={kbClarifyLoading || !kbSource.trim()}
                             onClick={askKbClarify}>
-                            {kbClarifyLoading ? "Reviewing…" : "Ask AI →"}
+                            {kbClarifyLoading ? "Reviewing…" : "Clarify →"}
                           </button>
                         </div>
                       </div>
