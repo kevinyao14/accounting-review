@@ -77,8 +77,13 @@ Rules for proposedSource:
 
     let parsed;
     try {
-      parsed = JSON.parse(text);
+      // Strip markdown code fences if present, then find the JSON object
+      const stripped = text.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
+      const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON object found");
+      parsed = JSON.parse(jsonMatch[0]);
     } catch {
+      console.error("KB chat parse error, raw text:", text);
       return res.status(200).json({ error: "Failed to parse response" });
     }
 
