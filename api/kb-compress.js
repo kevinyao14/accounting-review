@@ -43,15 +43,19 @@ export default async function handler(req, res) {
             role: "user",
             content: `You are compressing an accounting knowledge base for AI injection. Output only the compressed text — no preamble, no explanation, no JSON wrapper.
 
-Rules:
-- Target approximately ${cap} tokens (roughly ${cap * 4} characters)
+CRITICAL RULES:
+- Output ONLY information present in the source text below. Do not add, infer, invent, or hallucinate any content not explicitly stated in the source.
+- If the source is short, output it compressed as-is. Do not pad, expand, or fill remaining token budget with invented content.
+- Every line in your output must be directly traceable to a specific sentence in the source.
+
+Compression rules:
+- Target approximately ${cap} tokens (roughly ${cap * 4} characters) but never exceed the content actually in the source
 - Preserve all specific account numbers, dollar thresholds, and named rules verbatim
 - Preserve all conditional logic ("if X then Y") exactly
 - Convert narrative prose to dense declarative statements
 - Use this format for rules: [CATEGORY | accounts if applicable]\nStatement.
 - Group related rules under shared category headers
-- Cut filler words, examples, and redundant explanations
-- If content exceeds the token budget, prioritize: specific rules > general principles > background context
+- Cut filler words and redundant explanations only — never cut factual content
 
 Knowledge base to compress:
 
