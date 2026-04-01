@@ -1071,11 +1071,14 @@ function AppInner() {
 
   const loadKbPropertyList = async () => {
     try {
-      const res = await fetch("/api/kb?type=property-list");
-      const list = await res.json();
-      // Merge with property names from history index
-      const historyProps = [...new Set(historyIndex.map(r => r.property).filter(Boolean))];
-      const merged = [...new Set([...list, ...historyProps])].sort();
+      const [kbRes, histRes] = await Promise.all([
+        fetch("/api/kb?type=property-list"),
+        fetch("/api/history"),
+      ]);
+      const kbList   = await kbRes.json().catch(() => []);
+      const histData = await histRes.json().catch(() => []);
+      const histProps = [...new Set((Array.isArray(histData) ? histData : []).map(r => r.property).filter(Boolean))];
+      const merged = [...new Set([...(Array.isArray(kbList) ? kbList : []), ...histProps])].sort();
       setKbPropertyList(merged);
     } catch {}
   };
