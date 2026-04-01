@@ -1118,7 +1118,7 @@ function AppInner() {
       const res = await fetch("/api/kb-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userMessage: kbChatInput, currentSource: kbSource, scope: kbScope }),
+        body: JSON.stringify({ userMessage: kbChatInput, currentSource: kbSource, scope: kbScope, clarifyQuestions: kbClarifyQuestions.length > 0 ? kbClarifyQuestions : undefined }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);

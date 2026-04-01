@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const { userMessage, currentSource, scope, mode } = req.body;
+    const { userMessage, currentSource, scope, mode, clarifyQuestions } = req.body;
     if (mode !== "clarify" && !userMessage) return res.status(400).json({ error: "userMessage required" });
 
     const isClarify = mode === "clarify";
@@ -44,9 +44,13 @@ Rules for proposedSource:
 - General principles first, then account-specific rules
 - Current scope: ${scope === "global" ? "Global firm-wide SOPs" : "Property-specific rules"}`;
 
+    const clarifyContext = clarifyQuestions?.length > 0
+      ? `\n\nThe following clarifying questions were previously posed to the user:\n${clarifyQuestions.map((q, i) => `${i + 1}. ${q}`).join("\n")}\n\nThe user's message may be answering some or all of these by number. Interpret their answers in the context of those questions.`
+      : "";
+
     const userContent = isClarify
       ? `Review this knowledge base and ask any questions whose answers would materially improve the precision of its rules:\n\n${currentSource || "(empty)"}`
-      : `Current knowledge base:\n${currentSource || "(empty)"}\n\nUser request: ${userMessage}`;
+      : `Current knowledge base:\n${currentSource || "(empty)"}\n\nUser request: ${userMessage}${clarifyContext}`;
 
     const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
