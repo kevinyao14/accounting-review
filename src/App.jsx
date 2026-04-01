@@ -1092,6 +1092,7 @@ function AppInner() {
         body: JSON.stringify({ type: kbScope, name: kbPropertyName, source }),
       });
       setKbSource(source);
+      if (!source.trim()) { setKbCompressed(""); setKbTokenCount(0); }
       if (triggerCompress && source.trim()) {
         setKbCompressing(true);
         fetch("/api/kb-compress", {
