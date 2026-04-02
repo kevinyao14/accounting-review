@@ -531,46 +531,107 @@ function AppInner() {
     reader.onload = (e) => {
       const raw = e.target.result;
 
-      // Detect wrong file type
+      // ── Validation: Detect GL file ──
       if (/Posted Dt\./i.test(raw.slice(0, 2000))) {
         setErr("This appears to be a GL report, not an income statement. Please upload the income statement CSV.");
         return;
       }
 
-      // Extract property name from "Property: [Name]" pattern in first 10 lines
+      // ── Validation: Detect unsupported export format ──
+      const first15 = raw.split("\n").slice(0, 15).join("\n");
+      if (/Reporting Book:/i.test(first15) || /\bLocation:\s*\w/i.test(first15)) {
+        setErr("Unsupported income statement format detected (Reporting Book / Location style). Please re-export using the standard T12 format with a \"Property:\" header.");
+        return;
+      }
+
+      // ── Validation: Property name required ──
       const propMatch = raw.split("\n").slice(0, 10).join("\n").match(/Property:\s*([^,\r\n]+)/i);
       const propertyFromFile = propMatch?.[1]?.trim() ?? "";
-      if (propertyFromFile) setIsPropertyName(propertyFromFile);
+      if (!propertyFromFile) {
+        setErr("Could not detect property name. The income statement must contain a \"Property:\" line in the first 10 rows.");
+        return;
+      }
+      setIsPropertyName(propertyFromFile);
 
       const [yr, mo] = reviewMonth.split("-");
       const reviewDate = new Date(+yr, +mo - 1, 1);
 
       const lines = raw.split("\n");
 
-      // Pre-scan: find the most recent date in the IS before any column filtering
-      let maxISDate = null;
+      // ── Validation: Date column structure ──
+      let allDateCols = [];
       for (const line of lines) {
         const cols = line.split(",");
-        const dateCols = cols.filter(c => { const t = c.trim(); return t.length === 10 && t[2] === "/" && t[5] === "/"; });
-        if (dateCols.length > 0) {
-          dateCols.forEach(c => {
-            const p = c.trim().split("/");
-            const colDate = new Date(+p[2], +p[0] - 1, 1);
-            if (!maxISDate || colDate > maxISDate) maxISDate = colDate;
-          });
-          break; // only need the header row
+        const dates = [];
+        cols.forEach((c, j) => {
+          const t = c.trim();
+          if (t.length === 10 && t[2] === "/" && t[5] === "/") {
+            const p = t.split("/");
+            dates.push({ idx: j, date: new Date(+p[2], +p[0] - 1, 1), label: t });
+          }
+        });
+        if (dates.length >= 3) { allDateCols = dates; break; }
+      }
+
+      if (!allDateCols.length) {
+        setErr("Could not detect date columns in income statement. Expected month-ending dates (e.g. 04/30/2025) as column headers.");
+        return;
+      }
+
+      // Detect re-processed / trimmed file
+      if (allDateCols.length < 6) {
+        setErr("This file appears to be a previously trimmed income statement (" + allDateCols.length + " date columns). Please upload the original full T12 export.");
+        return;
+      }
+
+      // Require at least 10 monthly columns (T12 = 12)
+      if (allDateCols.length < 10) {
+        setErr("Expected a T12 income statement with 12 monthly columns but found only " + allDateCols.length + ". Please upload the full T12 export.");
+        return;
+      }
+
+      // Sequential months check
+      for (let i = 1; i < allDateCols.length; i++) {
+        const prev = allDateCols[i - 1].date;
+        const curr = allDateCols[i].date;
+        const expected = new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+        if (curr.getTime() !== expected.getTime()) {
+          setErr("Date columns are not sequential months (gap after " + allDateCols[i - 1].label + "). The file may be corrupted or hand-edited.");
+          return;
         }
       }
-      if (maxISDate) {
-        const monthsAhead = (maxISDate.getFullYear() - reviewDate.getFullYear()) * 12
-          + (maxISDate.getMonth() - reviewDate.getMonth());
-        if (monthsAhead >= 2) {
-          const isLabel = maxISDate.toLocaleString("en-US", { month: "long", year: "numeric" });
-          const rvLabel = reviewDate.toLocaleString("en-US", { month: "long", year: "numeric" });
-          setPeriodWarning(`Income statement runs through ${isLabel} but review period is set to ${rvLabel} — review period may be stale.`);
-        } else {
-          setPeriodWarning("");
-        }
+
+      // Review period must exist in date columns
+      const hasReviewPeriod = allDateCols.some(d =>
+        d.date.getFullYear() === reviewDate.getFullYear() && d.date.getMonth() === reviewDate.getMonth()
+      );
+      if (!hasReviewPeriod) {
+        const rvLabel = reviewDate.toLocaleString("en-US", { month: "long", year: "numeric" });
+        setErr("Review period " + rvLabel + " not found in the income statement date columns. Check that the file covers the review period.");
+        return;
+      }
+
+      // ── Validation: Minimum account rows ──
+      let accountRowCount = 0;
+      for (const line of lines) {
+        const firstCol = line.split(",")[0]?.trim();
+        if (/^\d{6}$/.test(firstCol)) accountRowCount++;
+      }
+      if (accountRowCount < 10) {
+        setErr("Only " + accountRowCount + " account rows detected (expected at least 10). The file may be truncated or in the wrong format.");
+        return;
+      }
+
+      // ── Period staleness warning ──
+      const maxISDate = allDateCols[allDateCols.length - 1].date;
+      const monthsAhead = (maxISDate.getFullYear() - reviewDate.getFullYear()) * 12
+        + (maxISDate.getMonth() - reviewDate.getMonth());
+      if (monthsAhead >= 2) {
+        const isLabel = maxISDate.toLocaleString("en-US", { month: "long", year: "numeric" });
+        const rvLabel = reviewDate.toLocaleString("en-US", { month: "long", year: "numeric" });
+        setPeriodWarning(`Income statement runs through ${isLabel} but review period is set to ${rvLabel} — review period may be stale.`);
+      } else {
+        setPeriodWarning("");
       }
 
       let keepCols = null; // will be set when we find the date header row
@@ -694,7 +755,7 @@ function AppInner() {
     reader.onload = (e) => {
       const raw = e.target.result;
 
-      // Detect IS file uploaded by mistake: IS has 3+ date columns in a single early row
+      // ── Validation: Detect IS file ──
       const earlyLines = raw.split("\n").slice(0, 15);
       const looksLikeIS = earlyLines.some(line => {
         const dateCols = line.split(",").filter(c => { const t = c.trim(); return t.length === 10 && t[2] === "/" && t[5] === "/"; });
@@ -702,6 +763,12 @@ function AppInner() {
       });
       if (looksLikeIS) {
         setErr("This appears to be an income statement, not a GL report. Please upload the GL report CSV.");
+        return;
+      }
+
+      // ── Validation: Detect re-processed GL ──
+      if (/^\/\/ GL:/m.test(raw.slice(0, 200)) || /^FORMAT:/m.test(raw.slice(0, 500))) {
+        setErr("This file appears to be a previously processed GL (contains system FORMAT header). Please upload the original GL export.");
         return;
       }
 
@@ -720,10 +787,17 @@ function AppInner() {
       // Regex matching revenue (440001+) and expense (5xxxxx, 6xxxxx, 7xxxxx+) account headers
       const acctHdrRe = /^(?:4[4-9]\d{3,4}|[5-9]\d{4,5})\s+-/;
 
-      // Check relevant accounts exist before processing
+      // ── Validation: Account sections exist ──
       const hasAccounts = lines.some(l => acctHdrRe.test(l));
       if (!hasAccounts) {
         setErr("No revenue (44xxxx+) or expense (6xxxxx) accounts found. Check that a GL report with account sections was uploaded.");
+        return;
+      }
+
+      // ── Validation: Minimum account sections ──
+      const acctSectionCount = lines.filter(l => acctHdrRe.test(l)).length;
+      if (acctSectionCount < 3) {
+        setErr("Only " + acctSectionCount + " account sections detected (expected at least 3). The file may be truncated.");
         return;
       }
 
