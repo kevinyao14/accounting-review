@@ -41,23 +41,28 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "user",
-            content: `You are compressing an accounting knowledge base for AI injection. Output only the compressed text — no preamble, no explanation, no JSON wrapper.
+            content: `You are converting an accounting knowledge base into structured rule schema for AI injection during financial reviews. Output only the schema — no preamble, no explanation, no JSON wrapper.
 
 CRITICAL RULES:
 - Output ONLY information present in the source text below. Do not add, infer, invent, or hallucinate any content not explicitly stated in the source.
-- If the source is short, output it compressed as-is. Do not pad, expand, or fill remaining token budget with invented content.
-- Every line in your output must be directly traceable to a specific sentence in the source.
+- Every output block must be directly traceable to a specific rule in the source.
+- Do not pad or expand. If the source is short, the output will be short.
 
-Compression rules:
-- Target approximately ${cap} tokens (roughly ${cap * 4} characters) but never exceed the content actually in the source
-- Preserve all specific account numbers, dollar thresholds, and named rules verbatim
-- Preserve all conditional logic ("if X then Y") exactly
-- Convert narrative prose to dense declarative statements
-- Use this format for rules: [CATEGORY | accounts if applicable]\nStatement.
-- Group related rules under shared category headers
-- Cut filler words and redundant explanations only — never cut factual content
+CONVERSION RULES:
+- Each rule block in the source (delimited by "ACCOUNT:") becomes one schema block in this exact format:
 
-Knowledge base to compress:
+[ACCOUNT: {value from source}]
+RULE: {distilled rule — one to two sentences. Preserve all account numbers, dollar thresholds, and conditional logic exactly. Cut only filler words.}
+
+- If the rule is conditional on a prior state or situation, add one line before RULE:
+CONTEXT: {condition that must be true for this rule to apply}
+
+- CONTEXT is omitted for unconditional rules.
+- One blank line between blocks.
+- Do not add any other headers, labels, or structural markup.
+- Target approximately ${cap} tokens (roughly ${cap * 4} characters) but never exceed the content actually in the source.
+
+Source knowledge base:
 
 ${source}`,
           },

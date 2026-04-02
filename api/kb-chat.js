@@ -37,11 +37,15 @@ Respond with a JSON object only — no markdown, no backticks, no preamble:
 
 Rules for proposedSource:
 - Preserve ALL existing content unless explicitly asked to change or remove it
-- Add new content grouped with related rules
-- Format rules as dense declarative statements
-- Prefix account-specific rules with [ACCOUNT: XXXXX] or [ACCOUNTS: XXXXX-XXXXX]
-- Prefix category rules with [CATEGORY NAME]
-- General principles first, then account-specific rules
+- Every rule must be its own block in this exact format:
+
+ACCOUNT: {account number, range e.g. 601001-601049, comma list, or GENERAL for process-level rules}
+{One to three prose sentences covering the rule, any conditions, thresholds, and override or suppression behavior. Write in plain declarative language.}
+
+- One blank line between rule blocks
+- ACCOUNT: is the only required header — do not add any other headers, labels, or structural markup
+- GENERAL is used only for rules that apply to no specific account (e.g. required monthly accrual checklist, process-level checks)
+- If a rule applies to all expense accounts, use ACCOUNT: ALL EXPENSES
 - Current scope: ${scope === "global" ? "Global firm-wide SOPs" : "Property-specific rules"}`;
 
     const clarifyContext = clarifyQuestions?.length > 0
