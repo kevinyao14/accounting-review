@@ -87,7 +87,8 @@ function extractIsTimeSeries(rawCsv) {
 }
 
 // ── GL Transaction Extraction ──────────────────────────────────────────────
-// Parses a raw GL CSV and returns structured transactions per account section
+// Parses a raw GL CSV and returns transactions grouped by posted month.
+// Output: { months: { "2026-03": { accounts: [...], totalEntries, vendors }, ... } }
 function extractGlTransactions(rawCsv) {
   const lines = rawCsv.split("\n");
 
@@ -101,69 +102,84 @@ function extractGlTransactions(rawCsv) {
   const vendorIdx  = headerCols.findIndex(c => /Vendor/i.test(c));
   const debitIdx   = headerCols.length - 3;
   const creditIdx  = headerCols.length - 2;
-  const balanceIdx = headerCols.length - 1;
 
   // Revenue (4[4-9]xxxx) and expense (5-9xxxxx) account header pattern
   const acctHdrRe = /^(?:4[4-9]\d{3,4}|[5-9]\d{4,5})\s+-/;
 
-  const accounts = [];
+  // Parse all entries with their account context
+  const allEntries = []; // { account, accountName, month, entry }
   let currentAccount = null;
 
   for (let i = headerIdx + 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Check for account section header
     if (acctHdrRe.test(line)) {
       const match = line.match(/^(\d+)\s+-\s+(.+)/);
-      if (match) {
-        currentAccount = { number: match[1].trim(), name: match[2].trim(), entries: [] };
-        accounts.push(currentAccount);
-      }
+      if (match) currentAccount = { number: match[1].trim(), name: match[2].trim() };
       continue;
     }
 
-    // Parse transaction row under current account
     if (currentAccount) {
       const cols = lines[i].split(",");
       const posted = (cols[postedIdx] ?? "").trim();
-      // Skip non-data rows (subtotals, blanks, etc.)
       if (!posted || !/\d/.test(posted)) continue;
 
-      const entry = {
-        date: posted,
-        description: descIdx >= 0 ? (cols[descIdx] ?? "").trim() : "",
-        vendor: vendorIdx >= 0 ? (cols[vendorIdx] ?? "").trim() : "",
-        debit: parseFloat((cols[debitIdx] ?? "").replace(/[",]/g, "")) || 0,
-        credit: parseFloat((cols[creditIdx] ?? "").replace(/[",]/g, "")) || 0,
-      };
+      const debit  = parseFloat((cols[debitIdx] ?? "").replace(/[",]/g, "")) || 0;
+      const credit = parseFloat((cols[creditIdx] ?? "").replace(/[",]/g, "")) || 0;
+      if (debit === 0 && credit === 0) continue;
 
-      // Only store entries with actual values
-      if (entry.debit !== 0 || entry.credit !== 0) {
-        currentAccount.entries.push(entry);
-      }
+      // Derive month key from posted date (MM/DD/YYYY → YYYY-MM)
+      const dateParts = posted.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+      const monthKey = dateParts
+        ? dateParts[3] + "-" + dateParts[1].padStart(2, "0")
+        : null;
+      if (!monthKey) continue;
+
+      allEntries.push({
+        account: currentAccount.number,
+        accountName: currentAccount.name,
+        monthKey,
+        entry: {
+          date: posted,
+          description: descIdx >= 0 ? (cols[descIdx] ?? "").trim() : "",
+          vendor: vendorIdx >= 0 ? (cols[vendorIdx] ?? "").trim() : "",
+          debit,
+          credit,
+        },
+      });
     }
   }
 
-  // Filter to accounts with entries, compute stats
-  const withEntries = accounts.filter(a => a.entries.length > 0);
-  const allDates = withEntries.flatMap(a => a.entries.map(e => e.date)).filter(Boolean);
-  const vendors = [...new Set(withEntries.flatMap(a => a.entries.map(e => e.vendor)).filter(Boolean))];
+  if (!allEntries.length) return null;
 
-  return {
-    accounts: withEntries.map(a => ({
-      number: a.number,
-      name: a.name,
-      entryCount: a.entries.length,
-      entries: a.entries,
-    })),
-    totalEntries: withEntries.reduce((sum, a) => sum + a.entries.length, 0),
-    totalAccounts: withEntries.length,
-    vendors,
-    dateRange: allDates.length > 0
-      ? { from: allDates.sort()[0], to: allDates.sort()[allDates.length - 1] }
-      : null,
-  };
+  // Group by month, then by account within each month
+  const months = {};
+  for (const { account, accountName, monthKey, entry } of allEntries) {
+    if (!months[monthKey]) months[monthKey] = {};
+    if (!months[monthKey][account]) months[monthKey][account] = { name: accountName, entries: [] };
+    months[monthKey][account].entries.push(entry);
+  }
+
+  // Shape each month's data into the storage format
+  const result = {};
+  for (const [monthKey, acctMap] of Object.entries(months)) {
+    const accounts = Object.entries(acctMap).map(([number, data]) => ({
+      number,
+      name: data.name,
+      entryCount: data.entries.length,
+      entries: data.entries,
+    }));
+    const vendors = [...new Set(accounts.flatMap(a => a.entries.map(e => e.vendor)).filter(Boolean))];
+    result[monthKey] = {
+      accounts,
+      totalEntries: accounts.reduce((s, a) => s + a.entries.length, 0),
+      totalAccounts: accounts.length,
+      vendors,
+    };
+  }
+
+  return { months: result, monthKeys: Object.keys(result).sort() };
 }
 
 // ── Merge IS time series: existing + new → combined ────────────────────────
@@ -293,17 +309,45 @@ export default async function handler(req, res) {
 
       // ── Ingest GL ──
       if (action === "ingest-gl" && rawGl) {
-        // 1. Extract GL transactions
+        // 1. Extract GL transactions grouped by posted month
         const extracted = extractGlTransactions(rawGl);
         if (!extracted) return res.status(400).json({ error: "Could not extract transactions from GL" });
 
-        // 2. Store GL extract in Blob (per period, since GL entries are transactional)
-        const glBlobPath = `data/${slug}/gl-${period}.json`;
-        const glBlob = await put(glBlobPath, JSON.stringify(extracted), {
-          access: "private",
-          contentType: "application/json",
-          addRandomSuffix: false,
-        });
+        // 2. Store each month's transactions as its own Blob (overwrites if month already exists)
+        const glIdxRaw = await kvGet(`datastore:${enc}:gl:index`);
+        const glIdx = glIdxRaw ? JSON.parse(glIdxRaw) : [];
+
+        for (const monthKey of extracted.monthKeys) {
+          const monthData = extracted.months[monthKey];
+          const glBlobPath = `data/${slug}/gl-${monthKey}.json`;
+          const glBlob = await put(glBlobPath, JSON.stringify(monthData), {
+            access: "private",
+            contentType: "application/json",
+            addRandomSuffix: false,
+          });
+
+          // Update or insert in GL month index
+          const existing = glIdx.find(e => e.month === monthKey);
+          if (existing) {
+            existing.blobUrl = glBlob.url;
+            existing.ingestedAt = new Date().toISOString();
+            existing.totalEntries = monthData.totalEntries;
+            existing.totalAccounts = monthData.totalAccounts;
+            existing.vendorCount = monthData.vendors.length;
+          } else {
+            glIdx.push({
+              month: monthKey,
+              blobUrl: glBlob.url,
+              ingestedAt: new Date().toISOString(),
+              totalEntries: monthData.totalEntries,
+              totalAccounts: monthData.totalAccounts,
+              vendorCount: monthData.vendors.length,
+            });
+          }
+        }
+
+        glIdx.sort((a, b) => a.month.localeCompare(b.month));
+        await kvSet(`datastore:${enc}:gl:index`, JSON.stringify(glIdx));
 
         // 3. Store raw GL in Blob as backup (latest only)
         const rawGlBlobPath = `data/${slug}/raw-gl-latest.csv`;
@@ -313,30 +357,7 @@ export default async function handler(req, res) {
           addRandomSuffix: false,
         });
 
-        // 4. Update GL period index in KV
-        const glIdxRaw = await kvGet(`datastore:${enc}:gl:index`);
-        const glIdx = glIdxRaw ? JSON.parse(glIdxRaw) : [];
-        const existing = glIdx.find(e => e.period === period);
-        if (existing) {
-          existing.blobUrl = glBlob.url;
-          existing.ingestedAt = new Date().toISOString();
-          existing.totalEntries = extracted.totalEntries;
-          existing.totalAccounts = extracted.totalAccounts;
-          existing.vendorCount = extracted.vendors.length;
-        } else {
-          glIdx.push({
-            period,
-            blobUrl: glBlob.url,
-            ingestedAt: new Date().toISOString(),
-            totalEntries: extracted.totalEntries,
-            totalAccounts: extracted.totalAccounts,
-            vendorCount: extracted.vendors.length,
-          });
-          glIdx.sort((a, b) => a.period.localeCompare(b.period));
-        }
-        await kvSet(`datastore:${enc}:gl:index`, JSON.stringify(glIdx));
-
-        // 5. Update property metadata
+        // 4. Update property metadata
         const metaRaw = await kvGet(`datastore:${enc}:meta`);
         const meta = metaRaw ? JSON.parse(metaRaw) : {
           propertyName: property,
@@ -345,15 +366,14 @@ export default async function handler(req, res) {
         };
         meta.lastUpdated = new Date().toISOString();
         meta.latestRawGl = rawGlBlob.url;
+        meta.glMonths = extracted.monthKeys;
         if (!meta.periods[period]) meta.periods[period] = {};
         meta.periods[period].glIngestedAt = new Date().toISOString();
-        meta.periods[period].glEntryCount = extracted.totalEntries;
-        meta.periods[period].glAccountCount = extracted.totalAccounts;
-        meta.periods[period].glVendorCount = extracted.vendors.length;
-        meta.periods[period].glDateRange = extracted.dateRange;
+        meta.periods[period].glMonthsCovered = extracted.monthKeys;
+        meta.periods[period].glTotalEntries = Object.values(extracted.months).reduce((s, m) => s + m.totalEntries, 0);
         await kvSet(`datastore:${enc}:meta`, JSON.stringify(meta));
 
-        // 6. Update global property index
+        // 5. Update global property index
         const idxRaw = await kvGet("datastore:property:index");
         const idx = idxRaw ? JSON.parse(idxRaw) : [];
         if (!idx.includes(property)) {
@@ -362,12 +382,14 @@ export default async function handler(req, res) {
           await kvSet("datastore:property:index", JSON.stringify(idx));
         }
 
+        // 6. Build response summary
+        const totalEntries = Object.values(extracted.months).reduce((s, m) => s + m.totalEntries, 0);
+
         return res.status(200).json({
           ok: true,
-          totalEntries: extracted.totalEntries,
-          totalAccounts: extracted.totalAccounts,
-          vendorCount: extracted.vendors.length,
-          dateRange: extracted.dateRange,
+          monthsStored: extracted.monthKeys,
+          totalEntries,
+          glMonthsInIndex: glIdx.length,
         });
       }
 
