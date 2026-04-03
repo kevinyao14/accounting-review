@@ -772,6 +772,28 @@ function AppInner() {
         return;
       }
 
+      // ── Validation: Header row structure ──
+      const glLines = raw.split("\n");
+      const headerLine = glLines.find(l => /Posted Dt\./i.test(l));
+      if (!headerLine) {
+        setErr("Could not find \"Posted Dt.\" header row. This does not appear to be a standard GL export.");
+        return;
+      }
+      const headerCols = headerLine.split(",").map(c => c.trim());
+      if (headerCols.length < 10 || !/^Debit$/i.test(headerCols[headerCols.length - 3]) || !/^Credit$/i.test(headerCols[headerCols.length - 2]) || !/^Balance$/i.test(headerCols[headerCols.length - 1])) {
+        setErr("GL header row does not match expected format (expected 10 columns ending with Debit, Credit, Balance). The file may be corrupted or in the wrong format.");
+        return;
+      }
+
+      // ── Validation: Extract GL property name and cross-check ──
+      const glFirst5 = glLines.slice(0, 5).join("\n");
+      const glPropMatch = glFirst5.match(/--([^\r\n]+)/);
+      const glPropertyName = glPropMatch?.[1]?.trim() ?? "";
+      if (isPropertyName && glPropertyName && glPropertyName.toLowerCase() !== isPropertyName.toLowerCase()) {
+        setErr("GL property mismatch: GL is for \"" + glPropertyName + "\" but the uploaded income statement is for \"" + isPropertyName + "\". Please upload the GL for the correct property.");
+        return;
+      }
+
       const [yr, mo] = reviewMonth.split("-");
 
       const keepMonths = new Set();
@@ -782,7 +804,7 @@ function AppInner() {
         );
       }
 
-      const lines = raw.split("\n");
+      const lines = glLines;
 
       // Regex matching revenue (440001+) and expense (5xxxxx, 6xxxxx, 7xxxxx+) account headers
       const acctHdrRe = /^(?:4[4-9]\d{3,4}|[5-9]\d{4,5})\s+-/;
