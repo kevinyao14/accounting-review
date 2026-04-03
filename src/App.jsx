@@ -385,6 +385,11 @@ function AppInner() {
   const [kbFeedbackQueue, setKbFeedbackQueue] = useState([]); // committed feedback not yet in KB
   const [kbFeedbackLoading, setKbFeedbackLoading] = useState(false);
 
+  // Data tab (bulk upload) states
+  const [bulkFiles, setBulkFiles]             = useState([]); // [{ id, name, rawText, type, property, period, error, status }]
+  const [bulkUploading, setBulkUploading]     = useState(false);
+  const [dataInventory, setDataInventory]     = useState(null); // { properties: [...] }
+
   const [detailOpen, setDetailOpen]           = useState({});
   const toggleDetail = (acct, type) => setDetailOpen(prev => ({
     ...prev, [acct]: { ...prev[acct], [type]: !prev[acct]?.[type] }
@@ -751,6 +756,135 @@ function AppInner() {
       setter(rows.join("\n"));
     };
     reader.readAsText(file);
+  };
+
+  // ── Bulk upload: validate + classify files, then ingest to data store ──
+  const validateBulkFile = (rawText) => {
+    const first2k = rawText.slice(0, 2000);
+    const lines = rawText.split("\n");
+
+    // Auto-detect type
+    if (/Posted Dt\./i.test(first2k)) {
+      // GL file
+      if (/^\/\/ GL:/m.test(rawText.slice(0, 200)) || /^FORMAT:/m.test(rawText.slice(0, 500))) {
+        return { type: "gl", error: "Re-processed GL file. Upload the original export." };
+      }
+      const headerLine = lines.find(l => /Posted Dt\./i.test(l));
+      if (!headerLine) return { type: "gl", error: "No Posted Dt. header found." };
+      const headerCols = headerLine.split(",").map(c => c.trim());
+      if (headerCols.length < 10 || !/^Debit$/i.test(headerCols[headerCols.length - 3]) || !/^Credit$/i.test(headerCols[headerCols.length - 2]) || !/^Balance$/i.test(headerCols[headerCols.length - 1])) {
+        return { type: "gl", error: "GL header does not match expected format (10 cols, Debit/Credit/Balance at end)." };
+      }
+      // Extract property name
+      const glFirst5 = lines.slice(0, 5).join("\n");
+      const propMatch = glFirst5.match(/--([^\r\n]+)/);
+      const property = propMatch?.[1]?.trim() ?? "";
+      if (!property) return { type: "gl", error: "Could not extract property name from GL (expected CODE--PropertyName)." };
+      // Account sections check
+      const acctHdrRe = /^(?:4[4-9]\d{3,4}|[5-9]\d{4,5})\s+-/;
+      const acctCount = lines.filter(l => acctHdrRe.test(l)).length;
+      if (acctCount < 3) return { type: "gl", error: "Only " + acctCount + " account sections (need 3+)." };
+      // Derive period from latest Posted Dt. entry
+      let latestDate = null;
+      const headerIdx = lines.indexOf(headerLine);
+      const postedIdx = headerCols.findIndex(c => /Posted Dt\./i.test(c));
+      for (let i = headerIdx + 1; i < lines.length; i++) {
+        const cols = lines[i].split(",");
+        const posted = (cols[postedIdx] ?? "").trim();
+        const m = posted.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (m) {
+          const d = new Date(+m[3], +m[1] - 1, +m[2]);
+          if (!latestDate || d > latestDate) latestDate = d;
+        }
+      }
+      const period = latestDate
+        ? latestDate.getFullYear() + "-" + String(latestDate.getMonth() + 1).padStart(2, "0")
+        : "";
+      return { type: "gl", property, period, error: null };
+    }
+
+    // Check for IS
+    const first15 = lines.slice(0, 15).join("\n");
+    if (/Reporting Book:/i.test(first15) || /\bLocation:\s*\w/i.test(first15)) {
+      return { type: "is", error: "Unsupported IS format (Reporting Book/Location style)." };
+    }
+    const propMatch = lines.slice(0, 10).join("\n").match(/Property:\s*([^,\r\n]+)/i);
+    const property = propMatch?.[1]?.trim() ?? "";
+    if (!property) return { type: "unknown", error: "Could not detect file type. No Property: header or Posted Dt. header found." };
+
+    // Date columns
+    let dateCols = [];
+    for (const line of lines) {
+      const cols = line.split(",");
+      const dates = [];
+      cols.forEach((c, j) => {
+        const t = c.trim();
+        if (t.length === 10 && t[2] === "/" && t[5] === "/") {
+          const p = t.split("/");
+          dates.push({ idx: j, date: new Date(+p[2], +p[0] - 1, 1), label: t });
+        }
+      });
+      if (dates.length >= 3) { dateCols = dates; break; }
+    }
+    if (!dateCols.length) return { type: "is", property, error: "No date columns found." };
+    if (dateCols.length < 10) return { type: "is", property, error: "Only " + dateCols.length + " date columns (need 10+ for T12)." };
+
+    // Account rows
+    let acctRows = 0;
+    for (const line of lines) { if (/^\d{6}$/.test(line.split(",")[0]?.trim())) acctRows++; }
+    if (acctRows < 10) return { type: "is", property, error: "Only " + acctRows + " account rows (need 10+)." };
+
+    // Period = latest date column
+    const sorted = dateCols.map(d => d.date).sort((a, b) => b - a);
+    const latest = sorted[0];
+    const period = latest.getFullYear() + "-" + String(latest.getMonth() + 1).padStart(2, "0");
+    return { type: "is", property, period, error: null };
+  };
+
+  const handleBulkFiles = (fileList) => {
+    const entries = [];
+    let loaded = 0;
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const id = Date.now() + "-" + i;
+      const entry = { id, name: file.name, rawText: "", type: "", property: "", period: "", error: "Reading…", status: "reading" };
+      entries.push(entry);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const raw = e.target.result;
+        const result = validateBulkFile(raw);
+        setBulkFiles(prev => prev.map(f => f.id === id ? {
+          ...f, rawText: raw, type: result.type, property: result.property || "",
+          period: result.period || "", error: result.error, status: result.error ? "error" : "ready",
+        } : f));
+      };
+      reader.readAsText(file);
+    }
+    setBulkFiles(prev => [...prev, ...entries]);
+  };
+
+  const runBulkUpload = async () => {
+    const ready = bulkFiles.filter(f => f.status === "ready");
+    if (!ready.length) return;
+    setBulkUploading(true);
+    for (const file of ready) {
+      setBulkFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: "uploading" } : f));
+      try {
+        const body = file.type === "is"
+          ? { property: file.property, period: file.period, action: "ingest-is", rawIs: file.rawText }
+          : { property: file.property, period: file.period, action: "ingest-gl", rawGl: file.rawText };
+        const res = await fetch("/api/data-store", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || "Upload failed");
+        setBulkFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: "done", error: null, detail: data } : f));
+      } catch (e) {
+        setBulkFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: "error", error: e.message } : f));
+      }
+    }
+    setBulkUploading(false);
+    // Refresh inventory
+    fetch("/api/data-store?type=property-list").then(r => r.json())
+      .then(list => setDataInventory({ properties: Array.isArray(list) ? list : [] })).catch(() => {});
   };
 
   // For GL files: extract revenue (4[4-9]xxxx) + expense (5-9xxxxx) sections, keep 2 months of entries
@@ -1374,7 +1508,8 @@ function AppInner() {
               {key:"checklist", label:"03 · Checklist",  badge: totalChecks},
               {key:"history",   label:"04 · History",    badge: historyIndex.length || null},
               {key:"reports",   label:"05 · Reports",    dot: !!reportContent},
-              {key:"kb",        label:"06 · Knowledge Base"},
+              {key:"data",      label:"06 · Data",          badge: bulkFiles.filter(f => f.status === "done").length || null},
+              {key:"kb",        label:"07 · Knowledge Base"},
             ].map(t => (
               <button key={t.key} className="tab" onClick={() => {
                 setTab(t.key);
@@ -1385,6 +1520,12 @@ function AppInner() {
                     .then(data => { if (Array.isArray(data)) setHistoryIndex(data); setHistoryLoaded(true); })
                     .catch(() => setHistoryLoaded(true))
                     .finally(() => setHistoryLoading(false));
+                }
+                if (t.key === "data" && kbAuthed && !dataInventory) {
+                  fetch("/api/data-store?type=property-list")
+                    .then(r => r.json())
+                    .then(list => setDataInventory({ properties: Array.isArray(list) ? list : [] }))
+                    .catch(() => {});
                 }
                 if (t.key === "kb" && kbAuthed) {
                   loadKbPropertyList();
@@ -2750,7 +2891,115 @@ function AppInner() {
           </div>
         )}
 
-        {/* ── 06 · Knowledge Base ─────────────────────────────────────────────── */}
+        {/* ── 06 · Data ──────────────────────────────────────────────────────── */}
+        {tab === "data" && (
+          <div className="fade-up">
+            {!kbAuthed ? (
+              <div style={{...s.panel, maxWidth:380, margin:"60px auto"}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18,color:"#f5f5f5",marginBottom:6}}>Data Store</div>
+                <p style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",margin:"0 0 16px"}}>Manager access required.</p>
+                <div style={{display:"flex",gap:8}}>
+                  <input type="password" placeholder="Password" value={kbPw} onChange={e=>setKbPw(e.target.value)}
+                    onKeyDown={e=>{if(e.key==="Enter"){if(kbPw==="kbreview2026"){sessionStorage.setItem("kb_auth","1");setKbAuthed(true);setKbPwErr(false);fetch("/api/data-store?type=property-list").then(r=>r.json()).then(list=>setDataInventory({properties:Array.isArray(list)?list:[]})).catch(()=>{});}else{setKbPwErr(true);}}}}
+                    style={{...s.input,flex:1,borderColor:kbPwErr?"#7f1d1d":"#1e1e1e"}}/>
+                  <button className="btn" onClick={()=>{if(kbPw==="kbreview2026"){sessionStorage.setItem("kb_auth","1");setKbAuthed(true);setKbPwErr(false);fetch("/api/data-store?type=property-list").then(r=>r.json()).then(list=>setDataInventory({properties:Array.isArray(list)?list:[]})).catch(()=>{});}else{setKbPwErr(true);}}}
+                    style={s.btn}>Unlock</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:20}}>
+                {/* Upload section */}
+                <div style={s.panel}>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:"#f5f5f5",marginBottom:4}}>Bulk Upload</div>
+                  <p style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",margin:"0 0 12px"}}>
+                    Upload T12 income statements and GL reports. Files are validated, classified, and ingested into the data store automatically.
+                  </p>
+                  <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+                    <label className="btn" style={{...s.btn,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}>
+                      + Select Files
+                      <input type="file" multiple accept=".csv" style={{display:"none"}}
+                        onChange={e => { handleBulkFiles(e.target.files); e.target.value = ""; }}/>
+                    </label>
+                    {bulkFiles.some(f => f.status === "ready") && (
+                      <button className="btn" style={{...s.btn,background:"#854d0e",color:"#fbbf24"}}
+                        disabled={bulkUploading}
+                        onClick={runBulkUpload}>
+                        {bulkUploading ? "Uploading…" : `Upload ${bulkFiles.filter(f => f.status === "ready").length} Valid File${bulkFiles.filter(f => f.status === "ready").length !== 1 ? "s" : ""}`}
+                      </button>
+                    )}
+                    {bulkFiles.length > 0 && (
+                      <button className="btn" style={{...s.btnOutline,fontSize:11,padding:"4px 10px"}}
+                        onClick={() => setBulkFiles([])}>Clear All</button>
+                    )}
+                  </div>
+
+                  {/* File queue table */}
+                  {bulkFiles.length > 0 && (
+                    <div style={{marginTop:14,borderRadius:6,border:"1px solid #1e1e1e",overflow:"hidden"}}>
+                      <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"'Fira Code',monospace",fontSize:11}}>
+                        <thead>
+                          <tr style={{background:"#0a0a0a"}}>
+                            <th style={{padding:"6px 10px",textAlign:"left",color:"#6b7280",fontWeight:500}}>File</th>
+                            <th style={{padding:"6px 10px",textAlign:"left",color:"#6b7280",fontWeight:500}}>Type</th>
+                            <th style={{padding:"6px 10px",textAlign:"left",color:"#6b7280",fontWeight:500}}>Property</th>
+                            <th style={{padding:"6px 10px",textAlign:"left",color:"#6b7280",fontWeight:500}}>Period</th>
+                            <th style={{padding:"6px 10px",textAlign:"left",color:"#6b7280",fontWeight:500}}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bulkFiles.map(f => (
+                            <tr key={f.id} style={{borderTop:"1px solid #141414"}}>
+                              <td style={{padding:"5px 10px",color:"#d1d5db",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.name}</td>
+                              <td style={{padding:"5px 10px"}}>
+                                {f.type === "is" && <span style={{color:"#60a5fa"}}>IS</span>}
+                                {f.type === "gl" && <span style={{color:"#a78bfa"}}>GL</span>}
+                                {f.type === "unknown" && <span style={{color:"#6b7280"}}>?</span>}
+                                {!f.type && <span style={{color:"#6b7280"}}>…</span>}
+                              </td>
+                              <td style={{padding:"5px 10px",color:"#d1d5db"}}>{f.property || "—"}</td>
+                              <td style={{padding:"5px 10px",color:"#d1d5db"}}>{f.period || "—"}</td>
+                              <td style={{padding:"5px 10px"}}>
+                                {f.status === "reading" && <span style={{color:"#6b7280"}}>Reading…</span>}
+                                {f.status === "ready" && <span style={{color:"#4ade80"}}>Ready</span>}
+                                {f.status === "uploading" && <span style={{color:"#fbbf24"}}>Uploading…</span>}
+                                {f.status === "done" && <span style={{color:"#4ade80"}}>Done</span>}
+                                {f.status === "error" && <span style={{color:"#f87171"}} title={f.error}>{f.error}</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Data inventory */}
+                <div style={s.panel}>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:16,color:"#f5f5f5",marginBottom:4}}>Data Inventory</div>
+                  <p style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",margin:"0 0 12px"}}>
+                    Properties with ingested IS/GL data.
+                  </p>
+                  {!dataInventory ? (
+                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280"}}>Loading…</span>
+                  ) : dataInventory.properties.length === 0 ? (
+                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280"}}>No data ingested yet. Upload files above to get started.</span>
+                  ) : (
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {dataInventory.properties.map(prop => (
+                        <div key={prop} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",background:"#0a0a0a",borderRadius:4,border:"1px solid #1e1e1e"}}>
+                          <div style={{width:6,height:6,borderRadius:"50%",background:"#4ade80",flexShrink:0}}/>
+                          <span style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:13,color:"#f5f5f5"}}>{prop}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 07 · Knowledge Base ─────────────────────────────────────────────── */}
         {tab === "kb" && (
           <div className="fade-up">
             {!kbAuthed ? (
