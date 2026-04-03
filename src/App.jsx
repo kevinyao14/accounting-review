@@ -2900,9 +2900,9 @@ function AppInner() {
                 <p style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",margin:"0 0 16px"}}>Manager access required.</p>
                 <div style={{display:"flex",gap:8}}>
                   <input type="password" placeholder="Password" value={kbPw} onChange={e=>setKbPw(e.target.value)}
-                    onKeyDown={e=>{if(e.key==="Enter"){if(kbPw==="kbreview2026"){sessionStorage.setItem("kb_auth","1");setKbAuthed(true);setKbPwErr(false);fetch("/api/data-store?type=property-list").then(r=>r.json()).then(list=>setDataInventory({properties:Array.isArray(list)?list:[]})).catch(()=>{});}else{setKbPwErr(true);}}}}
+                    onKeyDown={e=>{if(e.key==="Enter"){if(kbPw==="Genius$"){sessionStorage.setItem("kb_auth","1");setKbAuthed(true);setKbPwErr(false);fetch("/api/data-store?type=property-list").then(r=>r.json()).then(list=>setDataInventory({properties:Array.isArray(list)?list:[]})).catch(()=>{});}else{setKbPwErr(true);}}}}
                     style={{...s.input,flex:1,borderColor:kbPwErr?"#7f1d1d":"#1e1e1e"}}/>
-                  <button className="btn" onClick={()=>{if(kbPw==="kbreview2026"){sessionStorage.setItem("kb_auth","1");setKbAuthed(true);setKbPwErr(false);fetch("/api/data-store?type=property-list").then(r=>r.json()).then(list=>setDataInventory({properties:Array.isArray(list)?list:[]})).catch(()=>{});}else{setKbPwErr(true);}}}
+                  <button className="btn" onClick={()=>{if(kbPw==="Genius$"){sessionStorage.setItem("kb_auth","1");setKbAuthed(true);setKbPwErr(false);fetch("/api/data-store?type=property-list").then(r=>r.json()).then(list=>setDataInventory({properties:Array.isArray(list)?list:[]})).catch(()=>{});}else{setKbPwErr(true);}}}
                     style={s.btn}>Unlock</button>
                 </div>
               </div>
