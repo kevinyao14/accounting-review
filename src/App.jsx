@@ -316,6 +316,8 @@ function AppInner() {
   });
   const [incomeStatement, setIncomeStatement] = useState("");
   const [glEntries, setGlEntries]             = useState("");
+  const [rawIsText, setRawIsText]             = useState("");  // full untrimmed IS for data store
+  const [rawGlText, setRawGlText]             = useState("");  // full untrimmed GL for data store
   const [findings, setFindings]               = useState([]);
   const [generalFindings, setGeneralFindings] = useState([]);
   const [reviewing, setReviewing]             = useState(false);
@@ -634,6 +636,9 @@ function AppInner() {
         setPeriodWarning("");
       }
 
+      // Capture full raw IS text for data store (pre-trim)
+      setRawIsText(raw);
+
       let keepCols = null; // will be set when we find the date header row
 
       const result = lines.map(line => {
@@ -793,6 +798,9 @@ function AppInner() {
         setErr("GL property mismatch: GL is for \"" + glPropertyName + "\" but the uploaded income statement is for \"" + isPropertyName + "\". Please upload the GL for the correct property.");
         return;
       }
+
+      // Capture full raw GL text for data store (pre-trim)
+      setRawGlText(raw);
 
       const [yr, mo] = reviewMonth.split("-");
 
@@ -1110,6 +1118,22 @@ function AppInner() {
           if (d.ok) { setHistoryLoaded(false); setReviewBlobUrl(d.blobUrl); }
         })
         .catch(() => {});
+
+      // Fire-and-forget data store ingestion (raw IS → time series, raw GL → transactions)
+      if (rawIsText && propertyName) {
+        fetch("/api/data-store", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ property: propertyName, period: reviewMonth, action: "ingest-is", rawIs: rawIsText }),
+        }).catch(() => {});
+      }
+      if (rawGlText && propertyName) {
+        fetch("/api/data-store", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ property: propertyName, period: reviewMonth, action: "ingest-gl", rawGl: rawGlText }),
+        }).catch(() => {});
+      }
 
     } catch(e) { setReviewError("Error: " + (e.message || "Please try again.")); }
     setReviewStatus("");
