@@ -161,6 +161,17 @@ function extractGlTransactions(rawCsv) {
     months[monthKey][account].entries.push(entry);
   }
 
+  // Filter out partial months — only keep months where the earliest entry is the 1st
+  for (const monthKey of Object.keys(months)) {
+    const allDays = Object.values(months[monthKey])
+      .flatMap(a => a.entries.map(e => {
+        const m = e.date.match(/^\d{1,2}\/(\d{1,2})\//);
+        return m ? parseInt(m[1], 10) : 99;
+      }));
+    const earliestDay = Math.min(...allDays);
+    if (earliestDay > 1) delete months[monthKey];
+  }
+
   // Shape each month's data into the storage format
   const result = {};
   for (const [monthKey, acctMap] of Object.entries(months)) {
