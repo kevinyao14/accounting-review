@@ -176,6 +176,10 @@ function AppInner() {
   const [kbError, setKbError]             = useState("");
   const [kbFeedbackQueue, setKbFeedbackQueue] = useState([]); // committed feedback not yet in KB
   const [kbFeedbackLoading, setKbFeedbackLoading] = useState(false);
+  const [kbBrief, setKbBrief]               = useState(null);  // memory brief text, null = not loaded
+  const [kbBriefOpen, setKbBriefOpen]        = useState(false);
+  const [kbPatterns, setKbPatterns]          = useState(null);  // patterns JSON, null = not loaded
+  const [kbPatternsOpen, setKbPatternsOpen]  = useState(false);
 
   // Portfolio tab states
   const [portfolioData, setPortfolioData]     = useState(null); // grouped history data
@@ -2871,7 +2875,7 @@ function AppInner() {
                     {kbScope === "property" && (
                       <div style={{display:"flex",gap:8,alignItems:"center"}}>
                         <select value={kbPropertyName}
-                          onChange={e => { const n = e.target.value; setKbPropertyName(n); setKbPending(null); setKbSource(""); setKbCompressed(""); setKbTokenCount(0); if (n) loadKb("property", n); }}
+                          onChange={e => { const n = e.target.value; setKbPropertyName(n); setKbPending(null); setKbSource(""); setKbCompressed(""); setKbTokenCount(0); setKbBrief(null); setKbBriefOpen(false); setKbPatterns(null); setKbPatternsOpen(false); if (n) loadKb("property", n); }}
                           style={{...s.select, width:"auto", minWidth:220}}>
                           <option value="">Select property…</option>
                           {kbPropertyList.map(p => <option key={p} value={p}>{p}</option>)}
@@ -2946,6 +2950,103 @@ function AppInner() {
                             );
                           })
                       }
+                    </div>
+                    )}
+
+                    {/* Memory Brief — property only, read-only */}
+                    {kbScope === "property" && kbPropertyName && (
+                    <div style={{...s.panel, marginBottom:20}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}
+                        onClick={() => {
+                          setKbBriefOpen(!kbBriefOpen);
+                          if (!kbBriefOpen && kbBrief === null) {
+                            fetch(`/api/memory-store?type=property&key=brief&property=${encodeURIComponent(kbPropertyName)}`)
+                              .then(r => r.json())
+                              .then(data => setKbBrief(data?.brief || ""))
+                              .catch(() => setKbBrief(""));
+                          }
+                        }}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",transition:"transform 0.15s",transform:kbBriefOpen?"rotate(90deg)":"rotate(0deg)"}}>&#9654;</span>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",letterSpacing:0.5}}>MEMORY BRIEF</span>
+                          {kbBrief !== null && <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",background:"#1e1e1e",borderRadius:10,padding:"1px 7px"}}>{kbBrief ? `${kbBrief.length} chars` : "empty"}</span>}
+                        </div>
+                        <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563"}}>{kbBriefOpen ? "collapse" : "expand"}</span>
+                      </div>
+                      {kbBriefOpen && (
+                        <div style={{marginTop:12}}>
+                          {kbBrief === null && <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280"}}>Loading...</div>}
+                          {kbBrief !== null && !kbBrief && <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>No memory brief found for this property.</div>}
+                          {kbBrief && (
+                            <pre style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#9ca3af",lineHeight:1.6,
+                              background:"#0a0a0a",border:"1px solid #1e1e1e",borderRadius:6,padding:14,
+                              whiteSpace:"pre-wrap",wordBreak:"break-word",maxHeight:400,overflowY:"auto",margin:0}}>{kbBrief}</pre>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    )}
+
+                    {/* Account Patterns — property only, read-only */}
+                    {kbScope === "property" && kbPropertyName && (
+                    <div style={{...s.panel, marginBottom:20}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}
+                        onClick={() => {
+                          setKbPatternsOpen(!kbPatternsOpen);
+                          if (!kbPatternsOpen && kbPatterns === null) {
+                            fetch(`/api/memory-store?type=property&key=patterns&property=${encodeURIComponent(kbPropertyName)}`)
+                              .then(r => r.json())
+                              .then(data => setKbPatterns(data || {}))
+                              .catch(() => setKbPatterns({}));
+                          }
+                        }}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",transition:"transform 0.15s",transform:kbPatternsOpen?"rotate(90deg)":"rotate(0deg)"}}>&#9654;</span>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",letterSpacing:0.5}}>ACCOUNT PATTERNS</span>
+                          {kbPatterns !== null && (() => {
+                            const total = (kbPatterns.stable_accounts?.length || 0) + (kbPatterns.volatile_accounts?.length || 0) + (kbPatterns.reversal_pairs?.length || 0) + (kbPatterns.trending?.length || 0);
+                            return <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",background:"#1e1e1e",borderRadius:10,padding:"1px 7px"}}>{total ? `${total} entries` : "empty"}</span>;
+                          })()}
+                        </div>
+                        <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563"}}>{kbPatternsOpen ? "collapse" : "expand"}</span>
+                      </div>
+                      {kbPatternsOpen && (
+                        <div style={{marginTop:12}}>
+                          {kbPatterns === null && <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280"}}>Loading...</div>}
+                          {kbPatterns !== null && !kbPatterns.stable_accounts && !kbPatterns.volatile_accounts && !kbPatterns.reversal_pairs && !kbPatterns.trending && (
+                            <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>No patterns found for this property.</div>
+                          )}
+                          {kbPatterns !== null && [
+                            { key: "stable_accounts", label: "Stable Accounts", desc: "Low volatility (CV < 0.05) — anomalies here are more significant", color: "#4ade80" },
+                            { key: "volatile_accounts", label: "Volatile Accounts", desc: "High volatility (CV > 0.20) — variance is expected", color: "#fbbf24" },
+                            { key: "reversal_pairs", label: "Reversal Pairs", desc: "Expected accrual-reversal cycles", color: "#818cf8" },
+                            { key: "trending", label: "Trending", desc: "Sustained growth or decline", color: "#f472b6" },
+                          ].map(section => {
+                            const items = kbPatterns[section.key];
+                            if (!items || items.length === 0) return null;
+                            return (
+                              <div key={section.key} style={{marginBottom:14}}>
+                                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                                  <span style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:12,color:section.color}}>{section.label}</span>
+                                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563"}}>{section.desc}</span>
+                                </div>
+                                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                                  {items.map((item, i) => {
+                                    const label = typeof item === "string" ? item
+                                      : item.account || item.debit_account
+                                        ? `${item.account || item.debit_account}${item.credit_account ? " ↔ " + item.credit_account : ""}${item.direction ? " " + item.direction : ""}`
+                                        : JSON.stringify(item);
+                                    return (
+                                      <span key={i} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#d1d5db",
+                                        background:"#0a0a0a",border:"1px solid #1e1e1e",borderRadius:4,padding:"3px 8px"}}>{label}</span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                     )}
 
