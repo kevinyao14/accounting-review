@@ -1,23 +1,4 @@
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-
-async function kvGet(key) {
-  const res = await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["GET", key]),
-  });
-  const { result } = await res.json();
-  return result; // string or null
-}
-
-async function kvSet(key, value) {
-  await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["SET", key, value]),
-  });
-}
+import { kvGet, kvSet } from "../lib/storage.js";
 
 const DEFAULT_ITEMS = [
   { id: 2,  source: "GL", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Accrual entry has no corresponding reversal within first 5 business days of month" },

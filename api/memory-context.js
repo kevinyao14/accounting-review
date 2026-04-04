@@ -1,53 +1,6 @@
+import { kvGet, blobGet, encodePropertyName, estimateTokens } from "../lib/storage.js";
+
 export const config = { maxDuration: 30 };
-
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
-
-// ── KV helpers ────────────────────────────────────────────────────────────
-
-async function kvGet(key) {
-  const res = await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["GET", key]),
-  });
-  const { result } = await res.json();
-  return result;
-}
-
-function encodePropertyName(name) {
-  return encodeURIComponent(name).replace(/%20/g, "_");
-}
-
-async function blobGet(url) {
-  if (!url) return null;
-  try {
-    // Support kv: prefix — seed-memory-direct.js stores small payloads (signals,
-    // errors) directly in KV and writes "kv:<key>" as the blob pointer.
-    if (url.startsWith("kv:")) {
-      const kvKey = url.slice(3);
-      const raw = await kvGet(kvKey);
-      if (!raw) return null;
-      return typeof raw === "string" ? JSON.parse(raw) : raw;
-    }
-    // Normal Blob URL fetch
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${BLOB_TOKEN}` },
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-// ── Rough token estimator (4 chars ≈ 1 token) ────────────────────────────
-function estimateTokens(obj) {
-  if (!obj) return 0;
-  const str = typeof obj === "string" ? obj : JSON.stringify(obj);
-  return Math.ceil(str.length / 4);
-}
 
 // ══════════════════════════════════════════════════════════════════════════
 // GET /api/memory-context?property={name}&month={YYYY-MM}[&accounts=601001,603001]

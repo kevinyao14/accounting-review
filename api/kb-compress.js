@@ -1,19 +1,6 @@
+import { kvSet, encodePropertyName } from "../lib/storage.js";
+
 export const config = { maxDuration: 60 };
-
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-
-async function kvSet(key, value) {
-  await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["SET", key, value]),
-  });
-}
-
-function encodePropertyName(name) {
-  return encodeURIComponent(name).replace(/%20/g, "_");
-}
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");

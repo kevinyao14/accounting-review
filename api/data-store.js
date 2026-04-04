@@ -1,4 +1,5 @@
 import { put } from "@vercel/blob";
+import { kvGet, kvSet, encodePropertyName, slugify } from "../lib/storage.js";
 
 // maxDuration: 60s to handle large GL files with many months (each month is a
 // separate Blob write). The default 30s can be tight for 12+ month GL ingestion.
@@ -24,35 +25,6 @@ export const config = { maxDuration: 60 };
 //   datastore:{enc}:gl:index      — GL month index with Blob URLs
 //   datastore:{enc}:meta          — property metadata (dates, counts, URLs)
 //   datastore:property:index      — global list of all ingested properties
-
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-
-async function kvGet(key) {
-  const res = await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["GET", key]),
-  });
-  const { result } = await res.json();
-  return result;
-}
-
-async function kvSet(key, value) {
-  await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["SET", key, value]),
-  });
-}
-
-function encodePropertyName(name) {
-  return encodeURIComponent(name).replace(/%20/g, "_");
-}
-
-function slugify(name) {
-  return (name || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
-}
 
 // ── IS Time-Series Extraction ──────────────────────────────────────────────
 // Parses a raw T12 income statement CSV and returns:

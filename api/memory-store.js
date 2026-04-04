@@ -1,46 +1,7 @@
 import { put, del } from "@vercel/blob";
+import { kvGet, kvSet, kvDel, encodePropertyName, slugify } from "../lib/storage.js";
 
 export const config = { maxDuration: 60 };
-
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
-
-// ── KV helpers (same pattern as all other endpoints) ──────────────────────
-
-async function kvGet(key) {
-  const res = await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["GET", key]),
-  });
-  const { result } = await res.json();
-  return result;
-}
-
-async function kvSet(key, value) {
-  await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["SET", key, value]),
-  });
-}
-
-async function kvDel(key) {
-  await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["DEL", key]),
-  });
-}
-
-function encodePropertyName(name) {
-  return encodeURIComponent(name).replace(/%20/g, "_");
-}
-
-function slugify(name) {
-  return (name || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
-}
 
 // ── Key schema ────────────────────────────────────────────────────────────
 //
@@ -105,14 +66,6 @@ async function blobPut(path, data) {
     contentType: "application/json",
     addRandomSuffix: false,
   });
-}
-
-async function blobGet(url) {
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${BLOB_TOKEN}` },
-  });
-  if (!res.ok) return null;
-  return await res.json();
 }
 
 // ══════════════════════════════════════════════════════════════════════════

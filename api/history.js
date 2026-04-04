@@ -1,38 +1,5 @@
 import { put, del } from "@vercel/blob";
-
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-
-async function kvGet(key) {
-  const res = await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["GET", key]),
-  });
-  const { result } = await res.json();
-  return result; // string or null
-}
-
-async function kvSet(key, value) {
-  await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["SET", key, value]),
-  });
-}
-
-async function kvDel(key) {
-  await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["DEL", key]),
-  });
-}
-
-function feedbackKey(blobUrl) {
-  const match = blobUrl.match(/reviews\/[^?]+/);
-  return "feedback:" + (match ? match[0] : blobUrl.slice(-60));
-}
+import { kvGet, kvSet, kvDel, feedbackKey } from "../lib/storage.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");

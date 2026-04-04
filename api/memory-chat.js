@@ -1,41 +1,8 @@
+import { kvGet, blobGet, encodePropertyName } from "../lib/storage.js";
+
 export const config = { maxDuration: 120 };
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
-
-// ── KV/Blob helpers ───────────────────────────────────────────────────────
-
-async function kvGet(key) {
-  const res = await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["GET", key]),
-  });
-  const { result } = await res.json();
-  return result;
-}
-
-function encodePropertyName(name) {
-  return encodeURIComponent(name).replace(/%20/g, "_");
-}
-
-async function blobGet(url) {
-  if (!url) return null;
-  try {
-    if (url.startsWith("kv:")) {
-      const raw = await kvGet(url.slice(3));
-      if (!raw) return null;
-      return typeof raw === "string" ? JSON.parse(raw) : raw;
-    }
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${BLOB_TOKEN}` },
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch { return null; }
-}
 
 // ── Fetch targeted memory context based on the question ───────────────────
 

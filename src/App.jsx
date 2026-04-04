@@ -1,243 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { DEFAULT_ITEMS, CATEGORIES, AUDIENCE_LABELS, serialize, serializeBySource, parseAIChecklist, parseIsDetail, parseGlDetail, glPeriodCheck, buildReportContext } from "./utils.js";
+import { s } from "./styles.js";
 
-// ── Structured checklist data ─────────────────────────────────────────────────
-const DEFAULT_ITEMS = [
-  { id: 2,  source: "GL", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Accrual entry has no corresponding reversal within first 5 business days of month" },
-  { id: 4,  source: "GL", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Any standard accrual is missing or differs more than 5% from prior month" },
-  { id: 5,  source: "GL", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Account shows a reversal with no corresponding new accrual or expense entry in the same month" },
-  { id: 6,  source: "GL", category: "Accruals",                        accounts: "",                                                                          rule: "FLAG IF", text: "Accrual description references a service period that ended more than 60 days prior to the current review month (stale period accrual). Indicates a prior-period accrual has not been resolved and is continuing to cycle through reversals and re-accruals without the underlying invoice being posted or the accrual being closed." },
-  { id: 7,  source: "IS", category: "Revenue - Total Rental Income",   accounts: "411001-415002",                                                             rule: "FLAG IF", text: "Total Rental Income (sum of 411001-415002) variance of more than 2% vs prior month" },
-  { id: 8,  source: "IS", category: "Revenue - Bad Debt",              accounts: "419001 Bad Debt Expense",                                                   rule: "FLAG IF", text: "Bad Debt Expense equals zero; may be missing entries or bad debt reserve" },
-  { id: 36, source: "IS", category: "Revenue - Other Income",          accounts: "440003, 440020, 440032",                                                    rule: "FLAG IF", text: "Any of these other income account ending balances in the income statement for the current month varies by more than 20% from the prior month" },
-  { id: 9,  source: "IS", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "Any single R&M account exceeds $3,000 in current month and was under $1,000 prior month" },
-  { id: 10, source: "IS", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "Any R&M account shows a large negative balance on the income statement in the current month" },
-  { id: 11, source: "GL", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "PO accruals apply identical dollar amounts across unrelated line items (system error pattern)" },
-  { id: 12, source: "GL", category: "Repairs & Maintenance",           accounts: "601001-601049",                                                             rule: "FLAG IF", text: "Any entry description for a GL entry over $500 that references roof, HVAC, appliance, flooring - verify P&L vs. capital" },
-  { id: 13, source: "IS", category: "Turnover Expenses",               accounts: "602001-602016",                                                             rule: "FLAG IF", text: "Total Turnover Expenses increase more than 50% vs prior month without corresponding vacancy increase" },
-  { id: 37, source: "GL", category: "Turnover Expenses",               accounts: "602001-602016",                                                             rule: "FLAG IF", text: "Any turnover expense entry (invoice or accrual) does not include a unit number in the description. This is a documentation cleanliness requirement — every turnover charge must reference the specific unit it relates to (e.g. 'Unit 204', '#204', 'Apt 204')." },
-  { id: 15, source: "IS", category: "Payroll",                         accounts: "603001-603106",                                                             rule: "FLAG IF", text: "Total payroll, excluding 603008 Bonuses - Performance, varies more than 10% vs prior month without explanation" },
-  { id: 16, source: "IS", category: "Payroll",                         accounts: "603001-603106",                                                             rule: "FLAG IF", text: "Wages post but burden accounts (taxes, insurance, 401k) are zero or missing same period" },
-  { id: 17, source: "IS", category: "Utilities",                       accounts: "604003, 604004, 604201, 604301, 604302",                                    rule: "FLAG IF", text: "Any utility varies more than 25% from trailing 3-month average" },
-  { id: 18, source: "IS", category: "Utilities",                       accounts: "604003, 604004, 604201, 604301, 604302",                                    rule: "FLAG IF", text: "Any utility account shows large negative income statement value in current month - may indicate billing catch-up or accrual error" },
-  { id: 19, source: "GL", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any recurring vendor missing for current month with no explanation" },
-  { id: 20, source: "GL", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any contract amount varies more than 10% from its typical monthly amount" },
-  { id: 21, source: "IS", category: "Contract Services",               accounts: "605001-605030",                                                             rule: "FLAG IF", text: "Any material increase or decrease in contract line (e.g., 2x the prior month amount) that looks like an incorrect accrual" },
-  { id: 22, source: "IS", category: "ILS Marketing",                   accounts: "606602-606610",                                                             rule: "FLAG IF", text: "ILS marketing spend in any account varies 50% or more from the prior month" },
-  { id: 23, source: "IS", category: "Marketing",                       accounts: "606001-606822",                                                             rule: "FLAG IF", text: "Any marketing account reversed but not re-accrued in same period or expensed" },
-  { id: 24, source: "GL", category: "Marketing",                       accounts: "606001-606822",                                                             rule: "FLAG IF", text: "Same vendor accrued twice in one month without explanation" },
-  { id: 25, source: "IS", category: "Administrative",                  accounts: "607005-607009, 607011-607018, 607022-607023, 607029, 607038",               rule: "FLAG IF", text: "Any administrative expense income statement account is negative for the current month or varies more than 25% from trailing 3-month average" },
-  { id: 26, source: "IS", category: "Management Fee",                  accounts: "608001 External Management Fee Expense",                                    rule: "FLAG IF", text: "Fee as % of Total Revenue varies more than 1% from prior months" },
-  { id: 27, source: "GL", category: "Management Fee",                  accounts: "608001 External Management Fee Expense",                                    rule: "FLAG IF", text: "Negative management fee entry" },
-  { id: 28, source: "IS", category: "Insurance",                       accounts: "640001 Property Insurance",                                                 rule: "FLAG IF", text: "Amount changes vs prior month" },
-  { id: 29, source: "IS", category: "Debt Service",                    accounts: "701001-701010",                                                             rule: "FLAG IF", text: "Any expense line changes vs prior month by more than 3%" },
-  { id: 30, source: "IS", category: "Real Estate Taxes",               accounts: "630001 Real Estate Tax",                                                    rule: "FLAG IF", text: "Amount changes vs prior month" },
-  { id: 31, source: "GL", category: "Legal",                           accounts: "607010 Legal - Evictions",                                                  rule: "FLAG IF", text: "Any legal fee entry appears - note for manager awareness regardless of amount" },
-  { id: 32, source: "IS", category: "Expense Trends",                  accounts: "",                                                                          rule: "FLAG IF", text: "Identify any expense line present in 2+ prior months but zero or negative in current month" },
-  { id: 33, source: "IS", category: "Expense Trends",                  accounts: "",                                                                          rule: "FLAG IF", text: "Flag any income statement account with large swing from positive to negative or vice versa in consecutive months" },
-  { id: 34, source: "IS", category: "Expense Trends",                  accounts: "6xxxxx all expense accounts",                                               rule: "FLAG IF", text: "ANY expense account (6xxxxx) shows a negative month-ending balance on the income statement - flag every instance regardless of amount or category" },
-];
-
-const CATEGORIES = [
-  "Accruals","Revenue - Total Rental Income","Revenue - Bad Debt","Revenue - Other Income",
-  "Repairs & Maintenance","Turnover Expenses","Payroll","Utilities",
-  "Contract Services","ILS Marketing","Marketing","Administrative","Management Fee","Insurance","Debt Service",
-  "Real Estate Taxes","Legal","Expense Trends",
-];
-
-function serialize(items) {
-  const grouped = {};
-  items.forEach(item => {
-    if (!grouped[item.category]) grouped[item.category] = [];
-    grouped[item.category].push(item);
-  });
-  return Object.entries(grouped).map(([cat, rows]) => {
-    const accts = rows[0].accounts ? "ACCOUNTS: " + rows[0].accounts + "\n" : "";
-    return "CATEGORY: " + cat + "\n" + accts + rows.map(r => r.rule + ": " + r.text).join("\n");
-  }).join("\n\n");
-}
-
-function serializeBySource(items, source) {
-  return serialize(items.filter(i => i.source === source));
-}
-
-function parseAIChecklist(text) {
-  const items = [];
-  let nextId = Date.now();
-  text.split(/\n\n+/).forEach(block => {
-    let category = "", accounts = "";
-    block.trim().split("\n").forEach(line => {
-      if (line.startsWith("CATEGORY:")) { category = line.replace("CATEGORY:", "").trim(); }
-      else if (/^ACCOUNTS?:/.test(line)) { accounts = line.replace(/^ACCOUNTS?:\s*/, ""); }
-      else if (line.startsWith("CHECK:") || line.startsWith("FLAG IF:")) {
-        const rule = line.startsWith("CHECK:") ? "CHECK" : "FLAG IF";
-        const txt = line.replace(/^(CHECK:|FLAG IF:)\s*/, "").trim();
-        if (txt && category) items.push({ id: nextId++, category, accounts, rule, text: txt });
-      }
-    });
-  });
-  return items.length ? items : null;
-}
-
-// ── IS detail parser ─────────────────────────────────────────────────────────
-// Returns { headers, dataRows, sumRow, isRange } or null
-function parseIsDetail(isText, accountNumber) {
-  if (!isText) return null;
-  const rangeMatch = accountNumber.match(/^(\d{5,6})-(\d{5,6})$/);
-  const isRange    = !!rangeMatch;
-  const rangeStart = isRange ? parseInt(rangeMatch[1]) : null;
-  const rangeEnd   = isRange ? parseInt(rangeMatch[2]) : null;
-
-  const lines = isText.split("\n");
-  let headers  = null;
-  const dataRows = [];
-
-  for (const line of lines) {
-    const cols = line.split(",").map(c => c.trim());
-    if (!headers) {
-      if (cols.some(c => /^\d{1,2}\/\d{2}\/\d{4}$/.test(c))) { headers = cols; continue; }
-    } else {
-      const acctNum = parseInt(cols[0]);
-      if (isRange) {
-        if (!isNaN(acctNum) && acctNum >= rangeStart && acctNum <= rangeEnd) dataRows.push(cols);
-      } else {
-        if (cols[0] === accountNumber || cols[0].startsWith(accountNumber + " ") || cols[0].startsWith(accountNumber + "-")) {
-          return { headers, dataRows: [cols], sumRow: null, isRange: false };
-        }
-      }
-    }
-  }
-  if (!headers || dataRows.length === 0) return null;
-
-  // Build sum row for ranges
-  const sumRow = headers.map((_, hi) => {
-    if (hi === 0) return accountNumber;
-    if (hi === 1) return "Total";
-    const sum = dataRows.reduce((acc, row) => {
-      const v = parseFloat(row[hi] ?? "");
-      return acc + (isNaN(v) ? 0 : v);
-    }, 0);
-    return sum.toFixed(2);
-  });
-  return { headers, dataRows, sumRow, isRange: true };
-}
-
-// ── GL detail parser ──────────────────────────────────────────────────────────
-// Returns entries array, or null (with isAccountRange flag for messaging)
-function parseGlDetail(glText, accountNumber) {
-  if (!glText) return null;
-  if (/^\d{5,6}-\d{5,6}$/.test(accountNumber)) return null; // range — caller handles message
-  const lines = glText.split("\n");
-  let inSection = false;
-  const entries = [];
-  for (const line of lines) {
-    const t = line.trim();
-    if (!t || t.startsWith("//") || t.startsWith("FORMAT:")) continue;
-    if (/^(?:4[4-9]\d{3,4}|[5-9]\d{4,5})\s+-/.test(t)) {
-      const m = t.match(/^(\d{5,6})/);
-      inSection = m?.[1] === accountNumber;
-      continue;
-    }
-    if (!inSection) continue;
-    const parts = [];
-    let cur = "", inQ = false;
-    for (const ch of t) {
-      if (ch === '"') { inQ = !inQ; }
-      else if (ch === ',' && !inQ) { parts.push(cur); cur = ""; }
-      else { cur += ch; }
-    }
-    parts.push(cur);
-    const dt = parts[0]?.trim() ?? "";
-    if (!(dt.length === 10 && dt[2] === "/" && dt[5] === "/")) continue;
-    entries.push({
-      date:   dt,
-      desc:   parts.slice(1, parts.length - 2).join(", ").trim(),
-      debit:  parts[parts.length - 2]?.trim() ?? "",
-      credit: parts[parts.length - 1]?.trim() ?? "",
-    });
-  }
-  return entries.length > 0 ? entries : null;
-}
-
-// ── GL reconciliation check ───────────────────────────────────────────────────
-// Returns { glNet, isAmount, match } or null (null = skip check, show table)
-function glPeriodCheck(entries, isData, period) {
-  if (!entries || !isData || !period) return null;
-  const [year, month] = period.split("-").map(Number);
-  if (!year || !month) return null;
-
-  // Find IS column matching the review period (header format: "MM/DD/YYYY")
-  const colIdx = isData.headers.findIndex(h => {
-    const m = h.match(/^(\d{1,2})\/\d{2}\/(\d{4})$/);
-    return m && parseInt(m[1]) === month && parseInt(m[2]) === year;
-  });
-  if (colIdx === -1) return null;
-
-  const row = isData.dataRows[0];
-  if (!row) return null;
-  const isAmount = parseFloat((row[colIdx] ?? "").replace(/,/g, ""));
-  if (isNaN(isAmount)) return null;
-
-  // Sum GL entries whose date falls in the review period
-  let sumDebit = 0, sumCredit = 0, count = 0;
-  for (const e of entries) {
-    const parts = e.date.split("/");
-    if (parts.length !== 3) continue;
-    const eMonth = parseInt(parts[0]), eYear = parseInt(parts[2]);
-    if (eMonth === month && eYear === year) {
-      sumDebit  += parseFloat(e.debit.replace(/,/g, ""))  || 0;
-      sumCredit += parseFloat(e.credit.replace(/,/g, "")) || 0;
-      count++;
-    }
-  }
-  if (count === 0) return null; // no period entries — can't reconcile
-
-  const glNet = sumDebit - sumCredit;
-  // Allow $1.00 rounding tolerance; check both sign conventions (expense vs revenue)
-  const match = Math.abs(glNet - isAmount) <= 1.00 || Math.abs(-glNet - isAmount) <= 1.00;
-  return { glNet, isAmount, match };
-}
-
-// ── Report helpers ────────────────────────────────────────────────────────────
-const AUDIENCE_LABELS = {
-  accounting_manager: "Accounting Manager",
-  property_manager:   "Property Manager",
-  asset_manager:      "Asset Manager",
-};
-
-function buildReportContext(findings, isText, budText, feedback, generalFindings) {
-  const fmtRow = row => row.map((v, i) => i >= 2 ? (parseFloat(v) || 0).toFixed(2) : v).join(" | ");
-  const sections = findings.map(item => {
-    const lines = [`[${item.accountNumber}] ${item.accountName}`];
-    const isData = parseIsDetail(isText, item.accountNumber);
-    if (isData) {
-      lines.push("Income Statement:");
-      isData.dataRows.forEach(row => lines.push("  " + fmtRow(row)));
-      if (isData.sumRow) lines.push("  TOTAL | " + fmtRow(isData.sumRow));
-    }
-    if (budText) {
-      const budData = parseIsDetail(budText, item.accountNumber);
-      if (budData) {
-        lines.push("Budget:");
-        budData.dataRows.forEach(row => lines.push("  " + fmtRow(row)));
-        if (budData.sumRow) lines.push("  TOTAL | " + fmtRow(budData.sumRow));
-      }
-    }
-    if (item.isIssue)     lines.push(`IS Finding: ${item.isIssue}`);
-    if (item.glIssue)     lines.push(`GL Finding: ${item.glIssue}`);
-    if (item.budgetIssue) lines.push(`Budget Finding: ${item.budgetIssue}`);
-    if (item.action)      lines.push(`Action: ${item.action}`);
-    const fb = feedback?.findings?.[item.accountNumber];
-    if (fb?.rating) lines.push(`Reviewer Feedback: ${fb.rating.replace(/_/g, " ")}${fb.note ? " — " + fb.note : ""}`);
-    return lines.join("\n");
-  });
-  if (generalFindings?.length > 0) {
-    const genLines = generalFindings.map(gf => `- ${gf.isIssue || gf.glIssue || ""}${gf.action ? " Action: " + gf.action : ""}`).join("\n");
-    sections.unshift(`GENERAL PROCESS FINDINGS:\n${genLines}`);
-  }
-  if (feedback?.general) sections.push(`GENERAL REVIEWER NOTES:\n${feedback.general}`);
-  return sections.join("\n\n---\n\n");
-}
+// ── Constants, parsers, and report helpers imported from ./utils.js ────────
 
 function inlineBold(text) {
   const parts = text.split(/\*\*(.+?)\*\*/g);
@@ -283,7 +49,22 @@ async function callClaude(system, user, options = {}) {
 function PasswordGate({ onAuth }) {
   const [pw, setPw] = useState("");
   const [err, setErr] = useState(false);
-  const attempt = () => { if (pw === "Styl$") { sessionStorage.setItem("ar_auth","1"); onAuth(); } else setErr(true); };
+  const [checking, setChecking] = useState(false);
+  const attempt = async () => {
+    if (checking) return;
+    setChecking(true);
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pw, scope: "app" }),
+      });
+      const data = await res.json();
+      if (data.ok) { sessionStorage.setItem("ar_auth","1"); onAuth(); }
+      else setErr(true);
+    } catch { setErr(true); }
+    finally { setChecking(false); }
+  };
   return (
     <div style={{minHeight:"100vh",background:"#0e0e0e",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{background:"#111",border:"1px solid #1e1e1e",borderRadius:12,padding:"40px 48px",display:"flex",flexDirection:"column",alignItems:"center",gap:20,minWidth:320}}>
@@ -300,8 +81,8 @@ function PasswordGate({ onAuth }) {
         />
         {err && <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#f87171"}}>Incorrect password</div>}
         <button style={{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:6,padding:"9px 0",color:"#d1d5db",fontFamily:"'Fira Code',monospace",fontSize:12,cursor:"pointer"}}
-          onClick={attempt}>
-          Sign In
+          onClick={attempt} disabled={checking}>
+          {checking ? "Checking…" : "Sign In"}
         </button>
       </div>
     </div>
@@ -401,6 +182,10 @@ function AppInner() {
   const [bulkUploading, setBulkUploading]     = useState(false);
   const [dataInventory, setDataInventory]     = useState(null); // { properties: [...] }
 
+  // Portfolio tab states
+  const [portfolioData, setPortfolioData]     = useState(null); // grouped history data
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
+
   const [detailOpen, setDetailOpen]           = useState({});
   const toggleDetail = (acct, type) => setDetailOpen(prev => ({
     ...prev, [acct]: { ...prev[acct], [type]: !prev[acct]?.[type] }
@@ -472,6 +257,28 @@ function AppInner() {
     const interval = setInterval(fetchStatus, 120000);
     return () => clearInterval(interval);
   }, []);
+
+  // Server-side auth for KB / Data tabs
+  const attemptKbAuth = async () => {
+    try {
+      const res = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: kbPw, scope: "kb" }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        sessionStorage.setItem("kb_auth","1");
+        setKbAuthed(true);
+        setKbPwErr(false);
+        setKbPw("");
+        loadKbPropertyList();
+        fetch("/api/data-store?type=property-list").then(r=>r.json()).then(list=>setDataInventory({properties:Array.isArray(list)?list:[]})).catch(()=>{});
+      } else {
+        setKbPwErr(true);
+      }
+    } catch { setKbPwErr(true); }
+  };
 
   const saveChecklist = async () => {
     setChecklistSaving(true);
@@ -1617,6 +1424,7 @@ function AppInner() {
               {key:"reports",   label:"05 · Reports",    dot: !!reportContent},
               {key:"data",      label:"06 · Data",          badge: bulkFiles.filter(f => f.status === "done").length || null},
               {key:"kb",        label:"07 · Knowledge Base"},
+              {key:"portfolio", label:"08 · Portfolio",    dot: !!portfolioData?.properties?.length},
             ].map(t => (
               <button key={t.key} className="tab" onClick={() => {
                 setTab(t.key);
@@ -1637,6 +1445,34 @@ function AppInner() {
                 if (t.key === "kb" && kbAuthed) {
                   loadKbPropertyList();
                   if (kbScope === "global" && !kbSource) loadKb("global", "");
+                }
+                if (t.key === "portfolio" && !portfolioData && !portfolioLoading) {
+                  setPortfolioLoading(true);
+                  fetch("/api/history")
+                    .then(r => r.json())
+                    .then(data => {
+                      if (!Array.isArray(data)) { setPortfolioData({ properties: [] }); return; }
+                      // Group by property, compute stats
+                      const byProp = {};
+                      data.forEach(r => {
+                        const name = r.property || "Unknown";
+                        if (!byProp[name]) byProp[name] = { reviews: [], totalFindings: 0 };
+                        byProp[name].reviews.push(r);
+                        byProp[name].totalFindings += r.findingCount || 0;
+                      });
+                      const properties = Object.entries(byProp).map(([name, d]) => {
+                        const sorted = d.reviews.sort((a,b) => b.timestamp?.localeCompare(a.timestamp));
+                        const latest = sorted[0];
+                        const avgFindings = Math.round(d.totalFindings / d.reviews.length);
+                        const trend = sorted.length >= 2
+                          ? (sorted[0].findingCount || 0) - (sorted[1].findingCount || 0)
+                          : 0;
+                        return { name, reviewCount: d.reviews.length, latestPeriod: latest.period, latestDate: latest.timestamp, latestFindings: latest.findingCount || 0, avgFindings, trend };
+                      }).sort((a,b) => a.name.localeCompare(b.name));
+                      setPortfolioData({ properties });
+                    })
+                    .catch(() => setPortfolioData({ properties: [] }))
+                    .finally(() => setPortfolioLoading(false));
                 }
               }}
                 style={{...s.tab,...(tab===t.key?s.tabActive:{})}}>
@@ -3135,9 +2971,9 @@ function AppInner() {
                 <p style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",margin:"0 0 16px"}}>Manager access required.</p>
                 <div style={{display:"flex",gap:8}}>
                   <input type="password" placeholder="Password" value={kbPw} onChange={e=>setKbPw(e.target.value)}
-                    onKeyDown={e=>{if(e.key==="Enter"){if(kbPw==="Genius$"){sessionStorage.setItem("kb_auth","1");setKbAuthed(true);setKbPwErr(false);fetch("/api/data-store?type=property-list").then(r=>r.json()).then(list=>setDataInventory({properties:Array.isArray(list)?list:[]})).catch(()=>{});}else{setKbPwErr(true);}}}}
+                    onKeyDown={e=>{if(e.key==="Enter") attemptKbAuth();}}
                     style={{...s.input,flex:1,borderColor:kbPwErr?"#7f1d1d":"#1e1e1e"}}/>
-                  <button className="btn" onClick={()=>{if(kbPw==="Genius$"){sessionStorage.setItem("kb_auth","1");setKbAuthed(true);setKbPwErr(false);fetch("/api/data-store?type=property-list").then(r=>r.json()).then(list=>setDataInventory({properties:Array.isArray(list)?list:[]})).catch(()=>{});}else{setKbPwErr(true);}}}
+                  <button className="btn" onClick={attemptKbAuth}
                     style={s.btn}>Unlock</button>
                 </div>
               </div>
@@ -3243,12 +3079,12 @@ function AppInner() {
                 <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginBottom:24}}>Manager access required</div>
                 <input type="password" placeholder="Password" value={kbPw}
                   onChange={e => { setKbPw(e.target.value); setKbPwErr(false); }}
-                  onKeyDown={e => { if (e.key === "Enter") { if (kbPw === "Genius$") { sessionStorage.setItem("kb_auth","1"); setKbAuthed(true); setKbPw(""); loadKbPropertyList(); } else setKbPwErr(true); } }}
+                  onKeyDown={e => { if (e.key === "Enter") attemptKbAuth(); }}
                   autoFocus
                   style={{...s.input, marginBottom:8, border:`1px solid ${kbPwErr ? "#f87171" : "#2a2a2a"}`}} />
                 {kbPwErr && <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#f87171",marginBottom:8}}>Incorrect password</div>}
                 <button className="btn" style={{...s.btnGold, width:"100%", marginTop:4}}
-                  onClick={() => { if (kbPw === "Genius$") { sessionStorage.setItem("kb_auth","1"); setKbAuthed(true); setKbPw(""); loadKbPropertyList(); } else setKbPwErr(true); }}>
+                  onClick={attemptKbAuth}>
                   Sign In
                 </button>
               </div>
@@ -3471,51 +3307,86 @@ function AppInner() {
           </div>
         )}
 
+        {/* ── 08 · Portfolio ─────────────────────────────────────────────── */}
+        {tab === "portfolio" && (
+          <div className="fade-up" style={s.panel}>
+            <div style={s.panelHead}>
+              <h2 style={{...s.panelTitle,marginBottom:0}}>Portfolio Overview</h2>
+              <p style={s.panelDesc}>Aggregated review data across all properties. Click a property to jump to its history.</p>
+            </div>
+
+            {portfolioLoading && (
+              <div style={{fontFamily:"'Fira Code',monospace",fontSize:12,color:"#6b7280",padding:"20px 0"}}>Loading portfolio data...</div>
+            )}
+
+            {portfolioData && portfolioData.properties.length === 0 && (
+              <div style={s.empty}>
+                <div style={{fontSize:28,color:"#2a2a2a",marginBottom:12}}>◈</div>
+                <div style={{fontFamily:"'Lora',serif",fontSize:14,fontStyle:"italic",color:"#4b5563",marginBottom:16}}>
+                  No reviews found. Run reviews on properties to populate the portfolio view.
+                </div>
+                <button className="btn" onClick={() => setTab("review")} style={s.btnGold}>Run a Review</button>
+              </div>
+            )}
+
+            {portfolioData && portfolioData.properties.length > 0 && (
+              <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                {/* Header row */}
+                <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:8,padding:"8px 14px",borderBottom:"1px solid #1e1e1e"}}>
+                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>Property</span>
+                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6,textAlign:"center"}}>Reviews</span>
+                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6,textAlign:"center"}}>Latest Period</span>
+                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6,textAlign:"center"}}>Findings</span>
+                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6,textAlign:"center"}}>Trend</span>
+                </div>
+
+                {portfolioData.properties.map(prop => {
+                  const severity = prop.latestFindings >= 10 ? "#f87171" : prop.latestFindings >= 5 ? "#fbbf24" : "#4ade80";
+                  const trendIcon = prop.trend > 0 ? "▲" : prop.trend < 0 ? "▼" : "—";
+                  const trendColor = prop.trend > 0 ? "#f87171" : prop.trend < 0 ? "#4ade80" : "#6b7280";
+                  const [y, m] = (prop.latestPeriod || "").split("-");
+                  const periodLabel = y && m ? new Date(+y, +m - 1).toLocaleString("en-US", { month: "short", year: "numeric" }) : "—";
+
+                  return (
+                    <div key={prop.name}
+                      onClick={() => { setHistoryPropertyFilter(prop.name); setTab("history"); if (!historyLoaded && !historyLoading) { setHistoryLoading(true); fetch("/api/history").then(r=>r.json()).then(data=>{if(Array.isArray(data))setHistoryIndex(data);setHistoryLoaded(true);}).catch(()=>setHistoryLoaded(true)).finally(()=>setHistoryLoading(false)); }}}
+                      style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:8,padding:"10px 14px",background:"#0a0a0a",borderRadius:6,border:"1px solid #1e1e1e",cursor:"pointer",transition:"border-color 0.15s"}}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = "#333"}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = "#1e1e1e"}>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{width:8,height:8,borderRadius:"50%",background:severity,flexShrink:0}} />
+                        <span style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:13,color:"#f5f5f5",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{prop.name}</span>
+                      </div>
+                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:12,color:"#d1d5db",textAlign:"center"}}>{prop.reviewCount}</span>
+                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#9ca3af",textAlign:"center"}}>{periodLabel}</span>
+                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:12,color:severity,textAlign:"center",fontWeight:600}}>{prop.latestFindings}</span>
+                      <div style={{textAlign:"center"}}>
+                        <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:trendColor}}>
+                          {trendIcon} {prop.trend !== 0 ? Math.abs(prop.trend) : ""}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Summary row */}
+                <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:8,padding:"10px 14px",marginTop:8,borderTop:"1px solid #1e1e1e"}}>
+                  <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:12,color:"#e8c468"}}>{portfolioData.properties.length} Properties</span>
+                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",textAlign:"center"}}>{portfolioData.properties.reduce((s,p) => s + p.reviewCount, 0)} total</span>
+                  <span />
+                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",textAlign:"center"}}>{Math.round(portfolioData.properties.reduce((s,p) => s + p.avgFindings, 0) / portfolioData.properties.length)} avg</span>
+                  <span />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </main>
     </div>
   );
 }
 
-const s = {
-  root:       {minHeight:"100vh",background:"#0e0e0e",color:"#f5f5f5"},
-  header:     {borderBottom:"1px solid #1a1a1a",background:"#0e0e0e",position:"sticky",top:0,zIndex:100},
-  headerInner:{maxWidth:980,margin:"0 auto",padding:"0 28px",display:"flex",alignItems:"center",justifyContent:"space-between",height:64},
-  logo:       {display:"flex",alignItems:"center",gap:12},
-  logoMark:   {fontSize:22,color:"#e8c468",lineHeight:1},
-  logoTitle:  {fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,color:"#f5f5f5",letterSpacing:0.3},
-  logoSub:    {fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563",letterSpacing:0.5},
-  nav:        {display:"flex",gap:2},
-  tab:        {fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",background:"transparent",
-               border:"none",padding:"8px 14px",borderRadius:6,cursor:"pointer",position:"relative",letterSpacing:0.3},
-  tabActive:  {color:"#e8c468",background:"#1a1a1a"},
-  dot:        {display:"inline-block",width:5,height:5,borderRadius:"50%",background:"#e8c468",position:"absolute",top:6,right:6},
-  badge:      {display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#1e1e1e",color:"#6b7280",
-               borderRadius:10,fontSize:9,fontFamily:"'Fira Code',monospace",padding:"1px 5px",marginLeft:4},
-  main:       {maxWidth:980,margin:"0 auto",padding:"32px 28px 60px"},
-  panel:      {background:"#111",border:"1px solid #1e1e1e",borderRadius:12,padding:"28px 32px"},
-  panelHead:  {marginBottom:24,paddingBottom:20,borderBottom:"1px solid #1a1a1a"},
-  panelTitle: {fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:22,color:"#f5f5f5",marginBottom:6},
-  panelDesc:  {fontFamily:"'Lora',serif",fontSize:13,color:"#6b7280",lineHeight:1.6,maxWidth:620},
-  stepLabel:  {fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",letterSpacing:0.5,marginBottom:12},
-  twoCol:     {display:"grid",gridTemplateColumns:"1fr 1fr",gap:20},
-  inputGroup: {display:"flex",flexDirection:"column",gap:7},
-  label:      {fontFamily:"'Fira Code',monospace",fontSize:10,color:"#9ca3af",textTransform:"uppercase",letterSpacing:0.8},
-  hint:       {color:"#4b5563",textTransform:"none",fontSize:10},
-  textarea:   {background:"#0e0e0e",border:"1px solid #2a2a2a",borderRadius:8,color:"#d1d5db",
-               fontFamily:"'Fira Code',monospace",fontSize:11.5,lineHeight:1.7,padding:"12px 14px",resize:"vertical",width:"100%"},
-  input:      {background:"#0e0e0e",border:"1px solid #2a2a2a",borderRadius:8,color:"#d1d5db",
-               fontFamily:"'Fira Code',monospace",fontSize:12,padding:"8px 12px",width:"100%"},
-  select:     {background:"#0e0e0e",border:"1px solid #2a2a2a",borderRadius:8,color:"#d1d5db",
-               fontFamily:"'Fira Code',monospace",fontSize:12,padding:"8px 12px",width:"100%",cursor:"pointer"},
-  findingsBox:{background:"#0e0e0e",border:"1px solid #1e1e1e",borderRadius:8,padding:"4px 20px",maxHeight:560,overflowY:"auto"},
-  empty:      {textAlign:"center",padding:"60px 20px"},
-  btnGold:    {background:"#e8c468",color:"#0e0e0e",border:"none",borderRadius:8,padding:"10px 20px",
-               fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13},
-  btnOutline: {background:"transparent",color:"#9ca3af",border:"1px solid #2a2a2a",borderRadius:8,
-               padding:"10px 18px",fontFamily:"'Fira Code',monospace",fontSize:12},
-  error:      {marginTop:12,padding:"10px 14px",background:"#1a0a0a",border:"1px solid #3a1a1a",
-               borderRadius:6,fontFamily:"'Fira Code',monospace",fontSize:12,color:"#ef4444"},
-};
 
 export default function App() {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem("ar_auth") === "1");

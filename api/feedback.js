@@ -1,30 +1,4 @@
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-
-async function kvGet(key) {
-  const res = await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["GET", key]),
-  });
-  const { result } = await res.json();
-  return result;
-}
-
-async function kvSet(key, value) {
-  await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["SET", key, value]),
-  });
-}
-
-// Derive a stable KV key from a blob URL
-function feedbackKey(blobUrl) {
-  // e.g. "feedback:reviews/2026-03-26T15-00-00-hampton.json"
-  const match = blobUrl.match(/reviews\/[^?]+/);
-  return "feedback:" + (match ? match[0] : blobUrl.slice(-60));
-}
+import { kvGet, kvSet, feedbackKey } from "../lib/storage.js";
 
 // Update a single entry in the review_index by blobUrl
 async function updateIndexEntry(blobUrl, updates) {
