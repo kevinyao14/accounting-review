@@ -355,6 +355,12 @@ function AppInner() {
   const [findingsFbSaving, setFindingsFbSaving]   = useState(false);
   const [findingsFbSaved, setFindingsFbSaved]     = useState(false);
 
+  // Memory review (Stage 2) states
+  const [memoryReviewRunning, setMemoryReviewRunning]       = useState(false);
+  const [memoryReviewResult, setMemoryReviewResult]         = useState(null);
+  const [memoryReviewError, setMemoryReviewError]           = useState("");
+  const [memoryReviewCollapsed, setMemoryReviewCollapsed]   = useState(false);
+
   const [reportContent, setReportContent]         = useState(null);
   const [reportLoading, setReportLoading]         = useState(false);
   const [reportError, setReportError]             = useState("");
@@ -1103,6 +1109,7 @@ function AppInner() {
     }
     setReviewError(""); setReviewing(true); setFindings([]); setGeneralFindings([]); setDetailOpen({});
     setReviewBlobUrl(null); setFindingsFbMode(false); setFindingsFbSaved(false);
+    setMemoryReviewResult(null); setMemoryReviewError("");
     setFindingsFbDraft({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
     try {
       const [yr, mo] = reviewMonth.split("-");
@@ -1273,6 +1280,50 @@ function AppInner() {
     } catch(e) { setReviewError("Error: " + (e.message || "Please try again.")); }
     setReviewStatus("");
     setReviewing(false);
+  };
+
+  // ── Stage 2: Memory-enriched review ────────────────────────────────────────
+  const runMemoryReview = async () => {
+    if (!findings.length && !generalFindings.length) return;
+    setMemoryReviewRunning(true);
+    setMemoryReviewError("");
+    setMemoryReviewResult(null);
+    try {
+      // Combine all findings into a flat array for the memory review
+      const allFindings = [
+        ...findings.map(f => ({
+          accountNumber: f.accountNumber, accountName: f.accountName,
+          issue: [f.isIssue, f.glIssue].filter(Boolean).join(" | "),
+          action: f.action, source: f.source || "IS+GL",
+        })),
+        ...generalFindings.map(f => ({
+          accountNumber: f.accountNumber || "", accountName: f.accountName || "",
+          issue: f.issue || f.isIssue || f.glIssue || "",
+          action: f.action || "", source: f.source || "general",
+        })),
+      ];
+
+      const res = await fetch("/api/memory-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property: isPropertyName || reviewPropertyName || "Unknown",
+          month: reviewMonth,
+          findings: allFindings,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Memory review failed (${res.status})`);
+      }
+
+      const result = await res.json();
+      setMemoryReviewResult(result);
+    } catch (e) {
+      setMemoryReviewError(e.message || "Memory review failed");
+    }
+    setMemoryReviewRunning(false);
   };
 
   const RATING_LABELS = { correct: "Review Correct: No Actions", false_positive: "Review Error Present", needs_review: "Review Correct: Actions Required" };
@@ -1671,7 +1722,15 @@ function AppInner() {
                   : "No findings yet - run a review first."}
               </p>
               {findings.length > 0 && (
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                  <button className="btn" onClick={runMemoryReview}
+                    disabled={memoryReviewRunning || (!findings.length && !generalFindings.length)}
+                    style={{...s.btnOutline, fontSize:11, padding:"5px 14px",
+                      borderColor: memoryReviewResult ? "#4ade80" : "#a78bfa",
+                      color: memoryReviewResult ? "#4ade80" : "#a78bfa",
+                      opacity: memoryReviewRunning ? 0.6 : 1}}>
+                    {memoryReviewRunning ? "Running Memory Review…" : memoryReviewResult ? "Re-run Memory Review" : "Memory Review ⚡"}
+                  </button>
                   {reviewBlobUrl && (
                     <button className="btn" onClick={() => { setFindingsFbMode(m => !m); setFindingsFbSaved(false); }}
                       style={{...s.btnOutline, fontSize:11, padding:"5px 14px",
@@ -2034,6 +2093,84 @@ function AppInner() {
                     </div>
                   </>
                 )}
+
+                {/* ── Memory Review Results (Stage 2) ──────────────────────── */}
+                {memoryReviewError && (
+                  <div style={{margin:"16px 0", padding:"12px 16px", borderRadius:6, border:"1px solid #7f1d1d", background:"#1a0505", fontFamily:"'Fira Code',monospace", fontSize:12, color:"#fca5a5"}}>
+                    Memory Review Error: {memoryReviewError}
+                  </div>
+                )}
+                {memoryReviewResult && (
+                  <div style={{margin:"16px 0", border:"1px solid #2d1f5e", borderRadius:8, background:"#0d0b1a", overflow:"hidden"}}>
+                    <div onClick={() => setMemoryReviewCollapsed(c => !c)}
+                      style={{padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", borderBottom: memoryReviewCollapsed ? "none" : "1px solid #2d1f5e"}}>
+                      <div>
+                        <span style={{fontFamily:"'Fira Code',monospace", fontSize:11, color:"#a78bfa", letterSpacing:0.5}}>MEMORY REVIEW</span>
+                        <span style={{fontFamily:"'Fira Code',monospace", fontSize:11, color:"#6b7280", marginLeft:12}}>
+                          {memoryReviewResult.summary?.suppressed || 0} suppressed · {memoryReviewResult.summary?.elevated || 0} elevated · {memoryReviewResult.summary?.new || 0} new signals
+                        </span>
+                      </div>
+                      <span style={{color:"#6b7280", fontSize:12}}>{memoryReviewCollapsed ? "▸" : "▾"}</span>
+                    </div>
+                    {!memoryReviewCollapsed && (
+                      <div style={{padding:"12px 16px"}}>
+                        {/* Enriched findings */}
+                        {(memoryReviewResult.enrichedFindings || []).map((ef, i) => {
+                          const dColor = {keep:"#9ca3af", suppress:"#ef4444", elevate:"#f59e0b", context:"#60a5fa", new:"#4ade80"}[ef.disposition] || "#9ca3af";
+                          const dLabel = {keep:"KEEP", suppress:"SUPPRESS", elevate:"ELEVATE", context:"CONTEXT", new:"NEW"}[ef.disposition] || ef.disposition;
+                          return (
+                            <div key={i} style={{marginBottom:12, paddingBottom:12, borderBottom: i < (memoryReviewResult.enrichedFindings || []).length - 1 ? "1px solid #1a1a2e" : "none"}}>
+                              <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:4}}>
+                                <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, padding:"2px 8px", borderRadius:10, background:`${dColor}22`, color:dColor, fontWeight:600}}>{dLabel}</span>
+                                {ef.original?.accountNumber && (
+                                  <span style={{fontFamily:"'Fira Code',monospace", fontSize:11, color:"#e8c468"}}>{ef.original.accountNumber} {ef.original.accountName || ""}</span>
+                                )}
+                                {ef.ch_id && <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#a78bfa"}}>({ef.ch_id})</span>}
+                              </div>
+                              {ef.original?.issue && (
+                                <div style={{fontFamily:"'Lora',serif", fontSize:12, color:"#6b7280", marginBottom:4, textDecoration: ef.disposition === "suppress" ? "line-through" : "none"}}>
+                                  {ef.original.issue}
+                                </div>
+                              )}
+                              {ef.memory_note && (
+                                <div style={{fontFamily:"'Lora',serif", fontSize:12, color:"#a78bfa", lineHeight:1.6}}>
+                                  ↳ {ef.memory_note}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {/* New signals from memory */}
+                        {(memoryReviewResult.newSignals || []).length > 0 && (
+                          <div style={{marginTop:12, paddingTop:12, borderTop:"1px solid #2d1f5e"}}>
+                            <div style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#4ade80", letterSpacing:0.5, marginBottom:8}}>NEW SIGNALS FROM MEMORY</div>
+                            {(memoryReviewResult.newSignals || []).map((ns, i) => (
+                              <div key={i} style={{marginBottom:8}}>
+                                <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:2}}>
+                                  <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, padding:"2px 8px", borderRadius:10, background:"#4ade8022", color:"#4ade80", fontWeight:600}}>NEW</span>
+                                  <span style={{fontFamily:"'Fira Code',monospace", fontSize:11, color:"#e8c468"}}>{ns.accountNumber} {ns.accountName || ""}</span>
+                                  {ns.severity && <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color: ns.severity === "high" ? "#ef4444" : "#f59e0b"}}>{ns.severity}</span>}
+                                </div>
+                                <div style={{fontFamily:"'Lora',serif", fontSize:12, color:"#9ca3af", lineHeight:1.6}}>{ns.issue}</div>
+                                {ns.memory_note && <div style={{fontFamily:"'Lora',serif", fontSize:12, color:"#a78bfa", lineHeight:1.6}}>↳ {ns.memory_note}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {/* Memory availability info */}
+                        {memoryReviewResult.memoryAvailable && (
+                          <div style={{marginTop:12, paddingTop:8, borderTop:"1px solid #1a1a2e", fontFamily:"'Fira Code',monospace", fontSize:10, color:"#4b5563"}}>
+                            Memory: {memoryReviewResult.memoryAvailable.hasBrief ? "brief ✓" : "brief ✗"}
+                            {" · "}{memoryReviewResult.memoryAvailable.counterHeuristicCount} counter-heuristics
+                            {" · "}{memoryReviewResult.memoryAvailable.signalMonths} signal months
+                            {" · "}{memoryReviewResult.memoryAvailable.hasPatterns ? "patterns ✓" : "patterns ✗"}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
               </div>
             ) : (
               <div style={s.empty}>

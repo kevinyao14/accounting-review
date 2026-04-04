@@ -4,6 +4,7 @@
     "api/report.js":        { "maxDuration": 180 },
     "api/export-report.js": { "maxDuration": 60 },
     "api/memory-review.js": { "maxDuration": 300 },
-    "api/memory-store.js":  { "maxDuration": 60 }
+    "api/memory-store.js":  { "maxDuration": 60 },
+    "api/data-store.js":    { "maxDuration": 60 }
   }
 }

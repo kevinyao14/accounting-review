@@ -106,15 +106,20 @@ export default async function handler(req, res) {
     const brief = briefRaw || null;
 
     let counterHeuristics = counterHeuristicsRaw ? JSON.parse(counterHeuristicsRaw) : [];
-    // Optionally filter to only heuristics relevant to the accounts in this review
+    // When an account filter is provided, return only heuristics that are either
+    // general-purpose (no specific account scope) or relevant to the listed accounts.
+    // Counter-heuristics key off finding_type (e.g. "expense_dropped_to_zero") not
+    // specific account numbers, so most are general-purpose. The ones that reference
+    // specific accounts in their condition text get filtered here; everything else
+    // passes through for the model to decide applicability.
     if (accountFilter && counterHeuristics.length > 0) {
       counterHeuristics = counterHeuristics.filter(ch => {
-        // Keep GENERAL rules (no specific account) + rules matching any uploaded account
+        // Always keep rules with no condition or general finding types
         if (!ch.condition || ch.finding_type === "general") return true;
-        // Check if any account in the filter appears in the condition text
-        return accountFilter.some(acct => ch.condition.includes(acct)) || true;
-        // Actually, counter-heuristics apply by finding_type not account number,
-        // so we keep them all for now — the model decides which apply.
+        // Keep rules whose condition mentions a specific account in the filter
+        const mentionsSpecificAccount = /\d{6}/.test(ch.condition);
+        if (!mentionsSpecificAccount) return true; // general rule, keep it
+        return accountFilter.some(acct => ch.condition.includes(acct));
       });
     }
 

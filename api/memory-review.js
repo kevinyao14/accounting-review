@@ -1,101 +1,45 @@
 export const config = { maxDuration: 300 };
 
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
-const KV_URL   = process.env.KV_REST_API_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN;
-const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN;
 
-// ── KV / Blob helpers ─────────────────────────────────────────────────────
+// ── Fetch memory context via the memory-context endpoint ──────────────────
+// This calls /api/memory-context internally rather than duplicating the logic.
+// In Vercel serverless, we can call our own endpoint via the VERCEL_URL env var
+// or fall back to a relative fetch.
 
-async function kvGet(key) {
-  const res = await fetch(KV_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${KV_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["GET", key]),
+async function fetchMemoryContext(property, month, reqHeaders) {
+  // Build the internal URL — Vercel provides VERCEL_URL for self-referencing
+  const baseUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+  const params = new URLSearchParams({ property, month });
+  const url = `${baseUrl}/api/memory-context?${params}`;
+
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json" },
   });
-  const { result } = await res.json();
-  return result;
-}
 
-function encodePropertyName(name) {
-  return encodeURIComponent(name).replace(/%20/g, "_");
-}
-
-async function blobGet(url) {
-  if (!url) return null;
-  try {
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${BLOB_TOKEN}` },
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch { return null; }
-}
-
-// ── Fetch memory context (same logic as memory-context.js, inlined) ───────
-
-async function fetchMemoryContext(property, month) {
-  const enc = encodePropertyName(property);
-
-  const [
-    briefRaw,
-    counterHeuristicsRaw,
-    patternsRaw,
-    budgetIntelRaw,
-    propertyKbRaw,
-    propertyBudgetRaw,
-    feeRatesRaw,
-    signalsIndexRaw,
-  ] = await Promise.all([
-    kvGet(`memory:prop:${enc}:brief`),
-    kvGet("memory:counter_heuristics"),
-    kvGet(`memory:prop:${enc}:patterns`),
-    kvGet("memory:budget_intelligence"),
-    kvGet(`memory:prop:${enc}:kb`),
-    kvGet(`memory:prop:${enc}:budget`),
-    kvGet("memory:fee_rates"),
-    kvGet(`memory:prop:${enc}:signals_index`),
-  ]);
-
-  const brief = briefRaw || "";
-  const counterHeuristics = counterHeuristicsRaw ? JSON.parse(counterHeuristicsRaw) : [];
-  const patterns = patternsRaw ? JSON.parse(patternsRaw) : null;
-  const budgetIntel = budgetIntelRaw ? JSON.parse(budgetIntelRaw) : null;
-  const propertyKb = propertyKbRaw ? JSON.parse(propertyKbRaw) : null;
-  const propertyBudget = propertyBudgetRaw ? JSON.parse(propertyBudgetRaw) : null;
-  const feeRates = feeRatesRaw ? JSON.parse(feeRatesRaw) : null;
-  const signalsIndex = signalsIndexRaw ? JSON.parse(signalsIndexRaw) : [];
-
-  // Fetch current + trailing 2 months signals
-  const [yr, mo] = month.split("-").map(Number);
-  const targetMonths = [month];
-  for (let i = 1; i <= 2; i++) {
-    let pm = mo - i;
-    let py = yr;
-    if (pm <= 0) { pm += 12; py -= 1; }
-    targetMonths.push(`${py}-${String(pm).padStart(2, "0")}`);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`memory-context returned ${res.status}: ${errText}`);
   }
 
-  const signalResults = await Promise.all(
-    targetMonths
-      .filter(m => signalsIndex.includes(m))
-      .map(async (m) => {
-        const url = await kvGet(`memory:blob:${enc}:signals:${m}`);
-        if (!url) return null;
-        const data = await blobGet(url);
-        return data ? { month: m, ...data } : null;
-      })
-  );
+  const ctx = await res.json();
 
+  // Reshape to match what buildSystemPrompt expects
   return {
-    brief,
-    counterHeuristics,
-    patterns,
-    budgetIntel,
-    propertyKb,
-    propertyBudget,
-    feeRates,
-    signals: signalResults.filter(Boolean),
+    brief: ctx.brief || "",
+    counterHeuristics: ctx.counterHeuristics || [],
+    patterns: ctx.patterns || null,
+    budgetIntel: ctx.budgetIntelligence || null,
+    propertyKb: ctx.propertyKb || null,
+    propertyBudget: ctx.propertyBudget || null,
+    feeRates: ctx.feeRates || null,
+    signals: [
+      ...(ctx.signals?.current ? [ctx.signals.current] : []),
+      ...(ctx.signals?.trailing || []),
+    ],
   };
 }
 
@@ -257,8 +201,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Fetch full memory context
-    const memory = await fetchMemoryContext(property, month);
+    // 1. Fetch full memory context via /api/memory-context
+    const memory = await fetchMemoryContext(property, month, req.headers);
 
     // 2. Build system prompt with all memory context
     const systemPrompt = buildSystemPrompt(property, month, memory);

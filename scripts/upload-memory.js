@@ -20,6 +20,39 @@
  *   --property   Upload only a specific property (used with --only property)
  *   --batch-size Number of items per bulk upload request (default: 10)
  *   --verify     Run verify check after upload
+ *
+ * Expected --source directory structure:
+ *
+ *   {source}/
+ *   ├── memory_layer/
+ *   │   ├── structured/
+ *   │   │   ├── COUNTER_HEURISTICS.json          → memory:counter_heuristics (KV)
+ *   │   │   ├── {Property}_memory.json            → memory:prop:{enc}:baselines (KV, per property)
+ *   │   │   └── ... (other structured files)
+ *   │   ├── kb/
+ *   │   │   ├── {Property}_data.json              → memory:prop:{enc}:kb (KV, per property)
+ *   │   │   └── {Property}.kb                     → (not uploaded — source format)
+ *   │   ├── patterns/
+ *   │   │   └── {Property}_patterns.json          → memory:prop:{enc}:patterns (KV, per property)
+ *   │   ├── briefs/
+ *   │   │   └── {Property}_{YYYY-MM}_brief.kb     → memory:prop:{enc}:brief (KV, latest per property)
+ *   │   ├── signals/
+ *   │   │   └── {Property}_{YYYY-MM}_signals.json → memory/{slug}/signals/{YYYY-MM}.json (Blob, per month)
+ *   │   ├── errors/
+ *   │   │   └── {Property}_errors.json            → memory/{slug}/errors.json (Blob, per property)
+ *   │   ├── feedback/
+ *   │   │   └── {Property}_{YYYY-Q#}_review.json  → memory/{slug}/feedback/{quarter}.json (Blob)
+ *   │   ├── budget/
+ *   │   │   ├── BUDGET_INTELLIGENCE.json          → memory:budget_intelligence (KV)
+ *   │   │   └── {Property}_budget_analysis.json   → memory:prop:{enc}:budget (KV, per property)
+ *   │   ├── fees/
+ *   │   │   ├── FEE_VERIFICATION_ENGINE.json      → memory:fee_verification (KV)
+ *   │   │   └── RATE_KB.json                      → memory:fee_rates (KV)
+ *   │   ├── PORTFOLIO_INTELLIGENCE.json           → memory:portfolio_intelligence (KV)
+ *   │   ├── PORTFOLIO_RISK_SCORES.json            → memory:risk_scores (KV)
+ *   │   ├── RELIABLE_ERROR_PATTERNS.json          → memory/reliable_error_patterns.json (Blob, ~2.9 MB)
+ *   │   └── PORTFOLIO_IS_GL_CROSSREF.json         → memory/portfolio_crossref.json (Blob, ~22 MB)
+ *   └── ... (source CSVs etc. — not uploaded by this script)
  */
 
 import fs from "fs";

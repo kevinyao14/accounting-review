@@ -1,6 +1,29 @@
 import { put } from "@vercel/blob";
 
-export const config = { maxDuration: 30 };
+// maxDuration: 60s to handle large GL files with many months (each month is a
+// separate Blob write). The default 30s can be tight for 12+ month GL ingestion.
+export const config = { maxDuration: 60 };
+
+// ── Namespace: "datastore:" ───────────────────────────────────────────────
+// This endpoint manages RAW FINANCIAL DATA (IS time-series, GL transactions,
+// budget allocations). These are the source-of-truth numbers uploaded directly
+// from property management system exports.
+//
+// The separate "memory:" namespace (managed by /api/memory-store.js) stores
+// PRE-COMPUTED INTELLIGENCE derived from this data — things like IS baselines,
+// counter-heuristics, error patterns, and memory briefs. The memory layer is
+// populated via scripts/upload-memory.js after running the dream_engine and
+// gl_error_miner analysis scripts locally. In the future, a compute step
+// could automatically derive memory-layer updates from data-store changes,
+// but today they are updated independently.
+//
+// KV keys used by this endpoint:
+//   datastore:{enc}:timeseries    — merged IS account balances by month
+//   datastore:{enc}:budget        — merged budget allocations by month
+//   datastore:{enc}:budget:index  — fiscal year tracking for budgets
+//   datastore:{enc}:gl:index      — GL month index with Blob URLs
+//   datastore:{enc}:meta          — property metadata (dates, counts, URLs)
+//   datastore:property:index      — global list of all ingested properties
 
 const KV_URL   = process.env.KV_REST_API_URL;
 const KV_TOKEN = process.env.KV_REST_API_TOKEN;
