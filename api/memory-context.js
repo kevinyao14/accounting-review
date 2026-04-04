@@ -23,6 +23,15 @@ function encodePropertyName(name) {
 async function blobGet(url) {
   if (!url) return null;
   try {
+    // Support kv: prefix — seed-memory-direct.js stores small payloads (signals,
+    // errors) directly in KV and writes "kv:<key>" as the blob pointer.
+    if (url.startsWith("kv:")) {
+      const kvKey = url.slice(3);
+      const raw = await kvGet(kvKey);
+      if (!raw) return null;
+      return typeof raw === "string" ? JSON.parse(raw) : raw;
+    }
+    // Normal Blob URL fetch
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${BLOB_TOKEN}` },
     });
