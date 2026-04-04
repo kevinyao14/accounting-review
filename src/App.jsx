@@ -1184,12 +1184,12 @@ function AppInner() {
 
       const [glResult, budResult] = await Promise.all([
         glEntries.trim()
-          ? callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 4000 }, max_tokens: 16000 })
+          ? callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 3500 }, max_tokens: 16000 })
               .then(raw => { const match = raw.match(/\[[\s\S]*\]/); return JSON.parse(match ? match[0] : raw); })
               .catch(e => { setReviewError("GL error: " + e.message.slice(0, 300)); return []; })
           : Promise.resolve([]),
         budgetData.trim()
-          ? callClaude(budSys, budUsr, { thinking: { type: "enabled", budget_tokens: 3000 }, max_tokens: 16000 })
+          ? callClaude(budSys, budUsr, { thinking: { type: "enabled", budget_tokens: 2250 }, max_tokens: 16000 })
               .then(raw => { const match = raw.match(/\[[\s\S]*\]/); return JSON.parse(match ? match[0] : raw); })
               .catch(e => { setReviewError("Budget error: " + e.message.slice(0, 300)); return []; })
           : Promise.resolve([]),
