@@ -1807,7 +1807,7 @@ function AppInner() {
                     <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#a78bfa",letterSpacing:0.5,marginBottom:10}}>GENERAL FINDINGS</div>
                     {generalFindings.map((gf, i) => (
                       <div key={i} style={{marginBottom: i < generalFindings.length - 1 ? 12 : 0}}>
-                        <div style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,color:"#9ca3af"}}>{gf.isIssue || gf.glIssue || ""}</div>
+                        <div style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,color:"#9ca3af",whiteSpace:"pre-line"}}>{gf.isIssue || gf.glIssue || gf.budgetIssue || ""}</div>
                         {gf.action && <div style={{marginTop:4}}>
                           <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6ee7a0",letterSpacing:0.5}}>Action · </span>
                           <span style={{fontFamily:"'Lora',serif",fontSize:13,lineHeight:1.7,color:"#9ca3af"}}>{gf.action}</span>
@@ -2682,7 +2682,7 @@ function AppInner() {
                             <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#a78bfa",letterSpacing:0.5,marginBottom:8}}>GENERAL FINDINGS</div>
                             {expandedReview.data.generalFindings.map((gf, i) => (
                               <div key={i} style={{marginBottom: i < expandedReview.data.generalFindings.length - 1 ? 10 : 0}}>
-                                <div style={{fontFamily:"'Lora',serif",fontSize:12,lineHeight:1.7,color:"#9ca3af"}}>{gf.isIssue || gf.glIssue || ""}</div>
+                                <div style={{fontFamily:"'Lora',serif",fontSize:12,lineHeight:1.7,color:"#9ca3af",whiteSpace:"pre-line"}}>{gf.isIssue || gf.glIssue || gf.budgetIssue || ""}</div>
                                 {gf.action && <div>
                                   <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6ee7a0",letterSpacing:0.5}}>Action · </span>
                                   <span style={{fontFamily:"'Lora',serif",fontSize:12,lineHeight:1.7,color:"#9ca3af"}}>{gf.action}</span>
