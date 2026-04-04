@@ -1,5 +1,5 @@
 import { put, del } from "@vercel/blob";
-import { kvGet, kvSet, kvDel, encodePropertyName, slugify } from "../lib/storage.js";
+import { kvGet, kvSet, kvDel, blobGet, encodePropertyName, slugify } from "../lib/storage.js";
 
 export const config = { maxDuration: 60 };
 

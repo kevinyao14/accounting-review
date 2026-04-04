@@ -304,6 +304,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error("export-report error:", err);
-    res.status(500).json({ error: err.message || "Export failed" });
+    return res.status(500).json({ error: err.message || "Export failed" });
   }
 }
