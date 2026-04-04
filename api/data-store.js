@@ -193,6 +193,100 @@ function extractGlTransactions(rawCsv) {
   return { months: result, monthKeys: Object.keys(result).sort() };
 }
 
+// ── Budget Extraction ─────────────────────────────────────────────────────
+// Parses a raw budget CSV and returns monthly budget allocations by account.
+// Output: { accounts: { "440001": { name, budgets: { "2025-04": 12345.67, ... } } }, dateRange, fiscalYear }
+function extractBudgetData(rawCsv) {
+  const lines = rawCsv.split("\n");
+
+  // Find the date/month header row (same format as IS: MM/DD/YYYY columns)
+  let dateCols = [];
+  for (const line of lines) {
+    const cols = line.split(",");
+    const found = [];
+    cols.forEach((c, j) => {
+      const t = c.trim();
+      // Match MM/DD/YYYY format
+      if (t.length === 10 && t[2] === "/" && t[5] === "/") {
+        const p = t.split("/");
+        const month = parseInt(p[0], 10);
+        const year  = parseInt(p[2], 10);
+        const key   = year + "-" + String(month).padStart(2, "0");
+        found.push({ idx: j, year, month, key });
+      }
+      // Also match "Jan-25", "Feb-26" style headers
+      const monthNames = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
+      const abbr = t.toLowerCase().match(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[- ](\d{2,4})$/);
+      if (abbr) {
+        const month = monthNames[abbr[1]];
+        const year  = abbr[2].length === 2 ? 2000 + parseInt(abbr[2]) : parseInt(abbr[2]);
+        const key   = year + "-" + String(month).padStart(2, "0");
+        found.push({ idx: j, year, month, key });
+      }
+    });
+    if (found.length >= 3) { dateCols = found; break; }
+  }
+
+  if (!dateCols.length) return null;
+
+  // Extract account rows
+  const accounts = {};
+  for (const line of lines) {
+    const cols = line.split(",");
+    const acctNum = (cols[0] ?? "").trim();
+    if (!/^\d{6}$/.test(acctNum)) continue;
+
+    const acctName = (cols[1] ?? "").trim();
+    const budgets = {};
+    for (const dc of dateCols) {
+      const val = (cols[dc.idx] ?? "").trim().replace(/[",]/g, "");
+      const num = parseFloat(val);
+      if (!isNaN(num)) budgets[dc.key] = num;
+    }
+
+    if (Object.keys(budgets).length > 0) {
+      accounts[acctNum] = { name: acctName, budgets };
+    }
+  }
+
+  const keys = dateCols.map(d => d.key).sort();
+  const years = [...new Set(dateCols.map(d => d.year))];
+
+  return {
+    accounts,
+    dateRange: { from: keys[0], to: keys[keys.length - 1] },
+    totalAccounts: Object.keys(accounts).length,
+    fiscalYear: years.length === 1 ? years[0] : `${Math.min(...years)}-${Math.max(...years)}`,
+  };
+}
+
+// ── Merge budget data: existing + new → combined (new months overwrite) ───
+function mergeBudgetData(existing, incoming) {
+  if (!existing) return incoming;
+  if (!incoming) return existing;
+
+  const merged = { ...existing, accounts: { ...existing.accounts } };
+
+  for (const [acctNum, acctData] of Object.entries(incoming.accounts)) {
+    if (!merged.accounts[acctNum]) {
+      merged.accounts[acctNum] = acctData;
+    } else {
+      merged.accounts[acctNum] = {
+        name: acctData.name || merged.accounts[acctNum].name,
+        budgets: { ...merged.accounts[acctNum].budgets, ...acctData.budgets },
+      };
+    }
+  }
+
+  const allKeys = Object.values(merged.accounts).flatMap(a => Object.keys(a.budgets)).sort();
+  if (allKeys.length) {
+    merged.dateRange = { from: allKeys[0], to: allKeys[allKeys.length - 1] };
+  }
+  merged.totalAccounts = Object.keys(merged.accounts).length;
+
+  return merged;
+}
+
 // ── Merge IS time series: existing + new → combined ────────────────────────
 function mergeTimeSeries(existing, incoming) {
   if (!existing) return incoming;
@@ -248,6 +342,16 @@ export default async function handler(req, res) {
 
       if (type === "gl-periods") {
         const raw = await kvGet(`datastore:${enc}:gl:index`);
+        return res.status(200).json(raw ? JSON.parse(raw) : []);
+      }
+
+      if (type === "budget") {
+        const raw = await kvGet(`datastore:${enc}:budget`);
+        return res.status(200).json(raw ? JSON.parse(raw) : null);
+      }
+
+      if (type === "budget-periods") {
+        const raw = await kvGet(`datastore:${enc}:budget:index`);
         return res.status(200).json(raw ? JSON.parse(raw) : []);
       }
 
@@ -404,7 +508,87 @@ export default async function handler(req, res) {
         });
       }
 
-      return res.status(400).json({ error: "Invalid action. Use ingest-is or ingest-gl." });
+      // ── Ingest Budget ──
+      if (action === "ingest-budget" && req.body.rawBudget) {
+        const rawBudget = req.body.rawBudget;
+
+        // 1. Extract budget data from raw CSV
+        const extracted = extractBudgetData(rawBudget);
+        if (!extracted) return res.status(400).json({ error: "Could not extract budget data from CSV" });
+
+        // 2. Load existing budget data and merge (new months overwrite)
+        const existingRaw = await kvGet(`datastore:${enc}:budget`);
+        const existing = existingRaw ? JSON.parse(existingRaw) : null;
+        const merged = mergeBudgetData(existing, extracted);
+
+        // 3. Store merged budget in KV (structured/compact like IS timeseries)
+        await kvSet(`datastore:${enc}:budget`, JSON.stringify(merged));
+
+        // 4. Store raw budget in Blob as backup
+        const budgetBlobPath = `data/${slug}/raw-budget-latest.csv`;
+        const budgetBlob = await put(budgetBlobPath, rawBudget, {
+          access: "private",
+          contentType: "text/csv",
+          addRandomSuffix: false,
+        });
+
+        // 5. Update budget period index (track which fiscal years we have)
+        const budgetIdxRaw = await kvGet(`datastore:${enc}:budget:index`);
+        const budgetIdx = budgetIdxRaw ? JSON.parse(budgetIdxRaw) : [];
+        const fy = extracted.fiscalYear ? String(extracted.fiscalYear) : period;
+        if (!budgetIdx.find(e => e.fiscalYear === fy)) {
+          budgetIdx.push({
+            fiscalYear: fy,
+            ingestedAt: new Date().toISOString(),
+            dateRange: extracted.dateRange,
+            totalAccounts: extracted.totalAccounts,
+          });
+          budgetIdx.sort((a, b) => a.fiscalYear.localeCompare(b.fiscalYear));
+          await kvSet(`datastore:${enc}:budget:index`, JSON.stringify(budgetIdx));
+        } else {
+          // Update existing entry
+          const entry = budgetIdx.find(e => e.fiscalYear === fy);
+          entry.ingestedAt = new Date().toISOString();
+          entry.dateRange = extracted.dateRange;
+          entry.totalAccounts = extracted.totalAccounts;
+          await kvSet(`datastore:${enc}:budget:index`, JSON.stringify(budgetIdx));
+        }
+
+        // 6. Update property metadata
+        const metaRaw = await kvGet(`datastore:${enc}:meta`);
+        const meta = metaRaw ? JSON.parse(metaRaw) : {
+          propertyName: property,
+          firstSeen: new Date().toISOString(),
+          periods: {},
+        };
+        meta.lastUpdated = new Date().toISOString();
+        meta.latestRawBudget = budgetBlob.url;
+        if (!meta.periods[period]) meta.periods[period] = {};
+        meta.periods[period].budgetIngestedAt = new Date().toISOString();
+        meta.periods[period].budgetDateRange = extracted.dateRange;
+        meta.periods[period].budgetAccountCount = extracted.totalAccounts;
+        meta.periods[period].budgetFiscalYear = fy;
+        await kvSet(`datastore:${enc}:meta`, JSON.stringify(meta));
+
+        // 7. Update global property index
+        const idxRaw = await kvGet("datastore:property:index");
+        const idx = idxRaw ? JSON.parse(idxRaw) : [];
+        if (!idx.includes(property)) {
+          idx.push(property);
+          idx.sort();
+          await kvSet("datastore:property:index", JSON.stringify(idx));
+        }
+
+        return res.status(200).json({
+          ok: true,
+          fiscalYear: fy,
+          periodsExtracted: Object.keys(extracted.dateRange),
+          totalAccounts: extracted.totalAccounts,
+          budgetRange: merged.dateRange,
+        });
+      }
+
+      return res.status(400).json({ error: "Invalid action. Use ingest-is, ingest-gl, or ingest-budget." });
     }
 
     return res.status(405).json({ error: "Method not allowed" });
