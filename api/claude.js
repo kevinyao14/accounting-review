@@ -13,22 +13,31 @@ export default async function handler(req, res) {
   if (!body) return res.status(400).json({ error: "Invalid JSON body" });
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: body.model || "claude-sonnet-4-6",
-        max_tokens: body.max_tokens || 16000,
-        stream: true,
-        system: body.system,
-        messages: body.messages,
-        ...(body.thinking ? { thinking: body.thinking } : {}),
-      }),
+    const reqBody = JSON.stringify({
+      model: body.model || "claude-sonnet-4-6",
+      max_tokens: body.max_tokens || 16000,
+      stream: true,
+      system: body.system,
+      messages: body.messages,
+      ...(body.thinking ? { thinking: body.thinking } : {}),
     });
+    const reqHeaders = {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    };
+
+    let response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST", headers: reqHeaders, body: reqBody,
+    });
+
+    // One retry on 529 (overloaded) or 5xx server error
+    if (response.status === 529 || response.status >= 500) {
+      await new Promise(r => setTimeout(r, 2000));
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST", headers: reqHeaders, body: reqBody,
+      });
+    }
 
     if (!response.ok) {
       const err = await response.text();

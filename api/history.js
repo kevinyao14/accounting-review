@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
     // POST /api/history — save a completed review
     if (req.method === "POST") {
-      const { property, period, timestamp, findings, checklistSnapshot, csvs } = req.body;
+      const { property, period, timestamp, findings, generalFindings, checklistSnapshot, csvs } = req.body;
       if (!findings || !timestamp) return res.status(400).json({ error: "Missing required fields" });
 
       // Build unique blob path
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
       const pathname = `reviews/${ts}-${slug}.json`;
 
       // Write full payload to Blob
-      const payload = JSON.stringify({ property, period, timestamp, findings, checklistSnapshot, csvs });
+      const payload = JSON.stringify({ property, period, timestamp, findings, generalFindings, checklistSnapshot, csvs });
       const blob    = await put(pathname, payload, { access: "private", contentType: "application/json", addRandomSuffix: false });
 
       // Update KV index (newest first, max 500 entries)
