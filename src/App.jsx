@@ -359,7 +359,11 @@ function AppInner() {
   const [memoryReviewRunning, setMemoryReviewRunning]       = useState(false);
   const [memoryReviewResult, setMemoryReviewResult]         = useState(null);
   const [memoryReviewError, setMemoryReviewError]           = useState("");
-  // memoryReviewCollapsed removed — memory notes now render inline per finding
+  // Memory chat state
+  const [memoryChatOpen, setMemoryChatOpen]       = useState(false);
+  const [memoryChatMessages, setMemoryChatMessages] = useState([]);
+  const [memoryChatInput, setMemoryChatInput]     = useState("");
+  const [memoryChatLoading, setMemoryChatLoading] = useState(false);
 
   const [reportContent, setReportContent]         = useState(null);
   const [reportLoading, setReportLoading]         = useState(false);
@@ -1346,6 +1350,36 @@ function AppInner() {
     setMemoryReviewRunning(false);
   };
 
+  const sendMemoryChat = async () => {
+    const q = memoryChatInput.trim();
+    if (!q || memoryChatLoading) return;
+    const newMsg = { role: "user", content: q };
+    const updated = [...memoryChatMessages, newMsg];
+    setMemoryChatMessages(updated);
+    setMemoryChatInput("");
+    setMemoryChatLoading(true);
+    try {
+      const res = await fetch("/api/memory-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property: isPropertyName || reviewPropertyName || "Unknown",
+          month: reviewMonth,
+          messages: updated,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Chat failed (${res.status})`);
+      }
+      const data = await res.json();
+      setMemoryChatMessages(m => [...m, { role: "assistant", content: data.response }]);
+    } catch (e) {
+      setMemoryChatMessages(m => [...m, { role: "assistant", content: `Error: ${e.message}` }]);
+    }
+    setMemoryChatLoading(false);
+  };
+
   const RATING_LABELS = { correct: "Review Correct: No Actions", false_positive: "Review Error Present", needs_review: "Review Correct: Actions Required" };
 
   const buildXlsxRows = (findingsArr, fbObj) => {
@@ -1796,7 +1830,7 @@ function AppInner() {
                       </span>
                       {memEntry && (
                         <span style={{fontFamily:"'Fira Code',monospace", fontSize:9, padding:"2px 8px", borderRadius:10, background:`${dColor}22`, color:dColor, fontWeight:600, flexShrink:0}}>
-                          {dLabel}{memEntry.ch_id ? ` · ${memEntry.ch_id}` : ""}
+                          {dLabel}
                         </span>
                       )}
                     </div>
@@ -2084,6 +2118,63 @@ function AppInner() {
                 {memoryReviewError && (
                   <div style={{margin:"16px 0", padding:"12px 16px", borderRadius:6, border:"1px solid #7f1d1d", background:"#1a0505", fontFamily:"'Fira Code',monospace", fontSize:12, color:"#fca5a5"}}>
                     Memory Review Error: {memoryReviewError}
+                  </div>
+                )}
+
+                {/* ── Memory Chat ───────────────────────────────────────── */}
+                {memoryReviewResult && (
+                  <div style={{margin:"12px 0", border:"1px solid #2d1f5e", borderRadius:8, background:"#0d0b1a", overflow:"hidden"}}>
+                    <div onClick={() => setMemoryChatOpen(o => !o)}
+                      style={{padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", borderBottom: memoryChatOpen ? "1px solid #2d1f5e" : "none"}}>
+                      <span style={{fontFamily:"'Fira Code',monospace", fontSize:11, color:"#a78bfa", letterSpacing:0.5}}>
+                        ASK MEMORY
+                      </span>
+                      <span style={{color:"#6b7280", fontSize:12}}>{memoryChatOpen ? "▾" : "▸"}</span>
+                    </div>
+                    {memoryChatOpen && (
+                      <div style={{padding:"12px 16px"}}>
+                        {memoryChatMessages.length === 0 && (
+                          <div style={{fontFamily:"'Lora',serif", fontSize:12, color:"#4b5563", marginBottom:12, lineHeight:1.6}}>
+                            Ask questions about any account, vendor, or pattern. Memory has 12+ months of history for this property.
+                          </div>
+                        )}
+                        <div style={{maxHeight:300, overflowY:"auto", marginBottom:10}}>
+                          {memoryChatMessages.map((msg, i) => (
+                            <div key={i} style={{marginBottom:10, padding:"8px 12px", borderRadius:6,
+                              background: msg.role === "user" ? "#1a1a2e" : "#0d1a0d",
+                              borderLeft: `3px solid ${msg.role === "user" ? "#a78bfa" : "#4ade80"}`}}>
+                              <div style={{fontFamily:"'Fira Code',monospace", fontSize:9, color: msg.role === "user" ? "#a78bfa" : "#4ade80", marginBottom:4, letterSpacing:0.5}}>
+                                {msg.role === "user" ? "YOU" : "MEMORY"}
+                              </div>
+                              <div style={{fontFamily:"'Lora',serif", fontSize:12, color:"#d1d5db", lineHeight:1.7, whiteSpace:"pre-wrap"}}>
+                                {msg.content}
+                              </div>
+                            </div>
+                          ))}
+                          {memoryChatLoading && (
+                            <div style={{fontFamily:"'Fira Code',monospace", fontSize:11, color:"#a78bfa", padding:"8px 12px"}}>
+                              Thinking...
+                            </div>
+                          )}
+                        </div>
+                        <div style={{display:"flex", gap:8}}>
+                          <input
+                            type="text"
+                            value={memoryChatInput}
+                            onChange={e => setMemoryChatInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMemoryChat(); }}}
+                            placeholder="e.g., What's the typical baseline for 601004? Any duplicate signals on 607018?"
+                            style={{flex:1, background:"#0e0e0e", border:"1px solid #2a2a2a", borderRadius:6, color:"#d1d5db",
+                              fontFamily:"'Fira Code',monospace", fontSize:11, padding:"8px 12px"}}
+                          />
+                          <button className="btn" onClick={sendMemoryChat} disabled={memoryChatLoading || !memoryChatInput.trim()}
+                            style={{background:"#a78bfa", color:"#0e0e0e", border:"none", borderRadius:6, padding:"8px 14px",
+                              fontFamily:"'Fira Code',monospace", fontSize:11, fontWeight:600, opacity: memoryChatLoading ? 0.5 : 1}}>
+                            Ask
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

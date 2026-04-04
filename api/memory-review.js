@@ -101,19 +101,31 @@ function buildSystemPrompt(property, month, memory) {
 PROPERTY: ${property}
 REVIEW MONTH: ${month}
 
-You have access to historical memory for this property built from 12+ months of GL error mining, IS pattern analysis, and prior review feedback. Your job is to review each Stage 1 finding and:
+You have access to historical memory for this property built from 12+ months of analysis. Your job is to review each Stage 1 finding and:
 
-1. SUPPRESS findings that match a counter-heuristic (cite the CH ID)
-2. ELEVATE findings that match a known reliable error pattern or persistent issue
-3. ADD CONTEXT from the memory brief (baselines, typical amounts, volatility info)
-4. FLAG any signals from the memory layer that were NOT caught in Stage 1
+1. SUPPRESS findings that are false positives based on historical patterns
+2. ELEVATE findings that match a known recurring error or persistent issue
+3. ADD CONTEXT from historical baselines, typical amounts, and volatility info
+4. FLAG any known issues from memory that were NOT caught in Stage 1
 
 For each finding, output a disposition:
 - "keep" — finding is valid, no changes needed
-- "suppress" — finding matches a counter-heuristic, should be removed or downgraded
+- "suppress" — finding is a false positive, should be removed or downgraded
 - "elevate" — finding matches a known pattern, confidence should increase
 - "context" — finding is valid but needs additional context from memory
-- "new" — a signal from memory that Stage 1 missed entirely`);
+- "new" — a known issue from memory that Stage 1 missed entirely
+
+═══ CRITICAL OUTPUT RULES ═══
+Your memory_note fields will be shown directly to accounting reviewers who have NO knowledge of the internal analysis system. You MUST:
+- NEVER reference internal rule IDs (CH001, CH008, CH033, etc.) — instead describe the rule in plain English
+- NEVER reference signal IDs (SIG-xxx) — instead say "historical analysis detected..." or "prior months show..."
+- NEVER mention "counter-heuristic", "GL error miner", "memory layer", or "Stage 1"
+- DO write in plain professional English as if briefing a property accountant
+- DO cite specific dollar amounts, dates, vendors, and account numbers — those are useful
+- DO keep SUPPRESS and ELEVATE notes to 2-3 sentences max
+- DO keep KEEP notes to 1 sentence, or omit the memory_note entirely if you have nothing to add
+- DO keep CONTEXT notes to 1-2 sentences focused on the actionable baseline info
+- For new signals: describe the issue directly, not how it was detected`);
 
   // Counter-heuristics
   if (memory.counterHeuristics.length > 0) {
@@ -282,9 +294,8 @@ Respond with a JSON object matching this schema exactly:
       "findingIndex": 0,
       "accountNumber": "601001",
       "disposition": "keep|suppress|elevate|context",
-      "memory_note": "explanation of why this disposition was chosen",
-      "confidence_adjustment": 0.0,
-      "ch_id": null
+      "memory_note": "Plain English explanation for the reviewer — no internal codes",
+      "confidence_adjustment": 0.0
     }
   ],
   "newSignals": [
@@ -294,7 +305,7 @@ Respond with a JSON object matching this schema exactly:
       "issue": "description",
       "source": "memory",
       "disposition": "new",
-      "memory_note": "detected by GL error miner signal SIG-xxx",
+      "memory_note": "Plain English explanation of the issue found in historical data",
       "severity": "high|medium|low"
     }
   ]
@@ -361,7 +372,6 @@ IMPORTANT: Return ONLY the JSON object, no markdown fences, no explanation outsi
         disposition: ef.disposition,
         memory_note: ef.memory_note,
         confidence_adjustment: ef.confidence_adjustment || 0,
-        ch_id: ef.ch_id || null,
       };
     });
 
