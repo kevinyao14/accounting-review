@@ -1203,8 +1203,9 @@ function AppInner() {
 
       // ── Consolidate UNBUDGETED budget findings into a single GENERAL card ─────
       const rawBudgetFindings = budResult;
-      const unbudgeted = rawBudgetFindings.filter(f => f.checkType === "UNBUDGETED");
-      const overages   = rawBudgetFindings.filter(f => f.checkType !== "UNBUDGETED");
+      const isUnbudgeted = (f) => f.checkType === "UNBUDGETED" || /not budgeted|budget.{0,5}\$0|no.{0,10}budget/i.test(f.issue || "");
+      const unbudgeted = rawBudgetFindings.filter(isUnbudgeted);
+      const overages   = rawBudgetFindings.filter(f => !isUnbudgeted(f));
       const budgetFindings = unbudgeted.length > 0
         ? [
             {
