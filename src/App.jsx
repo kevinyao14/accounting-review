@@ -1164,7 +1164,7 @@ function AppInner() {
         .map(({ accountNumber, accountName, issue }) => ({ accountNumber, accountName, issue }));
       const glUsr = "REVIEW PERIOD: " + label + "\n\nINCOME STATEMENT FINDINGS REQUIRING GL INVESTIGATION:\n" + JSON.stringify(glRelevantFindings, null, 2) + kbBlock + "\n\nGL CHECKLIST:\n" + serializeBySource(items, "GL") + "\n\nGL ENTRIES:\n" + glEntries + "\n\nInvestigate the GL entries for " + label + ".";
 
-      const budSys = "You are a senior multifamily property accountant performing a budget variance review. Apply exactly two checks to expense accounts (6xxxxx) only:\n\nCHECK 1 — UNBUDGETED EXPENSES: Collect ALL expense accounts where actual > $0 and budget is $0 or missing. Output these as a SINGLE finding with accountNumber \"GENERAL\", accountName \"Unbudgeted Expenses\", checkType \"UNBUDGETED\". List each account on its own line in the issue field as: \"- 605023 Landscape Maintenance Contract: $4,298.00\". Action: \"Review each account for coding accuracy and establish budget lines where spend is recurring.\"\n\nCHECK 2 — MATERIAL BUDGET OVERAGES: For each expense account where actual exceeds budget by more than 25% AND the dollar overage is greater than $500 (skip $0 budget accounts), output one finding per account with exact actual, budget, and variance % in the issue field. Keep action to one sentence.\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each object: { accountNumber, accountName, issue, action, checkType }\n- Return [] if no issues found.";
+      const budSys = "You are a senior multifamily property accountant performing a budget variance review. Apply exactly two checks to expense accounts (6xxxxx) only:\n\nCHECK 1 — UNBUDGETED EXPENSES: Any expense account where actual > $0 but budget is $0 or missing. Flag as potential miscoding.\n\nCHECK 2 — MATERIAL BUDGET OVERAGES: Any expense account where actual exceeds budget by more than 25% AND the dollar overage is greater than $500. Skip accounts where budget is $0 (caught by Check 1).\n\nOUTPUT RULES:\n- Return a JSON array only. No preamble, no explanation, no markdown backticks.\n- Each object: { accountNumber, accountName, issue, action, checkType } where checkType is \"UNBUDGETED\" or \"BUDGET_OVERAGE\"\n- Include exact actual amount, budget amount, and variance % in the issue field.\n- Keep action to one sentence.\n- Order by accountNumber ascending.\n- Return [] if no issues found.";
       // Filter budget to review month only for AI (display keeps all 3 months)
       const budgetForAI = (() => {
         if (!budgetData) return "";
@@ -1184,19 +1184,35 @@ function AppInner() {
 
       const [glResult, budResult] = await Promise.all([
         glEntries.trim()
-          ? callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 3500 }, max_tokens: 16000 })
+          ? callClaude(glSys, glUsr, { thinking: { type: "enabled", budget_tokens: 2500 }, max_tokens: 16000 })
               .then(raw => { const match = raw.match(/\[[\s\S]*\]/); return JSON.parse(match ? match[0] : raw); })
               .catch(e => { setReviewError("GL error: " + e.message.slice(0, 300)); return []; })
           : Promise.resolve([]),
         budgetData.trim()
-          ? callClaude(budSys, budUsr, { thinking: { type: "enabled", budget_tokens: 2250 }, max_tokens: 16000 })
+          ? callClaude(budSys, budUsr, { thinking: { type: "enabled", budget_tokens: 2000 }, max_tokens: 16000 })
               .then(raw => { const match = raw.match(/\[[\s\S]*\]/); return JSON.parse(match ? match[0] : raw); })
               .catch(e => { setReviewError("Budget error: " + e.message.slice(0, 300)); return []; })
           : Promise.resolve([]),
       ]);
 
       glFindings = glResult;
-      const budgetFindings = budResult;
+
+      // ── Consolidate UNBUDGETED budget findings into a single GENERAL card ─────
+      const rawBudgetFindings = budResult;
+      const unbudgeted = rawBudgetFindings.filter(f => f.checkType === "UNBUDGETED");
+      const overages   = rawBudgetFindings.filter(f => f.checkType !== "UNBUDGETED");
+      const budgetFindings = unbudgeted.length > 0
+        ? [
+            {
+              accountNumber: "GENERAL",
+              accountName: "Unbudgeted Expenses",
+              issue: unbudgeted.map(f => `- ${f.accountNumber} ${f.accountName}: ${f.issue}`).join("\n"),
+              action: "Review each account for coding accuracy and establish budget lines where spend is recurring.",
+              checkType: "UNBUDGETED",
+            },
+            ...overages,
+          ]
+        : overages;
 
       // ── Merge by accountNumber ────────────────────────────────────────────────
       const merged = {};
