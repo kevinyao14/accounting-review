@@ -359,7 +359,7 @@ function AppInner() {
   const [memoryReviewRunning, setMemoryReviewRunning]       = useState(false);
   const [memoryReviewResult, setMemoryReviewResult]         = useState(null);
   const [memoryReviewError, setMemoryReviewError]           = useState("");
-  const [memoryReviewCollapsed, setMemoryReviewCollapsed]   = useState(false);
+  // memoryReviewCollapsed removed — memory notes now render inline per finding
 
   const [reportContent, setReportContent]         = useState(null);
   const [reportLoading, setReportLoading]         = useState(false);
@@ -1765,10 +1765,24 @@ function AppInner() {
                     ))}
                   </div>
                 )}
-                {findings.map((item, i) => (
+                {findings.map((item, i) => {
+                  // Look up memory review disposition for this finding by account number
+                  const memEntry = memoryReviewResult?.enrichedFindings?.find(
+                    ef => ef.original?.accountNumber === item.accountNumber
+                  );
+                  const dColor = memEntry ? ({keep:"#9ca3af", suppress:"#ef4444", elevate:"#f59e0b", context:"#60a5fa"}[memEntry.disposition] || "#9ca3af") : null;
+                  const dLabel = memEntry ? ({keep:"KEEP", suppress:"SUPPRESS", elevate:"ELEVATE", context:"CONTEXT"}[memEntry.disposition] || memEntry.disposition) : null;
+                  return (
                   <div key={i} style={{borderBottom:"1px solid #1e1e1e", padding:"16px 0"}}>
-                    <div style={{fontFamily:"'Syne',sans-serif", fontWeight:600, fontSize:14, color:"#f5f5f5", marginBottom:8}}>
-                      {item.accountName} ({item.accountNumber})
+                    <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:8}}>
+                      <span style={{fontFamily:"'Syne',sans-serif", fontWeight:600, fontSize:14, color:"#f5f5f5"}}>
+                        {item.accountName} ({item.accountNumber})
+                      </span>
+                      {memEntry && (
+                        <span style={{fontFamily:"'Fira Code',monospace", fontSize:9, padding:"2px 8px", borderRadius:10, background:`${dColor}22`, color:dColor, fontWeight:600, flexShrink:0}}>
+                          {dLabel}{memEntry.ch_id ? ` · ${memEntry.ch_id}` : ""}
+                        </span>
+                      )}
                     </div>
                     {item.isIssue && (
                       <div style={{marginBottom:6}}>
@@ -1792,6 +1806,14 @@ function AppInner() {
                       <div>
                         <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#4ade80", letterSpacing:0.5}}>Action · </span>
                         <span style={{fontFamily:"'Lora',serif", fontSize:13, lineHeight:1.7, color:"#9ca3af"}}>{item.action}</span>
+                      </div>
+                    )}
+
+                    {/* Inline memory review note */}
+                    {memEntry?.memory_note && (
+                      <div style={{marginTop:8, padding:"8px 12px", borderRadius:6, borderLeft:`3px solid ${dColor}`, background:"#0d0b1a"}}>
+                        <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#a78bfa", letterSpacing:0.5}}>MEMORY · </span>
+                        <span style={{fontFamily:"'Lora',serif", fontSize:12, lineHeight:1.7, color:"#c4b5fd"}}>{memEntry.memory_note}</span>
                       </div>
                     )}
 
@@ -2008,7 +2030,46 @@ function AppInner() {
                       );
                     })()}
                   </div>
-                ))}
+                  );
+                })}
+
+                {/* New signals from memory (not matched to existing findings) */}
+                {memoryReviewResult?.newSignals?.length > 0 && (
+                  <div style={{borderTop:"1px solid #2d1f5e", padding:"16px 0"}}>
+                    <div style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#4ade80", letterSpacing:0.5, marginBottom:10}}>NEW SIGNALS FROM MEMORY</div>
+                    {memoryReviewResult.newSignals.map((ns, i) => (
+                      <div key={i} style={{marginBottom:10, padding:"8px 12px", borderRadius:6, borderLeft:"3px solid #4ade80", background:"#0d0b1a"}}>
+                        <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:4}}>
+                          <span style={{fontFamily:"'Fira Code',monospace", fontSize:9, padding:"2px 8px", borderRadius:10, background:"#4ade8022", color:"#4ade80", fontWeight:600}}>NEW</span>
+                          <span style={{fontFamily:"'Fira Code',monospace", fontSize:11, color:"#e8c468"}}>{ns.accountNumber} {ns.accountName || ""}</span>
+                          {ns.severity && <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color: ns.severity === "high" ? "#ef4444" : "#f59e0b"}}>{ns.severity}</span>}
+                        </div>
+                        <div style={{fontFamily:"'Lora',serif", fontSize:12, lineHeight:1.7, color:"#9ca3af"}}>{ns.issue}</div>
+                        {ns.memory_note && <div style={{fontFamily:"'Lora',serif", fontSize:12, color:"#c4b5fd", lineHeight:1.6}}>↳ {ns.memory_note}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Memory review summary bar */}
+                {memoryReviewResult && (
+                  <div style={{padding:"8px 12px", borderTop:"1px solid #1a1a2e", fontFamily:"'Fira Code',monospace", fontSize:10, color:"#4b5563", display:"flex", justifyContent:"space-between"}}>
+                    <span>
+                      {memoryReviewResult.summary?.suppressed || 0} suppressed · {memoryReviewResult.summary?.elevated || 0} elevated · {memoryReviewResult.summary?.new || 0} new signals
+                    </span>
+                    <span>
+                      {memoryReviewResult.memoryAvailable?.hasBrief ? "brief ✓" : "brief ✗"}
+                      {" · "}{memoryReviewResult.memoryAvailable?.counterHeuristicCount || 0} CH
+                      {" · "}{memoryReviewResult.memoryAvailable?.signalMonths || 0} signal months
+                    </span>
+                  </div>
+                )}
+
+                {memoryReviewError && (
+                  <div style={{margin:"16px 0", padding:"12px 16px", borderRadius:6, border:"1px solid #7f1d1d", background:"#1a0505", fontFamily:"'Fira Code',monospace", fontSize:12, color:"#fca5a5"}}>
+                    Memory Review Error: {memoryReviewError}
+                  </div>
+                )}
 
                 {/* Account-specific notes + general + submit (findings tab) */}
                 {findingsFbMode && (
@@ -2098,82 +2159,6 @@ function AppInner() {
                   </>
                 )}
 
-                {/* ── Memory Review Results (Stage 2) ──────────────────────── */}
-                {memoryReviewError && (
-                  <div style={{margin:"16px 0", padding:"12px 16px", borderRadius:6, border:"1px solid #7f1d1d", background:"#1a0505", fontFamily:"'Fira Code',monospace", fontSize:12, color:"#fca5a5"}}>
-                    Memory Review Error: {memoryReviewError}
-                  </div>
-                )}
-                {memoryReviewResult && (
-                  <div style={{margin:"16px 0", border:"1px solid #2d1f5e", borderRadius:8, background:"#0d0b1a", overflow:"hidden"}}>
-                    <div onClick={() => setMemoryReviewCollapsed(c => !c)}
-                      style={{padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", borderBottom: memoryReviewCollapsed ? "none" : "1px solid #2d1f5e"}}>
-                      <div>
-                        <span style={{fontFamily:"'Fira Code',monospace", fontSize:11, color:"#a78bfa", letterSpacing:0.5}}>MEMORY REVIEW</span>
-                        <span style={{fontFamily:"'Fira Code',monospace", fontSize:11, color:"#6b7280", marginLeft:12}}>
-                          {memoryReviewResult.summary?.suppressed || 0} suppressed · {memoryReviewResult.summary?.elevated || 0} elevated · {memoryReviewResult.summary?.new || 0} new signals
-                        </span>
-                      </div>
-                      <span style={{color:"#6b7280", fontSize:12}}>{memoryReviewCollapsed ? "▸" : "▾"}</span>
-                    </div>
-                    {!memoryReviewCollapsed && (
-                      <div style={{padding:"12px 16px"}}>
-                        {/* Enriched findings */}
-                        {(memoryReviewResult.enrichedFindings || []).map((ef, i) => {
-                          const dColor = {keep:"#9ca3af", suppress:"#ef4444", elevate:"#f59e0b", context:"#60a5fa", new:"#4ade80"}[ef.disposition] || "#9ca3af";
-                          const dLabel = {keep:"KEEP", suppress:"SUPPRESS", elevate:"ELEVATE", context:"CONTEXT", new:"NEW"}[ef.disposition] || ef.disposition;
-                          return (
-                            <div key={i} style={{marginBottom:12, paddingBottom:12, borderBottom: i < (memoryReviewResult.enrichedFindings || []).length - 1 ? "1px solid #1a1a2e" : "none"}}>
-                              <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:4}}>
-                                <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, padding:"2px 8px", borderRadius:10, background:`${dColor}22`, color:dColor, fontWeight:600}}>{dLabel}</span>
-                                {ef.original?.accountNumber && (
-                                  <span style={{fontFamily:"'Fira Code',monospace", fontSize:11, color:"#e8c468"}}>{ef.original.accountNumber} {ef.original.accountName || ""}</span>
-                                )}
-                                {ef.ch_id && <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#a78bfa"}}>({ef.ch_id})</span>}
-                              </div>
-                              {ef.original?.issue && (
-                                <div style={{fontFamily:"'Lora',serif", fontSize:12, color:"#6b7280", marginBottom:4, textDecoration: ef.disposition === "suppress" ? "line-through" : "none"}}>
-                                  {ef.original.issue}
-                                </div>
-                              )}
-                              {ef.memory_note && (
-                                <div style={{fontFamily:"'Lora',serif", fontSize:12, color:"#a78bfa", lineHeight:1.6}}>
-                                  ↳ {ef.memory_note}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                        {/* New signals from memory */}
-                        {(memoryReviewResult.newSignals || []).length > 0 && (
-                          <div style={{marginTop:12, paddingTop:12, borderTop:"1px solid #2d1f5e"}}>
-                            <div style={{fontFamily:"'Fira Code',monospace", fontSize:10, color:"#4ade80", letterSpacing:0.5, marginBottom:8}}>NEW SIGNALS FROM MEMORY</div>
-                            {(memoryReviewResult.newSignals || []).map((ns, i) => (
-                              <div key={i} style={{marginBottom:8}}>
-                                <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:2}}>
-                                  <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, padding:"2px 8px", borderRadius:10, background:"#4ade8022", color:"#4ade80", fontWeight:600}}>NEW</span>
-                                  <span style={{fontFamily:"'Fira Code',monospace", fontSize:11, color:"#e8c468"}}>{ns.accountNumber} {ns.accountName || ""}</span>
-                                  {ns.severity && <span style={{fontFamily:"'Fira Code',monospace", fontSize:10, color: ns.severity === "high" ? "#ef4444" : "#f59e0b"}}>{ns.severity}</span>}
-                                </div>
-                                <div style={{fontFamily:"'Lora',serif", fontSize:12, color:"#9ca3af", lineHeight:1.6}}>{ns.issue}</div>
-                                {ns.memory_note && <div style={{fontFamily:"'Lora',serif", fontSize:12, color:"#a78bfa", lineHeight:1.6}}>↳ {ns.memory_note}</div>}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {/* Memory availability info */}
-                        {memoryReviewResult.memoryAvailable && (
-                          <div style={{marginTop:12, paddingTop:8, borderTop:"1px solid #1a1a2e", fontFamily:"'Fira Code',monospace", fontSize:10, color:"#4b5563"}}>
-                            Memory: {memoryReviewResult.memoryAvailable.hasBrief ? "brief ✓" : "brief ✗"}
-                            {" · "}{memoryReviewResult.memoryAvailable.counterHeuristicCount} counter-heuristics
-                            {" · "}{memoryReviewResult.memoryAvailable.signalMonths} signal months
-                            {" · "}{memoryReviewResult.memoryAvailable.hasPatterns ? "patterns ✓" : "patterns ✗"}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
 
               </div>
             ) : (
@@ -3418,14 +3403,4 @@ const s = {
   empty:      {textAlign:"center",padding:"60px 20px"},
   btnGold:    {background:"#e8c468",color:"#0e0e0e",border:"none",borderRadius:8,padding:"10px 20px",
                fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13},
-  btnOutline: {background:"transparent",color:"#9ca3af",border:"1px solid #2a2a2a",borderRadius:8,
-               padding:"10px 18px",fontFamily:"'Fira Code',monospace",fontSize:12},
-  error:      {marginTop:12,padding:"10px 14px",background:"#1a0a0a",border:"1px solid #3a1a1a",
-               borderRadius:6,fontFamily:"'Fira Code',monospace",fontSize:12,color:"#ef4444"},
-};
-
-export default function App() {
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem("ar_auth") === "1");
-  if (!authed) return <PasswordGate onAuth={() => setAuthed(true)} />;
-  return <AppInner />;
-}
+  btnOutline: {background:"transparent",color:"#9ca3af",border:"1px solid #2a2a2a",bor

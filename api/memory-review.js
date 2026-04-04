@@ -280,6 +280,7 @@ Respond with a JSON object matching this schema exactly:
   "enrichedFindings": [
     {
       "findingIndex": 0,
+      "accountNumber": "601001",
       "disposition": "keep|suppress|elevate|context",
       "memory_note": "explanation of why this disposition was chosen",
       "confidence_adjustment": 0.0,
@@ -345,9 +346,16 @@ IMPORTANT: Return ONLY the JSON object, no markdown fences, no explanation outsi
       });
     }
 
-    // 7. Merge enriched findings with originals
+    // 7. Merge enriched findings with originals (match by accountNumber first, index fallback)
     const enrichedFindings = (parsed.enrichedFindings || []).map(ef => {
-      const original = findings[ef.findingIndex] || null;
+      let original = null;
+      // Prefer matching by account number to avoid index offset issues
+      if (ef.accountNumber) {
+        original = findings.find(f => f.accountNumber === ef.accountNumber) || null;
+      }
+      if (!original && ef.findingIndex != null) {
+        original = findings[ef.findingIndex] || null;
+      }
       return {
         original,
         disposition: ef.disposition,
