@@ -143,6 +143,8 @@ async function main() {
       ["memory:budget_intelligence",   readJSON(path.join(MEMORY, "BUDGET_INTELLIGENCE.json"))],
       ["memory:fee_verification",      readJSON(path.join(MEMORY, "fees/FEE_VERIFICATION_ENGINE.json"))],
       ["memory:fee_rates",             readJSON(path.join(MEMORY, "fees/RATE_KB.json"))],
+      ["memory:reliable_error_patterns", readJSON(path.join(MEMORY, "RELIABLE_ERROR_PATTERNS.json"))],
+      ["memory:portfolio_crossref",      readJSON(path.join(MEMORY, "PORTFOLIO_IS_GL_CROSSREF.json"))],
     ];
     for (const [key, data] of globals) {
       if (!data) { console.log(`  skip: ${key} (file not found)`); continue; }

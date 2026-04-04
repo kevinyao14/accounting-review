@@ -147,19 +147,18 @@ export default async function handler(req, res) {
         return res.status(200).json(raw ? JSON.parse(raw) : null);
       }
 
-      // Global Blob data (large files)
+      // Global Blob data (large files — falls back to direct KV from seed script)
       if (type === "global-blob") {
-        if (key === "reliable_error_patterns") {
-          const idxRaw = await kvGet("memory:blob:reliable_error_patterns");
-          if (!idxRaw) return res.status(200).json(null);
-          const data = await blobGet(idxRaw);
-          return res.status(200).json(data);
-        }
-        if (key === "portfolio_crossref") {
-          const idxRaw = await kvGet("memory:blob:portfolio_crossref");
-          if (!idxRaw) return res.status(200).json(null);
-          const data = await blobGet(idxRaw);
-          return res.status(200).json(data);
+        if (key === "reliable_error_patterns" || key === "portfolio_crossref") {
+          // Try Blob pointer first
+          const idxRaw = await kvGet(`memory:blob:${key}`);
+          if (idxRaw) {
+            const data = await blobGet(idxRaw);
+            return res.status(200).json(data);
+          }
+          // Fallback: seed-memory-direct stores directly in KV
+          const kvRaw = await kvGet(`memory:${key}`);
+          return res.status(200).json(kvRaw ? JSON.parse(kvRaw) : null);
         }
         return res.status(400).json({ error: "Invalid global-blob key" });
       }
@@ -356,10 +355,15 @@ async function handleVerify(res) {
     report.globals[key] = raw ? { present: true, bytes: raw.length } : { present: false };
   }
 
-  // Check global blobs
+  // Check global blobs (also check direct KV fallback from seed-memory-direct)
   for (const blobKey of ["reliable_error_patterns", "portfolio_crossref"]) {
     const url = await kvGet(`memory:blob:${blobKey}`);
-    report.globals[blobKey] = url ? { present: true, storage: "blob" } : { present: false };
+    if (url) {
+      report.globals[blobKey] = { present: true, storage: "blob" };
+    } else {
+      const kvRaw = await kvGet(`memory:${blobKey}`);
+      report.globals[blobKey] = kvRaw ? { present: true, bytes: kvRaw.length, storage: "kv" } : { present: false };
+    }
   }
 
   // Check property index and per-property data
