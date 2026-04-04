@@ -3403,4 +3403,14 @@ const s = {
   empty:      {textAlign:"center",padding:"60px 20px"},
   btnGold:    {background:"#e8c468",color:"#0e0e0e",border:"none",borderRadius:8,padding:"10px 20px",
                fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:13},
-  btnOutline: {background:"transparent",color:"#9ca3af",border:"1px solid #2a2a2a",bor
+  btnOutline: {background:"transparent",color:"#9ca3af",border:"1px solid #2a2a2a",borderRadius:8,
+               padding:"10px 18px",fontFamily:"'Fira Code',monospace",fontSize:12},
+  error:      {marginTop:12,padding:"10px 14px",background:"#1a0a0a",border:"1px solid #3a1a1a",
+               borderRadius:6,fontFamily:"'Fira Code',monospace",fontSize:12,color:"#ef4444"},
+};
+
+export default function App() {
+  const [authed, setAuthed] = useState(() => sessionStorage.getItem("ar_auth") === "1");
+  if (!authed) return <PasswordGate onAuth={() => setAuthed(true)} />;
+  return <AppInner />;
+}
