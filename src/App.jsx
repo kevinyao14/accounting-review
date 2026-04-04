@@ -3003,8 +3003,12 @@ function AppInner() {
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",transition:"transform 0.15s",transform:kbPatternsOpen?"rotate(90deg)":"rotate(0deg)"}}>&#9654;</span>
                           <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468",letterSpacing:0.5}}>ACCOUNT PATTERNS</span>
-                          {kbPatterns !== null && (() => {
-                            const total = (kbPatterns.stable_accounts?.length || 0) + (kbPatterns.volatile_accounts?.length || 0) + (kbPatterns.reversal_pairs?.length || 0) + (kbPatterns.trending?.length || 0);
+                          {kbPatterns !== null && typeof kbPatterns === "object" && (() => {
+                            const sa = Array.isArray(kbPatterns.stable_accounts) ? kbPatterns.stable_accounts.length : 0;
+                            const va = Array.isArray(kbPatterns.volatile_accounts) ? kbPatterns.volatile_accounts.length : 0;
+                            const rp = Array.isArray(kbPatterns.reversal_pairs) ? kbPatterns.reversal_pairs.length : 0;
+                            const tr = Array.isArray(kbPatterns.trending) ? kbPatterns.trending.length : 0;
+                            const total = sa + va + rp + tr;
                             return <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",background:"#1e1e1e",borderRadius:10,padding:"1px 7px"}}>{total ? `${total} entries` : "empty"}</span>;
                           })()}
                         </div>
@@ -3016,14 +3020,14 @@ function AppInner() {
                           {kbPatterns !== null && !kbPatterns.stable_accounts && !kbPatterns.volatile_accounts && !kbPatterns.reversal_pairs && !kbPatterns.trending && (
                             <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>No patterns found for this property.</div>
                           )}
-                          {kbPatterns !== null && [
+                          {kbPatterns !== null && typeof kbPatterns === "object" && !Array.isArray(kbPatterns) && [
                             { key: "stable_accounts", label: "Stable Accounts", desc: "Low volatility (CV < 0.05) — anomalies here are more significant", color: "#4ade80" },
                             { key: "volatile_accounts", label: "Volatile Accounts", desc: "High volatility (CV > 0.20) — variance is expected", color: "#fbbf24" },
                             { key: "reversal_pairs", label: "Reversal Pairs", desc: "Expected accrual-reversal cycles", color: "#818cf8" },
                             { key: "trending", label: "Trending", desc: "Sustained growth or decline", color: "#f472b6" },
                           ].map(section => {
                             const items = kbPatterns[section.key];
-                            if (!items || items.length === 0) return null;
+                            if (!Array.isArray(items) || items.length === 0) return null;
                             return (
                               <div key={section.key} style={{marginBottom:14}}>
                                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -3033,9 +3037,11 @@ function AppInner() {
                                 <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                                   {items.map((item, i) => {
                                     const label = typeof item === "string" ? item
-                                      : item.account || item.debit_account
-                                        ? `${item.account || item.debit_account}${item.credit_account ? " ↔ " + item.credit_account : ""}${item.direction ? " " + item.direction : ""}`
-                                        : JSON.stringify(item);
+                                      : (item && typeof item === "object")
+                                        ? (item.account || item.debit_account || item.account_code
+                                          ? `${item.account || item.debit_account || item.account_code}${item.account_name ? " " + item.account_name : ""}${item.credit_account ? " ↔ " + item.credit_account : ""}${item.direction ? " " + item.direction : ""}`
+                                          : JSON.stringify(item))
+                                        : String(item);
                                     return (
                                       <span key={i} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#d1d5db",
                                         background:"#0a0a0a",border:"1px solid #1e1e1e",borderRadius:4,padding:"3px 8px"}}>{label}</span>
