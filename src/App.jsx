@@ -3063,6 +3063,167 @@ function AppInner() {
                         style={{...s.textarea, minHeight:180, resize:"vertical", width:"100%", color:"#6b7280"}} />
                     </div>
 
+                    {/* ── Counter-Heuristics Management (global scope only) ────────── */}
+                    {kbScope === "global" && <div style={{...s.panel, marginTop:20}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}
+                        onClick={() => {
+                          setChOpen(!chOpen);
+                          if (!chOpen && chRules === null) {
+                            fetch("/api/memory-store?type=global&key=counter_heuristics")
+                              .then(r => r.json())
+                              .then(data => setChRules(Array.isArray(data) ? data : []))
+                              .catch(() => setChRules([]));
+                          }
+                        }}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",transition:"transform 0.15s",transform:chOpen?"rotate(90deg)":"rotate(0deg)"}}>&#9654;</span>
+                          <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,color:"#f5f5f5"}}>Counter-Heuristics</span>
+                          {chRules !== null && <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",background:"#1e1e1e",borderRadius:10,padding:"1px 7px"}}>{chRules.length} rules</span>}
+                        </div>
+                        <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563"}}>{chOpen ? "collapse" : "expand"}</span>
+                      </div>
+
+                      {chOpen && (
+                        <div style={{marginTop:14}}>
+                          {chRules === null && (
+                            <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280"}}>Loading...</div>
+                          )}
+
+                          {chRules !== null && chRules.length === 0 && chEditing !== "new" && (
+                            <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",marginBottom:12}}>No counter-heuristics configured yet.</div>
+                          )}
+
+                          {chRules !== null && chRules.map(ch => (
+                            chEditing === ch.id ? (
+                              /* ── Inline edit form ─────────────────────────────── */
+                              <div key={ch.id} style={{background:"#0a0a0a",border:"1px solid #2a2a2a",borderRadius:8,padding:"14px 16px",marginBottom:8}}>
+                                <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
+                                  <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>ID</label>
+                                  <input value={chDraft.id} readOnly style={{...s.input,fontSize:11,padding:"5px 8px",background:"#111",color:"#6b7280"}} />
+                                </div>
+                                <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
+                                  <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Type</label>
+                                  <input value={chDraft.finding_type} onChange={e => setChDraft({...chDraft, finding_type: e.target.value})}
+                                    style={{...s.input,fontSize:11,padding:"5px 8px"}} placeholder="e.g. Payroll variance" />
+                                </div>
+                                <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
+                                  <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Condition</label>
+                                  <textarea value={chDraft.condition} onChange={e => setChDraft({...chDraft, condition: e.target.value})}
+                                    style={{...s.textarea,fontSize:11,minHeight:50,padding:"5px 8px"}} placeholder="When to suppress..." />
+                                </div>
+                                <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:10}}>
+                                  <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Guidance</label>
+                                  <textarea value={chDraft.guidance} onChange={e => setChDraft({...chDraft, guidance: e.target.value})}
+                                    style={{...s.textarea,fontSize:11,minHeight:50,padding:"5px 8px"}} placeholder="What reviewer should do..." />
+                                </div>
+                                <div style={{display:"flex",gap:8}}>
+                                  <button className="btn" style={{...s.btn,background:"#854d0e",color:"#fbbf24"}}
+                                    onClick={() => {
+                                      setChRules(prev => prev.map(r => r.id === ch.id ? {...chDraft} : r));
+                                      setChEditing(null);
+                                    }}>Apply</button>
+                                  <button className="btn" style={s.btn} onClick={() => setChEditing(null)}>Cancel</button>
+                                  <button className="btn" style={{...s.btn,marginLeft:"auto",borderColor:"#7f1d1d",color:"#f87171"}}
+                                    onClick={() => {
+                                      if (!window.confirm(`Delete rule ${ch.id}?`)) return;
+                                      setChRules(prev => prev.filter(r => r.id !== ch.id));
+                                      setChEditing(null);
+                                    }}>Delete</button>
+                                </div>
+                              </div>
+                            ) : (
+                              /* ── Display row ──────────────────────────────────── */
+                              <div key={ch.id} style={{display:"flex",gap:10,padding:"10px 12px",background:"#0a0a0a",borderRadius:6,border:"1px solid #1e1e1e",marginBottom:6,cursor:"pointer",transition:"border-color 0.15s"}}
+                                onClick={() => { setChEditing(ch.id); setChDraft({...ch}); }}
+                                onMouseEnter={e => e.currentTarget.style.borderColor = "#333"}
+                                onMouseLeave={e => e.currentTarget.style.borderColor = "#1e1e1e"}>
+                                <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#e8c468",background:"#1a1a0a",border:"1px solid #333",borderRadius:4,padding:"2px 6px",flexShrink:0,height:"fit-content"}}>{ch.id}</span>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:12,color:"#d1d5db",marginBottom:2}}>{ch.finding_type}</div>
+                                  <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#9ca3af",lineHeight:1.5}}>{ch.condition}</div>
+                                  <div style={{fontFamily:"'Lora',serif",fontSize:11,color:"#6b7280",marginTop:3,fontStyle:"italic"}}>{ch.guidance}</div>
+                                </div>
+                              </div>
+                            )
+                          ))}
+
+                          {/* ── New rule form ──────────────────────────────────── */}
+                          {chEditing === "new" && (
+                            <div style={{background:"#0a0a0a",border:"1px solid #2a2a2a",borderRadius:8,padding:"14px 16px",marginBottom:8}}>
+                              <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
+                                <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>ID</label>
+                                <input value={chDraft.id} onChange={e => setChDraft({...chDraft, id: e.target.value})}
+                                  style={{...s.input,fontSize:11,padding:"5px 8px"}} placeholder="e.g. CH045" />
+                              </div>
+                              <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
+                                <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Type</label>
+                                <input value={chDraft.finding_type} onChange={e => setChDraft({...chDraft, finding_type: e.target.value})}
+                                  style={{...s.input,fontSize:11,padding:"5px 8px"}} placeholder="e.g. Payroll variance" />
+                              </div>
+                              <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
+                                <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Condition</label>
+                                <textarea value={chDraft.condition} onChange={e => setChDraft({...chDraft, condition: e.target.value})}
+                                  style={{...s.textarea,fontSize:11,minHeight:50,padding:"5px 8px"}} placeholder="When to suppress..." />
+                              </div>
+                              <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:10}}>
+                                <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Guidance</label>
+                                <textarea value={chDraft.guidance} onChange={e => setChDraft({...chDraft, guidance: e.target.value})}
+                                  style={{...s.textarea,fontSize:11,minHeight:50,padding:"5px 8px"}} placeholder="What reviewer should do..." />
+                              </div>
+                              <div style={{display:"flex",gap:8}}>
+                                <button className="btn" style={{...s.btn,background:"#854d0e",color:"#fbbf24"}}
+                                  disabled={!chDraft.id.trim() || !chDraft.finding_type.trim()}
+                                  onClick={() => {
+                                    setChRules(prev => [...prev, {...chDraft}]);
+                                    setChEditing(null);
+                                  }}>Add Rule</button>
+                                <button className="btn" style={s.btn} onClick={() => setChEditing(null)}>Cancel</button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ── Action buttons ─────────────────────────────────── */}
+                          {chRules !== null && (
+                            <div style={{display:"flex",gap:8,marginTop:10}}>
+                              {chEditing !== "new" && (
+                                <button className="btn" style={s.btn}
+                                  onClick={() => {
+                                    const maxNum = chRules.reduce((max, r) => {
+                                      const m = r.id.match(/^CH(\d+)$/);
+                                      return m ? Math.max(max, parseInt(m[1])) : max;
+                                    }, 0);
+                                    setChDraft({ id: `CH${String(maxNum + 1).padStart(3, "0")}`, finding_type: "", condition: "", guidance: "" });
+                                    setChEditing("new");
+                                  }}>+ Add Rule</button>
+                              )}
+                              <button className="btn" style={{...s.btn,background:"#854d0e",color:"#fbbf24"}}
+                                disabled={chSaving}
+                                onClick={async () => {
+                                  setChSaving(true);
+                                  setChError("");
+                                  try {
+                                    const res = await fetch("/api/memory-store", {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ type: "global", key: "counter_heuristics", data: chRules }),
+                                    });
+                                    const d = await res.json();
+                                    if (!res.ok || d.error) throw new Error(d.error || "Save failed");
+                                    setChError("Saved");
+                                    setTimeout(() => setChError(""), 2500);
+                                  } catch (e) { setChError(e.message); }
+                                  finally { setChSaving(false); }
+                                }}>{chSaving ? "Saving..." : "Save to KV"}</button>
+                              {chError && (
+                                <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,alignSelf:"center",
+                                  color: chError === "Saved" ? "#4ade80" : "#f87171"}}>{chError}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>}
+
                   </>
                 )}
               </>
@@ -3143,166 +3304,6 @@ function AppInner() {
               </div>
             )}
 
-            {/* ── Counter-Heuristics Management ─────────────────────────────── */}
-            <div style={{marginTop:24,borderTop:"1px solid #1e1e1e",paddingTop:20}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer"}}
-                onClick={() => {
-                  setChOpen(!chOpen);
-                  if (!chOpen && chRules === null) {
-                    fetch("/api/memory-store?type=global&key=counter_heuristics")
-                      .then(r => r.json())
-                      .then(data => setChRules(Array.isArray(data) ? data : []))
-                      .catch(() => setChRules([]));
-                  }
-                }}>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",transition:"transform 0.15s",transform:chOpen?"rotate(90deg)":"rotate(0deg)"}}>&#9654;</span>
-                  <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:15,color:"#f5f5f5"}}>Counter-Heuristics</span>
-                  {chRules !== null && <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",background:"#1e1e1e",borderRadius:10,padding:"1px 7px"}}>{chRules.length} rules</span>}
-                </div>
-                <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563"}}>{chOpen ? "collapse" : "expand"}</span>
-              </div>
-
-              {chOpen && (
-                <div style={{marginTop:14}}>
-                  {chRules === null && (
-                    <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280"}}>Loading...</div>
-                  )}
-
-                  {chRules !== null && chRules.length === 0 && chEditing !== "new" && (
-                    <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",marginBottom:12}}>No counter-heuristics configured yet.</div>
-                  )}
-
-                  {chRules !== null && chRules.map(ch => (
-                    chEditing === ch.id ? (
-                      /* ── Inline edit form ─────────────────────────────── */
-                      <div key={ch.id} style={{background:"#0a0a0a",border:"1px solid #2a2a2a",borderRadius:8,padding:"14px 16px",marginBottom:8}}>
-                        <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
-                          <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>ID</label>
-                          <input value={chDraft.id} readOnly style={{...s.input,fontSize:11,padding:"5px 8px",background:"#111",color:"#6b7280"}} />
-                        </div>
-                        <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
-                          <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Type</label>
-                          <input value={chDraft.finding_type} onChange={e => setChDraft({...chDraft, finding_type: e.target.value})}
-                            style={{...s.input,fontSize:11,padding:"5px 8px"}} placeholder="e.g. Payroll variance" />
-                        </div>
-                        <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
-                          <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Condition</label>
-                          <textarea value={chDraft.condition} onChange={e => setChDraft({...chDraft, condition: e.target.value})}
-                            style={{...s.textarea,fontSize:11,minHeight:50,padding:"5px 8px"}} placeholder="When to suppress..." />
-                        </div>
-                        <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:10}}>
-                          <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Guidance</label>
-                          <textarea value={chDraft.guidance} onChange={e => setChDraft({...chDraft, guidance: e.target.value})}
-                            style={{...s.textarea,fontSize:11,minHeight:50,padding:"5px 8px"}} placeholder="What reviewer should do..." />
-                        </div>
-                        <div style={{display:"flex",gap:8}}>
-                          <button className="btn" style={{...s.btn,background:"#854d0e",color:"#fbbf24"}}
-                            onClick={() => {
-                              setChRules(prev => prev.map(r => r.id === ch.id ? {...chDraft} : r));
-                              setChEditing(null);
-                            }}>Apply</button>
-                          <button className="btn" style={s.btn} onClick={() => setChEditing(null)}>Cancel</button>
-                          <button className="btn" style={{...s.btn,marginLeft:"auto",borderColor:"#7f1d1d",color:"#f87171"}}
-                            onClick={() => {
-                              if (!window.confirm(`Delete rule ${ch.id}?`)) return;
-                              setChRules(prev => prev.filter(r => r.id !== ch.id));
-                              setChEditing(null);
-                            }}>Delete</button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* ── Display row ──────────────────────────────────── */
-                      <div key={ch.id} style={{display:"flex",gap:10,padding:"10px 12px",background:"#0a0a0a",borderRadius:6,border:"1px solid #1e1e1e",marginBottom:6,cursor:"pointer",transition:"border-color 0.15s"}}
-                        onClick={() => { setChEditing(ch.id); setChDraft({...ch}); }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = "#333"}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = "#1e1e1e"}>
-                        <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#e8c468",background:"#1a1a0a",border:"1px solid #333",borderRadius:4,padding:"2px 6px",flexShrink:0,height:"fit-content"}}>{ch.id}</span>
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontFamily:"'Syne',sans-serif",fontWeight:600,fontSize:12,color:"#d1d5db",marginBottom:2}}>{ch.finding_type}</div>
-                          <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#9ca3af",lineHeight:1.5}}>{ch.condition}</div>
-                          <div style={{fontFamily:"'Lora',serif",fontSize:11,color:"#6b7280",marginTop:3,fontStyle:"italic"}}>{ch.guidance}</div>
-                        </div>
-                      </div>
-                    )
-                  ))}
-
-                  {/* ── New rule form ──────────────────────────────────── */}
-                  {chEditing === "new" && (
-                    <div style={{background:"#0a0a0a",border:"1px solid #2a2a2a",borderRadius:8,padding:"14px 16px",marginBottom:8}}>
-                      <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
-                        <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>ID</label>
-                        <input value={chDraft.id} onChange={e => setChDraft({...chDraft, id: e.target.value})}
-                          style={{...s.input,fontSize:11,padding:"5px 8px"}} placeholder="e.g. CH045" />
-                      </div>
-                      <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
-                        <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Type</label>
-                        <input value={chDraft.finding_type} onChange={e => setChDraft({...chDraft, finding_type: e.target.value})}
-                          style={{...s.input,fontSize:11,padding:"5px 8px"}} placeholder="e.g. Payroll variance" />
-                      </div>
-                      <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:8}}>
-                        <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Condition</label>
-                        <textarea value={chDraft.condition} onChange={e => setChDraft({...chDraft, condition: e.target.value})}
-                          style={{...s.textarea,fontSize:11,minHeight:50,padding:"5px 8px"}} placeholder="When to suppress..." />
-                      </div>
-                      <div style={{display:"grid",gridTemplateColumns:"80px 1fr",gap:8,marginBottom:10}}>
-                        <label style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",paddingTop:6}}>Guidance</label>
-                        <textarea value={chDraft.guidance} onChange={e => setChDraft({...chDraft, guidance: e.target.value})}
-                          style={{...s.textarea,fontSize:11,minHeight:50,padding:"5px 8px"}} placeholder="What reviewer should do..." />
-                      </div>
-                      <div style={{display:"flex",gap:8}}>
-                        <button className="btn" style={{...s.btn,background:"#854d0e",color:"#fbbf24"}}
-                          disabled={!chDraft.id.trim() || !chDraft.finding_type.trim()}
-                          onClick={() => {
-                            setChRules(prev => [...prev, {...chDraft}]);
-                            setChEditing(null);
-                          }}>Add Rule</button>
-                        <button className="btn" style={s.btn} onClick={() => setChEditing(null)}>Cancel</button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Action buttons ─────────────────────────────────── */}
-                  {chRules !== null && (
-                    <div style={{display:"flex",gap:8,marginTop:10}}>
-                      {chEditing !== "new" && (
-                        <button className="btn" style={s.btn}
-                          onClick={() => {
-                            const maxNum = chRules.reduce((max, r) => {
-                              const m = r.id.match(/^CH(\d+)$/);
-                              return m ? Math.max(max, parseInt(m[1])) : max;
-                            }, 0);
-                            setChDraft({ id: `CH${String(maxNum + 1).padStart(3, "0")}`, finding_type: "", condition: "", guidance: "" });
-                            setChEditing("new");
-                          }}>+ Add Rule</button>
-                      )}
-                      <button className="btn" style={{...s.btn,background:"#854d0e",color:"#fbbf24"}}
-                        disabled={chSaving}
-                        onClick={async () => {
-                          setChSaving(true);
-                          setChError("");
-                          try {
-                            const res = await fetch("/api/memory-store", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ type: "global", key: "counter_heuristics", data: chRules }),
-                            });
-                            const d = await res.json();
-                            if (!res.ok || d.error) throw new Error(d.error || "Save failed");
-                            setChError("Saved");
-                            setTimeout(() => setChError(""), 2500);
-                          } catch (e) { setChError(e.message); }
-                          finally { setChSaving(false); }
-                        }}>{chSaving ? "Saving..." : "Save to KV"}</button>
-                      {chError && (
-                        <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,alignSelf:"center",
-                          color: chError === "Saved" ? "#4ade80" : "#f87171"}}>{chError}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
         )}
 
