@@ -387,6 +387,7 @@ export default async function handler(req, res) {
           access: "private",
           contentType: "text/csv",
           addRandomSuffix: false,
+          allowOverwrite: true,
         });
 
         // 5. Update property metadata
@@ -438,6 +439,7 @@ export default async function handler(req, res) {
             access: "private",
             contentType: "application/json",
             addRandomSuffix: false,
+            allowOverwrite: true,
           });
 
           // Update or insert in GL month index
@@ -469,6 +471,7 @@ export default async function handler(req, res) {
           access: "private",
           contentType: "text/csv",
           addRandomSuffix: false,
+          allowOverwrite: true,
         });
 
         // 4. Update property metadata
@@ -529,6 +532,7 @@ export default async function handler(req, res) {
           access: "private",
           contentType: "text/csv",
           addRandomSuffix: false,
+          allowOverwrite: true,
         });
 
         // 5. Update budget period index (track which fiscal years we have)
