@@ -1,11 +1,16 @@
 {
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
   "functions": {
-    "api/report.js":        { "maxDuration": 180 },
-    "api/export-report.js": { "maxDuration": 60 },
+    "api/claude.js":        { "maxDuration": 300 },
     "api/memory-review.js": { "maxDuration": 300 },
+    "api/report.js":        { "maxDuration": 180 },
+    "api/memory-chat.js":   { "maxDuration": 120 },
+    "api/kb-chat.js":       { "maxDuration": 60 },
+    "api/kb-compress.js":   { "maxDuration": 60 },
     "api/memory-store.js":  { "maxDuration": 60 },
     "api/data-store.js":    { "maxDuration": 60 },
-    "api/memory-chat.js":   { "maxDuration": 120 }
+    "api/export-report.js": { "maxDuration": 60 },
+    "api/history.js":       { "maxDuration": 30 },
+    "api/memory-context.js": { "maxDuration": 30 }
   }
 }

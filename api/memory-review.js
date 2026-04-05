@@ -317,7 +317,7 @@ IMPORTANT: Return ONLY the JSON object, no markdown fences, no explanation outsi
       const cleaned = responseText.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
       parsed = JSON.parse(cleaned);
     } catch (e) {
-      return res.status(200).json({
+      return res.status(422).json({
         error: "Could not parse Claude response as JSON",
         rawResponse: responseText,
         findings,
