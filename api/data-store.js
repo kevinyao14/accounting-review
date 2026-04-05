@@ -93,8 +93,10 @@ function extractGlTransactions(rawCsv) {
 
   const headerCols = lines[headerIdx].split(",").map(c => c.trim());
   const postedIdx  = headerCols.findIndex(c => /Posted Dt\./i.test(c));
+  const docIdx     = headerCols.findIndex(c => /^Doc$/i.test(c));
   const descIdx    = headerCols.findIndex(c => /Description/i.test(c));
   const vendorIdx  = headerCols.findIndex(c => /Vendor/i.test(c));
+  const jnlIdx     = headerCols.findIndex(c => /^JNL$/i.test(c));
   const debitIdx   = headerCols.length - 3;
   const creditIdx  = headerCols.length - 2;
 
@@ -137,8 +139,10 @@ function extractGlTransactions(rawCsv) {
         monthKey,
         entry: {
           date: posted,
+          doc: docIdx >= 0 ? (cols[docIdx] ?? "").trim() : "",
           description: descIdx >= 0 ? (cols[descIdx] ?? "").trim() : "",
           vendor: vendorIdx >= 0 ? (cols[vendorIdx] ?? "").trim() : "",
+          jnl: jnlIdx >= 0 ? (cols[jnlIdx] ?? "").trim() : "",
           debit,
           credit,
         },
