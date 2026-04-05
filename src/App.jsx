@@ -1756,8 +1756,8 @@ function AppInner() {
                           <div style={{display:"flex",gap:6,marginBottom:8}}>
                             {[
                               {val:"correct",        label:"✓ Review Correct: No Actions",     color:"#4ade80"},
-                              {val:"false_positive", label:"✗ Review Error Present",            color:"#f87171"},
                               {val:"needs_review",   label:"? Review Correct: Actions Required",color:"#e8c468"},
+                              {val:"false_positive", label:"✗ Review Error Present",            color:"#f87171"},
                             ].map(opt => (
                               <button key={opt.val} className="btn"
                                 onClick={() => setFindingsFbDraft(d => ({
@@ -2591,8 +2591,8 @@ function AppInner() {
                                       <div style={{display:"flex",gap:6,marginBottom:8}}>
                                         {[
                                           {val:"correct",        label:"✓ Review Correct: No Actions",      color:"#4ade80"},
-                                          {val:"false_positive", label:"✗ Review Error Present",            color:"#f87171"},
                                           {val:"needs_review",   label:"? Review Correct: Actions Required",color:"#e8c468"},
+                                          {val:"false_positive", label:"✗ Review Error Present",            color:"#f87171"},
                                         ].map(opt => (
                                           <button key={opt.val} className="btn"
                                             onClick={() => setFeedbackDraft(d => ({
