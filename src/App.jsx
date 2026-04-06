@@ -205,6 +205,8 @@ function AppInner() {
   const [coaNewMapOpen, setCoaNewMapOpen]   = useState(false);
   const [coaNewMapLabel, setCoaNewMapLabel] = useState("");
   const [coaNewMapErr, setCoaNewMapErr]     = useState("");
+  const [coaImportPreview, setCoaImportPreview] = useState(null); // { mapLabel, mapKey, isNewGroup, rows[], diff }
+  const [coaImportApplying, setCoaImportApplying] = useState(false);
 
   const [detailOpen, setDetailOpen]           = useState({});
   const toggleDetail = (acct, type) => setDetailOpen(prev => ({
@@ -219,6 +221,7 @@ function AppInner() {
   const isFileRef         = useRef(null);
   const glFileRef         = useRef(null);
   const budgetFileRef     = useRef(null);
+  const coaImportRef      = useRef(null);
   const expandedReviewRef = useRef(null);
 
   // Load checklist: localStorage first (instant), then sync from KV in background
@@ -459,6 +462,163 @@ function AppInner() {
       XLSX.write(wb, { bookType: "xlsx", type: "array" });
       XLSX.writeFile(wb, `COA_STYL_${mapLabel}.xlsx`);
     }
+  };
+
+  const coaHandleImportFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        let parsed;
+        if (file.name.endsWith(".csv") || file.name.endsWith(".txt")) {
+          // Parse CSV
+          const text = ev.target.result;
+          const lines = text.split(/\r?\n/).filter(l => l.trim());
+          if (lines.length < 2) throw new Error("File must have a header row and at least one data row");
+          const headers = lines[0].split(",").map(h => h.trim().replace(/^"|"$/g, ""));
+          parsed = lines.slice(1).map(line => {
+            const vals = [];
+            let cur = "", inQ = false;
+            for (let i = 0; i < line.length; i++) {
+              const c = line[i];
+              if (c === '"') { inQ = !inQ; continue; }
+              if (c === ',' && !inQ) { vals.push(cur.trim()); cur = ""; continue; }
+              cur += c;
+            }
+            vals.push(cur.trim());
+            const row = {};
+            headers.forEach((h, i) => { row[h] = vals[i] || ""; });
+            return row;
+          });
+        } else {
+          // Parse Excel
+          const wb = XLSX.read(ev.target.result, { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          parsed = XLSX.utils.sheet_to_json(ws, { defval: "" });
+        }
+
+        if (!parsed.length) throw new Error("No data rows found");
+
+        // Detect columns: first two must be STYL GL / STYL Account, next three are [Group] GL / Account / Notes
+        const headers = Object.keys(parsed[0]);
+        if (headers.length < 3) throw new Error("Need at least 3 columns: STYL GL, STYL Account, and one mapping GL column");
+
+        const stylGlCol = headers[0];
+        const stylNameCol = headers[1];
+        // Detect group label from 3rd column header (e.g. "Invesco GL" -> "Invesco", "Goldman GL" -> "Goldman")
+        const mapGlCol = headers[2];
+        const mapNameCol = headers[3] || null;
+        const mapNotesCol = headers[4] || null;
+        const mapLabel = mapGlCol.replace(/\s*GL$/i, "").trim() || "Imported";
+
+        // Check if this maps to an existing group
+        const mapKey = mapLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+        const isNewGroup = !coaData?.mapKeys?.some(m => m.key === mapKey);
+        const existingMappings = coaData?.maps?.[mapKey]?.mappings || {};
+
+        // Build import rows and diff
+        const stylLookup = {};
+        (coaData?.stylAccounts || []).forEach(a => { stylLookup[a.gl] = a; });
+
+        const diff = { added: 0, updated: 0, unchanged: 0, newStyl: 0 };
+        const rows = parsed.map(r => {
+          const stylGl = String(r[stylGlCol] || "").trim();
+          const stylName = String(r[stylNameCol] || "").trim();
+          const mGl = String(r[mapGlCol] || "").trim();
+          const mName = mapNameCol ? String(r[mapNameCol] || "").trim() : "";
+          const mNotes = mapNotesCol ? String(r[mapNotesCol] || "").trim() : "";
+          if (!stylGl) return null;
+
+          const isNewStyl = !stylLookup[stylGl];
+          const existing = existingMappings[stylGl] || {};
+          const changed = existing.gl !== mGl || existing.name !== mName || (existing.notes || "") !== mNotes;
+          const hasMapping = mGl || mName;
+
+          let status;
+          if (isNewStyl) { status = "new-styl"; diff.newStyl++; }
+          else if (!hasMapping) { status = "unchanged"; diff.unchanged++; }
+          else if (!existing.gl && !existing.name) { status = "added"; diff.added++; }
+          else if (changed) { status = "updated"; diff.updated++; }
+          else { status = "unchanged"; diff.unchanged++; }
+
+          return { stylGl, stylName, mGl, mName, mNotes, status, existing: { gl: existing.gl || "", name: existing.name || "", notes: existing.notes || "" } };
+        }).filter(Boolean);
+
+        setCoaImportPreview({ mapLabel, mapKey, isNewGroup, rows, diff, fileName: file.name });
+      } catch (err) {
+        setCoaError("Import error: " + err.message);
+      }
+    };
+
+    if (file.name.endsWith(".csv") || file.name.endsWith(".txt")) {
+      reader.readAsText(file);
+    } else {
+      reader.readAsArrayBuffer(file);
+    }
+  };
+
+  const coaImportApply = async () => {
+    if (!coaImportPreview || !coaData) return;
+    setCoaImportApplying(true);
+    setCoaError("");
+    try {
+      const { mapKey, mapLabel, isNewGroup, rows } = coaImportPreview;
+      const pw = kbPw || sessionStorage.getItem("kb_pw") || "";
+
+      // Create group if new
+      if (isNewGroup) {
+        const res = await fetch("/api/coa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "create-map", password: pw, mapKey, label: mapLabel }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || "Failed to create group");
+      }
+
+      // Build updated STYL accounts (add any new ones)
+      const stylLookup = {};
+      coaData.stylAccounts.forEach(a => { stylLookup[a.gl] = true; });
+      const newStylAccounts = [...coaData.stylAccounts];
+      rows.forEach(r => {
+        if (!stylLookup[r.stylGl] && r.stylName) {
+          newStylAccounts.push({ gl: r.stylGl, name: r.stylName });
+          stylLookup[r.stylGl] = true;
+        }
+      });
+
+      // Build updated mappings
+      const existingMap = coaData.maps?.[mapKey] || { label: mapLabel, mappings: {} };
+      const updatedMappings = { ...existingMap.mappings };
+      rows.forEach(r => {
+        if (r.mGl || r.mName) {
+          updatedMappings[r.stylGl] = { gl: r.mGl, name: r.mName, notes: r.mNotes, updatedAt: new Date().toISOString() };
+        }
+      });
+
+      const res = await fetch("/api/coa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save", password: pw,
+          stylAccounts: newStylAccounts,
+          mapKey,
+          mapData: { label: existingMap.label || mapLabel, mappings: updatedMappings },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Save failed");
+
+      setCoaActiveMap(mapKey);
+      setCoaImportPreview(null);
+      setCoaSaveMsg("Imported");
+      setTimeout(() => setCoaSaveMsg(""), 3000);
+      await loadCoa();
+    } catch (e) { setCoaError(e.message); }
+    finally { setCoaImportApplying(false); }
   };
 
   const saveChecklist = async () => {
@@ -3542,6 +3702,8 @@ function AppInner() {
                   {/* Auth-gated buttons */}
                   {kbAuthed && (
                     <>
+                      <button className="btn" style={s.btn} onClick={() => coaImportRef.current?.click()}>Import</button>
+                      <input ref={coaImportRef} type="file" accept=".csv,.xlsx,.xls" style={{display:"none"}} onChange={coaHandleImportFile} />
                       <button className="btn" style={{...s.btn, opacity: coaNewRow ? 0.5 : 1}}
                         onClick={() => { if (!coaNewRow) setCoaNewRow({ stylGl:"", stylName:"", mapGl:"", mapName:"", mapNotes:"" }); }}
                         disabled={!!coaNewRow}>
@@ -3618,6 +3780,72 @@ function AppInner() {
                   value={coaSearch} onChange={e => setCoaSearch(e.target.value)}
                   style={{...s.input, maxWidth:360}} />
               </div>
+
+              {/* Import preview panel */}
+              {coaImportPreview && (
+                <div style={{marginBottom:20,padding:"16px 20px",background:"#0e0e0e",border:"1px solid #2a2a2a",borderRadius:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                    <div>
+                      <span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:14,color:"#f5f5f5"}}>Import Preview</span>
+                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",marginLeft:10}}>{coaImportPreview.fileName}</span>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button className="btn" style={{...s.btnGold,padding:"6px 16px",fontSize:12}} onClick={coaImportApply} disabled={coaImportApplying}>
+                        {coaImportApplying ? "Applying..." : "Apply Import"}
+                      </button>
+                      <button className="btn" style={{...s.btn,padding:"6px 12px",fontSize:11}} onClick={() => setCoaImportPreview(null)}>Cancel</button>
+                    </div>
+                  </div>
+                  {/* Summary */}
+                  <div style={{display:"flex",gap:16,marginBottom:14,flexWrap:"wrap"}}>
+                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:11}}>
+                      <span style={{color:"#6b7280"}}>Group: </span>
+                      <span style={{color:"#e8c468"}}>{coaImportPreview.mapLabel}</span>
+                      {coaImportPreview.isNewGroup && <span style={{color:"#22c55e",marginLeft:6}}>(new group)</span>}
+                    </span>
+                    <span style={{fontFamily:"'Fira Code',monospace",fontSize:11}}>
+                      <span style={{color:"#6b7280"}}>Rows: </span><span style={{color:"#d1d5db"}}>{coaImportPreview.rows.length}</span>
+                    </span>
+                    {coaImportPreview.diff.newStyl > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#a78bfa"}}>{coaImportPreview.diff.newStyl} new STYL accounts</span>}
+                    {coaImportPreview.diff.added > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#22c55e"}}>{coaImportPreview.diff.added} new mappings</span>}
+                    {coaImportPreview.diff.updated > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#fbbf24"}}>{coaImportPreview.diff.updated} updated</span>}
+                    {coaImportPreview.diff.unchanged > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>{coaImportPreview.diff.unchanged} unchanged</span>}
+                  </div>
+                  {/* Changed rows detail */}
+                  {(() => {
+                    const changed = coaImportPreview.rows.filter(r => r.status !== "unchanged");
+                    if (changed.length === 0) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>No changes detected.</div>;
+                    return (
+                      <div style={{maxHeight:300,overflowY:"auto"}}>
+                        <div style={{display:"grid",gridTemplateColumns:"90px 1fr 90px 1fr 90px 1fr 70px",gap:4,padding:"6px 8px",borderBottom:"1px solid #1e1e1e"}}>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,color:"#6b7280",textTransform:"uppercase"}}>STYL GL</span>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,color:"#6b7280",textTransform:"uppercase"}}>STYL Account</span>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,color:"#6b7280",textTransform:"uppercase"}}>New GL</span>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,color:"#6b7280",textTransform:"uppercase"}}>New Account</span>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,color:"#6b7280",textTransform:"uppercase"}}>Old GL</span>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,color:"#6b7280",textTransform:"uppercase"}}>Old Account</span>
+                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,color:"#6b7280",textTransform:"uppercase"}}>Status</span>
+                        </div>
+                        {changed.map((r, i) => {
+                          const statusColor = r.status === "new-styl" ? "#a78bfa" : r.status === "added" ? "#22c55e" : "#fbbf24";
+                          const statusLabel = r.status === "new-styl" ? "NEW ACCT" : r.status === "added" ? "NEW MAP" : "UPDATE";
+                          return (
+                            <div key={i} style={{display:"grid",gridTemplateColumns:"90px 1fr 90px 1fr 90px 1fr 70px",gap:4,padding:"4px 8px",borderBottom:"1px solid #141414",alignItems:"center"}}>
+                              <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468"}}>{r.stylGl}</span>
+                              <span style={{fontFamily:"'Lora',serif",fontSize:11,color:"#d1d5db",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.stylName}</span>
+                              <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#9ca3af"}}>{r.mGl || "\u2014"}</span>
+                              <span style={{fontFamily:"'Lora',serif",fontSize:11,color:"#9ca3af",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.mName || "\u2014"}</span>
+                              <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color: r.status === "updated" ? "#6b7280" : "#2a2a2a"}}>{r.existing.gl || "\u2014"}</span>
+                              <span style={{fontFamily:"'Lora',serif",fontSize:11,color: r.status === "updated" ? "#6b7280" : "#2a2a2a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.existing.name || "\u2014"}</span>
+                              <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,color:statusColor,fontWeight:600}}>{statusLabel}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
               {coaLoading && (
                 <div style={{fontFamily:"'Fira Code',monospace",fontSize:12,color:"#6b7280",padding:"20px 0"}}>Loading COA data...</div>
