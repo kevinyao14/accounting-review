@@ -191,15 +191,20 @@ function AppInner() {
   const [chError, setChError]           = useState("");
 
   // COA (Chart of Accounts) states
-  const [coaData, setCoaData]               = useState(null);   // { stylAccounts, maps }
+  const [coaData, setCoaData]               = useState(null);   // { stylAccounts, mapKeys, maps }
   const [coaLoading, setCoaLoading]         = useState(false);
   const [coaError, setCoaError]             = useState("");
   const [coaSaving, setCoaSaving]           = useState(false);
   const [coaSaveMsg, setCoaSaveMsg]         = useState("");
   const [coaEdits, setCoaEdits]             = useState({});      // { stylGl: { gl, name, notes } }
   const [coaSearch, setCoaSearch]           = useState("");
-  const [coaNewRow, setCoaNewRow]           = useState(null);    // { stylGl, stylName, invGl, invName, invNotes }
+  const [coaNewRow, setCoaNewRow]           = useState(null);    // { stylGl, stylName, mapGl, mapName, mapNotes }
   const [coaNewErr, setCoaNewErr]           = useState("");
+  const [coaActiveMap, setCoaActiveMap]     = useState("");      // current map key (e.g. "invesco")
+  const [coaSort, setCoaSort]               = useState({ col: "styl", dir: "asc" }); // col: "styl"|"map"
+  const [coaNewMapOpen, setCoaNewMapOpen]   = useState(false);
+  const [coaNewMapLabel, setCoaNewMapLabel] = useState("");
+  const [coaNewMapErr, setCoaNewMapErr]     = useState("");
 
   const [detailOpen, setDetailOpen]           = useState({});
   const toggleDetail = (acct, type) => setDetailOpen(prev => ({
@@ -305,11 +310,14 @@ function AppInner() {
       setCoaData(data);
       setCoaEdits({});
       setCoaSaveMsg("");
+      // Default to first map if none selected
+      if (!coaActiveMap && data.mapKeys?.length > 0) setCoaActiveMap(data.mapKeys[0].key);
     } catch (e) { setCoaError(e.message); }
     finally { setCoaLoading(false); }
   };
 
   const coaStartEdit = (stylGl, current) => {
+    if (!kbAuthed) return; // view-only if not authed
     setCoaEdits(prev => ({ ...prev, [stylGl]: { gl: current.gl || "", name: current.name || "", notes: current.notes || "" } }));
   };
   const coaCancelEdit = (stylGl) => {
@@ -320,40 +328,34 @@ function AppInner() {
   };
 
   const coaSave = async () => {
-    if (!coaData) return;
+    if (!coaData || !coaActiveMap) return;
     setCoaSaving(true);
     setCoaSaveMsg("");
     setCoaError("");
     try {
-      // Build updated map
-      const mapKey = "invesco";
-      const existing = coaData.maps?.[mapKey] || { label: "Invesco", mappings: {} };
+      const mapKey = coaActiveMap;
+      const existing = coaData.maps?.[mapKey] || { label: mapKey, mappings: {} };
       const updatedMappings = { ...existing.mappings };
 
-      // Apply edits
       for (const [stylGl, edit] of Object.entries(coaEdits)) {
         updatedMappings[stylGl] = { gl: edit.gl, name: edit.name, notes: edit.notes, updatedAt: new Date().toISOString() };
       }
 
-      // Build updated STYL accounts (includes any new rows)
       const stylAccounts = coaData.stylAccounts;
+      const pw = kbPw || sessionStorage.getItem("kb_pw") || "";
 
       const res = await fetch("/api/coa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "save",
-          password: kbPw || sessionStorage.getItem("kb_pw") || "",
-          stylAccounts,
-          mapKey,
-          mapData: { label: existing.label || "Invesco", mappings: updatedMappings },
+          action: "save", password: pw, stylAccounts, mapKey,
+          mapData: { label: existing.label || mapKey, mappings: updatedMappings },
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Save failed");
       setCoaSaveMsg("Saved");
       setCoaEdits({});
-      // Reload
       await loadCoa();
     } catch (e) { setCoaError(e.message); }
     finally { setCoaSaving(false); }
@@ -371,7 +373,6 @@ function AppInner() {
       }
     }
     setCoaData({ stylAccounts: updatedStyl, maps });
-    // Remove any pending edit for this row
     coaCancelEdit(stylGl);
   };
 
@@ -381,15 +382,83 @@ function AppInner() {
     if (!stylGl?.trim() || !stylName?.trim()) { setCoaNewErr("STYL GL and Name required"); return; }
     if (coaData?.stylAccounts.some(a => a.gl === stylGl.trim())) { setCoaNewErr("Duplicate STYL GL"); return; }
     const newStyl = [{ gl: stylGl.trim(), name: stylName.trim() }, ...coaData.stylAccounts];
-    // Also set edit for the invesco mapping if provided
-    const inv = {};
-    if (coaNewRow.invGl?.trim() || coaNewRow.invName?.trim() || coaNewRow.invNotes?.trim()) {
-      inv[stylGl.trim()] = { gl: coaNewRow.invGl || "", name: coaNewRow.invName || "", notes: coaNewRow.invNotes || "" };
+    const mapEdit = {};
+    if (coaNewRow.mapGl?.trim() || coaNewRow.mapName?.trim() || coaNewRow.mapNotes?.trim()) {
+      mapEdit[stylGl.trim()] = { gl: coaNewRow.mapGl || "", name: coaNewRow.mapName || "", notes: coaNewRow.mapNotes || "" };
     }
     setCoaData({ ...coaData, stylAccounts: newStyl });
-    setCoaEdits(prev => ({ ...prev, ...inv }));
+    setCoaEdits(prev => ({ ...prev, ...mapEdit }));
     setCoaNewRow(null);
     setCoaNewErr("");
+  };
+
+  const coaCreateMap = async () => {
+    const label = coaNewMapLabel.trim();
+    if (!label) { setCoaNewMapErr("Name required"); return; }
+    const key = label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    if (!key) { setCoaNewMapErr("Invalid name"); return; }
+    if (coaData?.mapKeys?.some(m => m.key === key)) { setCoaNewMapErr("Already exists"); return; }
+    setCoaNewMapErr("");
+    try {
+      const pw = kbPw || sessionStorage.getItem("kb_pw") || "";
+      const res = await fetch("/api/coa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create-map", password: pw, mapKey: key, label }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      setCoaNewMapOpen(false);
+      setCoaNewMapLabel("");
+      setCoaActiveMap(key);
+      await loadCoa();
+    } catch (e) { setCoaNewMapErr(e.message); }
+  };
+
+  const coaDeleteMap = async (mapKey) => {
+    try {
+      const pw = kbPw || sessionStorage.getItem("kb_pw") || "";
+      const res = await fetch("/api/coa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete-map", password: pw, mapKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      if (coaActiveMap === mapKey) setCoaActiveMap(data.mapKeys?.[0]?.key || "");
+      await loadCoa();
+    } catch (e) { setCoaError(e.message); }
+  };
+
+  const coaToggleSort = (col) => {
+    setCoaSort(prev => prev.col === col ? { col, dir: prev.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" });
+  };
+
+  const coaExport = (format) => {
+    if (!coaData) return;
+    const mapKey = coaActiveMap;
+    const mapLabel = coaData.mapKeys?.find(m => m.key === mapKey)?.label || mapKey;
+    const mapData = coaData.maps?.[mapKey]?.mappings || {};
+
+    const rows = coaData.stylAccounts.map(a => {
+      const m = mapData[a.gl] || {};
+      return { "STYL GL": a.gl, "STYL Account": a.name, [`${mapLabel} GL`]: m.gl || "", [`${mapLabel} Account`]: m.name || "", [`${mapLabel} Notes`]: m.notes || "" };
+    });
+
+    if (format === "csv") {
+      const headers = Object.keys(rows[0] || {});
+      const csvContent = [headers.join(","), ...rows.map(r => headers.map(h => `"${(r[h] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = `COA_STYL_${mapLabel}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, `STYL-${mapLabel}`);
+      XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      XLSX.writeFile(wb, `COA_STYL_${mapLabel}.xlsx`);
+    }
   };
 
   const saveChecklist = async () => {
@@ -3458,59 +3527,113 @@ function AppInner() {
         {/* ── 08 · Chart of Accounts ─────────────────────────────────────────── */}
         {tab === "coa" && (
           <div className="fade-up">
-            {!kbAuthed ? (
-              <div style={{...s.panel, maxWidth:380, margin:"60px auto"}}>
-                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18,color:"#f5f5f5",marginBottom:6}}>Chart of Accounts</div>
-                <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginBottom:24}}>Manager access required</div>
-                <input type="password" placeholder="Password" value={kbPw}
-                  onChange={e => { setKbPw(e.target.value); setKbPwErr(false); }}
-                  onKeyDown={e => { if (e.key === "Enter") attemptKbAuth(); }}
-                  autoFocus
-                  style={{...s.input, marginBottom:8, border:`1px solid ${kbPwErr ? "#f87171" : "#2a2a2a"}`}} />
-                {kbPwErr && <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#f87171",marginBottom:8}}>Incorrect password</div>}
-                <button className="btn" style={{...s.btnGold, width:"100%", marginTop:4}}
-                  onClick={attemptKbAuth}>
-                  Sign In
-                </button>
+            <div style={s.panel}>
+              <div style={{...s.panelHead, display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12}}>
+                <div>
+                  <h2 style={{...s.panelTitle,marginBottom:4}}>Chart of Accounts</h2>
+                  <p style={s.panelDesc}>STYL GL mappings. {kbAuthed ? "Edit inline, then save." : "Sign in to edit."}</p>
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                  {coaSaveMsg && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#22c55e"}}>{coaSaveMsg}</span>}
+                  {coaError && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#ef4444"}}>{coaError}</span>}
+                  {/* Export buttons — always visible */}
+                  <button className="btn" style={s.btn} onClick={() => coaExport("csv")}>Export CSV</button>
+                  <button className="btn" style={s.btn} onClick={() => coaExport("xlsx")}>Export Excel</button>
+                  {/* Auth-gated buttons */}
+                  {kbAuthed && (
+                    <>
+                      <button className="btn" style={{...s.btn, opacity: coaNewRow ? 0.5 : 1}}
+                        onClick={() => { if (!coaNewRow) setCoaNewRow({ stylGl:"", stylName:"", mapGl:"", mapName:"", mapNotes:"" }); }}
+                        disabled={!!coaNewRow}>
+                        + Add Row
+                      </button>
+                      <button className="btn" style={{...s.btnGold, opacity: Object.keys(coaEdits).length === 0 ? 0.5 : 1}}
+                        onClick={coaSave}
+                        disabled={coaSaving || Object.keys(coaEdits).length === 0}>
+                        {coaSaving ? "Saving..." : "Save"}
+                      </button>
+                    </>
+                  )}
+                  {!kbAuthed && (
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      <input type="password" placeholder="Manager password" value={kbPw}
+                        onChange={e => { setKbPw(e.target.value); setKbPwErr(false); }}
+                        onKeyDown={e => { if (e.key === "Enter") attemptKbAuth(); }}
+                        style={{...s.input,padding:"6px 10px",fontSize:11,width:150,border:`1px solid ${kbPwErr ? "#f87171" : "#2a2a2a"}`}} />
+                      <button className="btn" style={s.btnGold} onClick={attemptKbAuth}>Sign In</button>
+                      {kbPwErr && <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#f87171"}}>Wrong</span>}
+                    </div>
+                  )}
+                </div>
               </div>
-            ) : (
-              <div style={s.panel}>
-                <div style={{...s.panelHead, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12}}>
-                  <div>
-                    <h2 style={{...s.panelTitle,marginBottom:4}}>Chart of Accounts</h2>
-                    <p style={s.panelDesc}>STYL GL mapping to Invesco. Edit inline, then save.</p>
-                  </div>
-                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                    {coaSaveMsg && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#22c55e"}}>{coaSaveMsg}</span>}
-                    {coaError && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#ef4444"}}>{coaError}</span>}
-                    <button className="btn" style={{...s.btn, opacity: coaNewRow ? 0.5 : 1}}
-                      onClick={() => { if (!coaNewRow) setCoaNewRow({ stylGl:"", stylName:"", invGl:"", invName:"", invNotes:"" }); }}
-                      disabled={!!coaNewRow}>
-                      + Add Row
+
+              {/* Map group selector */}
+              {coaData && coaData.mapKeys && coaData.mapKeys.length > 0 && (
+                <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
+                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6,marginRight:4}}>Mapping:</span>
+                  {coaData.mapKeys.map(mk => (
+                    <button key={mk.key} className="btn"
+                      onClick={() => { setCoaActiveMap(mk.key); setCoaEdits({}); setCoaNewRow(null); setCoaSort({ col:"styl", dir:"asc" }); }}
+                      style={{fontFamily:"'Fira Code',monospace",fontSize:11,padding:"4px 12px",
+                        background: coaActiveMap === mk.key ? "#1a1a1a" : "transparent",
+                        color: coaActiveMap === mk.key ? "#e8c468" : "#6b7280",
+                        border: `1px solid ${coaActiveMap === mk.key ? "#2a2a2a" : "transparent"}`,
+                        borderRadius:6,cursor:"pointer"}}>
+                      {mk.label}
                     </button>
-                    <button className="btn" style={{...s.btnGold, opacity: (Object.keys(coaEdits).length === 0 && !coaNewRow) ? 0.5 : 1}}
-                      onClick={coaSave}
-                      disabled={coaSaving || (Object.keys(coaEdits).length === 0)}>
-                      {coaSaving ? "Saving..." : "Save"}
-                    </button>
-                  </div>
+                  ))}
+                  {kbAuthed && (
+                    <>
+                      <button className="btn" onClick={() => setCoaNewMapOpen(!coaNewMapOpen)}
+                        style={{fontFamily:"'Fira Code',monospace",fontSize:11,padding:"4px 10px",color:"#4b5563",background:"transparent",border:"1px dashed #2a2a2a",borderRadius:6,cursor:"pointer"}}>
+                        + Add Group
+                      </button>
+                      {coaData.mapKeys.length > 1 && (
+                        <button className="btn" onClick={() => { if (confirm(`Delete "${coaData.mapKeys.find(m=>m.key===coaActiveMap)?.label}" mapping group?`)) coaDeleteMap(coaActiveMap); }}
+                          style={{fontFamily:"'Fira Code',monospace",fontSize:10,padding:"4px 8px",color:"#ef4444",background:"transparent",border:"1px solid #3a1a1a",borderRadius:6,cursor:"pointer"}}>
+                          Delete Group
+                        </button>
+                      )}
+                    </>
+                  )}
                 </div>
+              )}
 
-                {/* Search */}
-                <div style={{marginBottom:16}}>
-                  <input placeholder="Search GL or account name..."
-                    value={coaSearch} onChange={e => setCoaSearch(e.target.value)}
-                    style={{...s.input, maxWidth:360}} />
+              {/* New map group form */}
+              {coaNewMapOpen && kbAuthed && (
+                <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,padding:"10px 12px",background:"#1a1a1a",borderRadius:8,border:"1px solid #2a2a2a"}}>
+                  <input placeholder="Group name (e.g. Goldman)" value={coaNewMapLabel}
+                    onChange={e => { setCoaNewMapLabel(e.target.value); setCoaNewMapErr(""); }}
+                    onKeyDown={e => { if (e.key === "Enter") coaCreateMap(); }}
+                    style={{...s.input,padding:"5px 10px",fontSize:11,maxWidth:200}} />
+                  <button onClick={coaCreateMap} style={{...s.btn,padding:"5px 12px",fontSize:11,color:"#22c55e",border:"1px solid #22c55e"}}>Create</button>
+                  <button onClick={() => { setCoaNewMapOpen(false); setCoaNewMapLabel(""); setCoaNewMapErr(""); }} style={{...s.btn,padding:"5px 12px",fontSize:11,color:"#6b7280"}}>Cancel</button>
+                  {coaNewMapErr && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#ef4444"}}>{coaNewMapErr}</span>}
                 </div>
+              )}
 
-                {coaLoading && (
-                  <div style={{fontFamily:"'Fira Code',monospace",fontSize:12,color:"#6b7280",padding:"20px 0"}}>Loading COA data...</div>
-                )}
+              {/* Search + sort info */}
+              <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
+                <input placeholder="Search GL or account name..."
+                  value={coaSearch} onChange={e => setCoaSearch(e.target.value)}
+                  style={{...s.input, maxWidth:360}} />
+              </div>
 
-                {coaData && (
+              {coaLoading && (
+                <div style={{fontFamily:"'Fira Code',monospace",fontSize:12,color:"#6b7280",padding:"20px 0"}}>Loading COA data...</div>
+              )}
+
+              {coaData && (() => {
+                const mapKey = coaActiveMap;
+                const mapLabel = coaData.mapKeys?.find(m => m.key === mapKey)?.label || mapKey || "Mapped";
+                const mapMappings = coaData.maps?.[mapKey]?.mappings || {};
+                const sortArrow = (col) => coaSort.col === col ? (coaSort.dir === "asc" ? " ▲" : " ▼") : "";
+                const colGrid = kbAuthed ? "100px 1.5fr 100px 1.5fr 1.5fr 40px" : "100px 1.5fr 100px 1.5fr 1.5fr";
+
+                return (
                   <div style={{overflowX:"auto"}}>
-                    {/* New row form */}
-                    {coaNewRow && (
+                    {/* New row form (auth-gated) */}
+                    {coaNewRow && kbAuthed && (
                       <div style={{display:"grid",gridTemplateColumns:"100px 1.5fr 100px 1.5fr 1.5fr 40px 40px",gap:6,padding:"8px 10px",marginBottom:8,background:"#1a1a1a",borderRadius:8,border:"1px solid #2a2a2a",alignItems:"center"}}>
                         <input placeholder="STYL GL" value={coaNewRow.stylGl}
                           onChange={e => setCoaNewRow({...coaNewRow, stylGl: e.target.value})}
@@ -3518,14 +3641,14 @@ function AppInner() {
                         <input placeholder="STYL Name" value={coaNewRow.stylName}
                           onChange={e => setCoaNewRow({...coaNewRow, stylName: e.target.value})}
                           style={{...s.input,padding:"5px 8px",fontSize:11}} />
-                        <input placeholder="Inv GL" value={coaNewRow.invGl}
-                          onChange={e => setCoaNewRow({...coaNewRow, invGl: e.target.value})}
+                        <input placeholder={`${mapLabel} GL`} value={coaNewRow.mapGl}
+                          onChange={e => setCoaNewRow({...coaNewRow, mapGl: e.target.value})}
                           style={{...s.input,padding:"5px 8px",fontSize:11}} />
-                        <input placeholder="Inv Name" value={coaNewRow.invName}
-                          onChange={e => setCoaNewRow({...coaNewRow, invName: e.target.value})}
+                        <input placeholder={`${mapLabel} Name`} value={coaNewRow.mapName}
+                          onChange={e => setCoaNewRow({...coaNewRow, mapName: e.target.value})}
                           style={{...s.input,padding:"5px 8px",fontSize:11}} />
-                        <input placeholder="Notes" value={coaNewRow.invNotes}
-                          onChange={e => setCoaNewRow({...coaNewRow, invNotes: e.target.value})}
+                        <input placeholder="Notes" value={coaNewRow.mapNotes}
+                          onChange={e => setCoaNewRow({...coaNewRow, mapNotes: e.target.value})}
                           style={{...s.input,padding:"5px 8px",fontSize:11}} />
                         <button onClick={coaAddRow} style={{...s.btn,padding:"4px 8px",fontSize:11,color:"#22c55e",border:"1px solid #22c55e"}} title="Add">✓</button>
                         <button onClick={() => { setCoaNewRow(null); setCoaNewErr(""); }} style={{...s.btn,padding:"4px 8px",fontSize:11,color:"#ef4444",border:"1px solid #ef4444"}} title="Cancel">✕</button>
@@ -3533,40 +3656,53 @@ function AppInner() {
                     )}
                     {coaNewErr && <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#ef4444",marginBottom:8}}>{coaNewErr}</div>}
 
-                    {/* Table header */}
-                    <div style={{display:"grid",gridTemplateColumns:"100px 1.5fr 100px 1.5fr 1.5fr 40px",gap:6,padding:"8px 10px",borderBottom:"1px solid #1e1e1e"}}>
-                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>STYL GL</span>
+                    {/* Table header — sortable */}
+                    <div style={{display:"grid",gridTemplateColumns:colGrid,gap:6,padding:"8px 10px",borderBottom:"1px solid #1e1e1e"}}>
+                      <span onClick={() => coaToggleSort("styl")} style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6,cursor:"pointer",userSelect:"none"}}>
+                        STYL GL{sortArrow("styl")}
+                      </span>
                       <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>STYL Account</span>
-                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>Invesco GL</span>
-                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>Invesco Account</span>
+                      <span onClick={() => coaToggleSort("map")} style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6,cursor:"pointer",userSelect:"none"}}>
+                        {mapLabel} GL{sortArrow("map")}
+                      </span>
+                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>{mapLabel} Account</span>
                       <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>Notes</span>
-                      <span />
+                      {kbAuthed && <span />}
                     </div>
 
                     {/* Table rows */}
                     {(() => {
                       const q = coaSearch.toLowerCase().trim();
-                      const invMap = coaData.maps?.invesco?.mappings || {};
-                      const rows = coaData.stylAccounts.filter(a => {
+                      let rows = coaData.stylAccounts.filter(a => {
                         if (!q) return true;
-                        const inv = invMap[a.gl] || {};
+                        const m = mapMappings[a.gl] || {};
                         return a.gl?.toLowerCase().includes(q) || a.name?.toLowerCase().includes(q)
-                          || inv.gl?.toLowerCase().includes(q) || inv.name?.toLowerCase().includes(q);
+                          || m.gl?.toLowerCase().includes(q) || m.name?.toLowerCase().includes(q);
                       });
+                      // Sort
+                      rows = [...rows].sort((a, b) => {
+                        let va, vb;
+                        if (coaSort.col === "styl") {
+                          va = a.gl || ""; vb = b.gl || "";
+                        } else {
+                          va = (mapMappings[a.gl]?.gl) || ""; vb = (mapMappings[b.gl]?.gl) || "";
+                        }
+                        const cmp = va.localeCompare(vb, undefined, { numeric: true });
+                        return coaSort.dir === "asc" ? cmp : -cmp;
+                      });
+
                       if (rows.length === 0) return (
                         <div style={{padding:"20px 10px",fontFamily:"'Fira Code',monospace",fontSize:12,color:"#4b5563"}}>
                           {q ? "No matching accounts" : "No accounts loaded"}
                         </div>
                       );
                       return rows.map((acct, idx) => {
-                        const inv = invMap[acct.gl] || {};
+                        const mp = mapMappings[acct.gl] || {};
                         const editing = coaEdits[acct.gl];
                         const bg = idx % 2 === 0 ? "transparent" : "#0e0e0e";
                         return (
-                          <div key={acct.gl} style={{display:"grid",gridTemplateColumns:"100px 1.5fr 100px 1.5fr 1.5fr 40px",gap:6,padding:"6px 10px",background:bg,alignItems:"center",borderBottom:"1px solid #141414"}}>
-                            {/* STYL GL - fixed */}
+                          <div key={acct.gl} style={{display:"grid",gridTemplateColumns:colGrid,gap:6,padding:"6px 10px",background:bg,alignItems:"center",borderBottom:"1px solid #141414"}}>
                             <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468"}}>{acct.gl}</span>
-                            {/* STYL Name - fixed */}
                             <span style={{fontFamily:"'Lora',serif",fontSize:12,color:"#d1d5db",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acct.name}</span>
 
                             {editing ? (
@@ -3577,23 +3713,28 @@ function AppInner() {
                                   style={{...s.input,padding:"3px 6px",fontSize:11}} />
                                 <input value={editing.notes} onChange={e => coaUpdateEdit(acct.gl, "notes", e.target.value)}
                                   style={{...s.input,padding:"3px 6px",fontSize:11}} />
-                                <button onClick={() => coaCancelEdit(acct.gl)} style={{...s.btn,padding:"2px 6px",fontSize:10,color:"#6b7280"}} title="Cancel">✕</button>
+                                <button onClick={() => coaCancelEdit(acct.gl)} style={{...s.btn,padding:"2px 6px",fontSize:10,color:"#6b7280"}} title="Cancel edit">✕</button>
                               </>
                             ) : (
                               <>
-                                <span onClick={() => coaStartEdit(acct.gl, inv)} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color: inv.gl ? "#9ca3af" : "#2a2a2a",cursor:"pointer",padding:"3px 6px",borderRadius:4,border:"1px solid transparent"}}
-                                  onMouseEnter={e => e.target.style.borderColor="#2a2a2a"} onMouseLeave={e => e.target.style.borderColor="transparent"}>
-                                  {inv.gl || "—"}
+                                <span onClick={() => coaStartEdit(acct.gl, mp)}
+                                  style={{fontFamily:"'Fira Code',monospace",fontSize:11,color: mp.gl ? "#9ca3af" : "#2a2a2a",cursor: kbAuthed ? "pointer" : "default",padding:"3px 6px",borderRadius:4,border:"1px solid transparent"}}
+                                  onMouseEnter={e => { if (kbAuthed) e.target.style.borderColor="#2a2a2a"; }} onMouseLeave={e => e.target.style.borderColor="transparent"}>
+                                  {mp.gl || "\u2014"}
                                 </span>
-                                <span onClick={() => coaStartEdit(acct.gl, inv)} style={{fontFamily:"'Lora',serif",fontSize:12,color: inv.name ? "#9ca3af" : "#2a2a2a",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"3px 6px",borderRadius:4,border:"1px solid transparent"}}
-                                  onMouseEnter={e => e.target.style.borderColor="#2a2a2a"} onMouseLeave={e => e.target.style.borderColor="transparent"}>
-                                  {inv.name || "—"}
+                                <span onClick={() => coaStartEdit(acct.gl, mp)}
+                                  style={{fontFamily:"'Lora',serif",fontSize:12,color: mp.name ? "#9ca3af" : "#2a2a2a",cursor: kbAuthed ? "pointer" : "default",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"3px 6px",borderRadius:4,border:"1px solid transparent"}}
+                                  onMouseEnter={e => { if (kbAuthed) e.target.style.borderColor="#2a2a2a"; }} onMouseLeave={e => e.target.style.borderColor="transparent"}>
+                                  {mp.name || "\u2014"}
                                 </span>
-                                <span onClick={() => coaStartEdit(acct.gl, inv)} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color: inv.notes ? "#6b7280" : "#2a2a2a",cursor:"pointer",fontStyle: inv.notes ? "italic" : "normal",padding:"3px 6px",borderRadius:4,border:"1px solid transparent"}}
-                                  onMouseEnter={e => e.target.style.borderColor="#2a2a2a"} onMouseLeave={e => e.target.style.borderColor="transparent"}>
-                                  {inv.notes || "—"}
+                                <span onClick={() => coaStartEdit(acct.gl, mp)}
+                                  style={{fontFamily:"'Fira Code',monospace",fontSize:11,color: mp.notes ? "#6b7280" : "#2a2a2a",cursor: kbAuthed ? "pointer" : "default",fontStyle: mp.notes ? "italic" : "normal",padding:"3px 6px",borderRadius:4,border:"1px solid transparent"}}
+                                  onMouseEnter={e => { if (kbAuthed) e.target.style.borderColor="#2a2a2a"; }} onMouseLeave={e => e.target.style.borderColor="transparent"}>
+                                  {mp.notes || "\u2014"}
                                 </span>
-                                <button onClick={() => coaDeleteRow(acct.gl)} style={{...s.btn,padding:"2px 6px",fontSize:10,color:"#4b5563"}} title="Delete row">🗑</button>
+                                {kbAuthed && (
+                                  <button onClick={() => coaDeleteRow(acct.gl)} style={{...s.btn,padding:"2px 6px",fontSize:10,color:"#4b5563"}} title="Delete row">&#128465;</button>
+                                )}
                               </>
                             )}
                           </div>
@@ -3601,15 +3742,15 @@ function AppInner() {
                       });
                     })()}
 
-                    {/* Footer count */}
+                    {/* Footer */}
                     <div style={{padding:"12px 10px",borderTop:"1px solid #1e1e1e",fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>
                       {coaData.stylAccounts.length} accounts
                       {Object.keys(coaEdits).length > 0 && <span style={{color:"#e8c468",marginLeft:12}}>{Object.keys(coaEdits).length} unsaved edits</span>}
                     </div>
                   </div>
-                )}
-              </div>
-            )}
+                );
+              })()}
+            </div>
           </div>
         )}
 
