@@ -86,14 +86,17 @@ async function uploadCSV(property, filePath, dataType) {
 
 async function main() {
   const stats = { uploaded: 0, skipped: 0, errors: 0 };
-  const types = TYPE ? [TYPE] : ["gl", "is", "budget"];
+  const types = TYPE ? [TYPE] : ["gl", "is", "budget-2025", "budget-2026"];
 
   for (const dataType of types) {
     const suffix = dataType === "gl" ? "_GL.csv"
                  : dataType === "is" ? "_IS.csv"
+                 : dataType === "budget-2025" ? "_Budget_2025.csv"
+                 : dataType === "budget-2026" ? "_Budget_2026.csv"
                  : dataType === "budget" ? "_Budget_2026.csv"
                  : null;
     if (!suffix) continue;
+    const uploadType = dataType.startsWith("budget") ? "budget" : dataType;
 
     const files = discoverCSVs(SOURCE, suffix);
     if (!files.length) {
@@ -111,11 +114,9 @@ async function main() {
       }
 
       try {
-        const result = await uploadCSV(property, filePath, dataType);
-        const detail = dataType === "gl"
+        const result = await uploadCSV(property, filePath, uploadType);
+        const detail = uploadType === "gl"
           ? `${result.glMonthsInIndex || "?"} months`
-          : dataType === "is"
-          ? `${result.totalAccounts || "?"} accounts`
           : `${result.totalAccounts || "?"} accounts`;
         console.log(`  [OK] ${property.padEnd(45)} ${detail}`);
         stats.uploaded++;

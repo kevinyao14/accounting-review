@@ -156,10 +156,16 @@ ${memory.brief}`);
   // Budget intelligence
   if (memory.budgetIntel) {
     const bi = memory.budgetIntel;
-    if (bi.categories) {
-      const unreliable = Object.entries(bi.categories)
-        .filter(([_, v]) => v.avg_alignment < 30)
-        .map(([k, v]) => `${k}: alignment ${v.avg_alignment?.toFixed(0)}% (${v.reliability || "UNRELIABLE"})`)
+    // Support both v1 (categories) and v2 (category_intelligence) schemas
+    const cats = bi.category_intelligence || bi.categories;
+    if (cats) {
+      const unreliable = Object.entries(cats)
+        .filter(([_, v]) => (v.avg_alignment_score ?? v.avg_alignment ?? 100) < 30)
+        .map(([k, v]) => {
+          const align = v.avg_alignment_score ?? v.avg_alignment ?? 0;
+          const label = v.tier === "low" ? "UNRELIABLE" : (v.reliability || "UNRELIABLE");
+          return `${k}: alignment ${align.toFixed(0)}% (${label})`;
+        })
         .slice(0, 10);
       if (unreliable.length) {
         parts.push(`\n═══ BUDGET INTELLIGENCE ═══
