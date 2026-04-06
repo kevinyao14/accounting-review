@@ -176,6 +176,30 @@ Do NOT suppress IS findings just because the budget shows a similar variance.`);
     }
   }
 
+  // Property-level budget analysis (per-account alignment scores)
+  if (memory.propertyBudget && memory.propertyBudget.accounts) {
+    const accts = memory.propertyBudget.accounts;
+    const reliable = [];
+    const unreliableAccts = [];
+    for (const [num, a] of Object.entries(accts)) {
+      if (a.budget_alignment_score >= 70) {
+        reliable.push(`${num} ${a.account_name}: alignment ${a.budget_alignment_score}% (${a.budget_behavior}) — budget $${Math.round(a.budget_monthly).toLocaleString()}/mo`);
+      } else if (a.budget_alignment_score < 30 && a.budget_monthly > 500) {
+        unreliableAccts.push(`${num} ${a.account_name}: alignment ${a.budget_alignment_score}% (${a.budget_behavior})`);
+      }
+    }
+    if (reliable.length || unreliableAccts.length) {
+      const lines = [];
+      if (reliable.length) {
+        lines.push(`RELIABLE accounts (budget is a strong signal — flag material variances):\n${reliable.slice(0, 15).join("\n")}`);
+      }
+      if (unreliableAccts.length) {
+        lines.push(`UNRELIABLE accounts (budget is noisy — do NOT rely on budget for these):\n${unreliableAccts.slice(0, 15).join("\n")}`);
+      }
+      parts.push(`\n═══ PROPERTY BUDGET ALIGNMENT ═══\n${lines.join("\n\n")}`);
+    }
+  }
+
   // Recent signals
   if (memory.signals.length > 0) {
     const allSignals = memory.signals.flatMap(s => (s.signals || []).map(sig => ({ ...sig, fromMonth: s.month })));
