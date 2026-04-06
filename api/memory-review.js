@@ -158,7 +158,7 @@ ${memory.brief}`);
     const bi = memory.budgetIntel;
     // Support both v1 (categories) and v2 (category_intelligence) schemas
     const cats = bi.category_intelligence || bi.categories;
-    if (cats) {
+    if (cats && typeof cats === "object") {
       const unreliable = Object.entries(cats)
         .filter(([_, v]) => (v.avg_alignment_score ?? v.avg_alignment ?? 100) < 30)
         .map(([k, v]) => {
