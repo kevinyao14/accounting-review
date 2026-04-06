@@ -190,6 +190,17 @@ function AppInner() {
   const [chSaving, setChSaving]         = useState(false);
   const [chError, setChError]           = useState("");
 
+  // COA (Chart of Accounts) states
+  const [coaData, setCoaData]               = useState(null);   // { stylAccounts, maps }
+  const [coaLoading, setCoaLoading]         = useState(false);
+  const [coaError, setCoaError]             = useState("");
+  const [coaSaving, setCoaSaving]           = useState(false);
+  const [coaSaveMsg, setCoaSaveMsg]         = useState("");
+  const [coaEdits, setCoaEdits]             = useState({});      // { stylGl: { gl, name, notes } }
+  const [coaSearch, setCoaSearch]           = useState("");
+  const [coaNewRow, setCoaNewRow]           = useState(null);    // { stylGl, stylName, invGl, invName, invNotes }
+  const [coaNewErr, setCoaNewErr]           = useState("");
+
   const [detailOpen, setDetailOpen]           = useState({});
   const toggleDetail = (acct, type) => setDetailOpen(prev => ({
     ...prev, [acct]: { ...prev[acct], [type]: !prev[acct]?.[type] }
@@ -273,6 +284,7 @@ function AppInner() {
       const data = await res.json();
       if (data.ok) {
         sessionStorage.setItem("kb_auth","1");
+        sessionStorage.setItem("kb_pw", kbPw);
         setKbAuthed(true);
         setKbPwErr(false);
         setKbPw("");
@@ -281,6 +293,103 @@ function AppInner() {
         setKbPwErr(true);
       }
     } catch { setKbPwErr(true); }
+  };
+
+  // ── COA helpers ──
+  const loadCoa = async () => {
+    setCoaLoading(true);
+    setCoaError("");
+    try {
+      const res = await fetch("/api/coa");
+      const data = await res.json();
+      setCoaData(data);
+      setCoaEdits({});
+      setCoaSaveMsg("");
+    } catch (e) { setCoaError(e.message); }
+    finally { setCoaLoading(false); }
+  };
+
+  const coaStartEdit = (stylGl, current) => {
+    setCoaEdits(prev => ({ ...prev, [stylGl]: { gl: current.gl || "", name: current.name || "", notes: current.notes || "" } }));
+  };
+  const coaCancelEdit = (stylGl) => {
+    setCoaEdits(prev => { const n = { ...prev }; delete n[stylGl]; return n; });
+  };
+  const coaUpdateEdit = (stylGl, field, value) => {
+    setCoaEdits(prev => ({ ...prev, [stylGl]: { ...prev[stylGl], [field]: value } }));
+  };
+
+  const coaSave = async () => {
+    if (!coaData) return;
+    setCoaSaving(true);
+    setCoaSaveMsg("");
+    setCoaError("");
+    try {
+      // Build updated map
+      const mapKey = "invesco";
+      const existing = coaData.maps?.[mapKey] || { label: "Invesco", mappings: {} };
+      const updatedMappings = { ...existing.mappings };
+
+      // Apply edits
+      for (const [stylGl, edit] of Object.entries(coaEdits)) {
+        updatedMappings[stylGl] = { gl: edit.gl, name: edit.name, notes: edit.notes, updatedAt: new Date().toISOString() };
+      }
+
+      // Build updated STYL accounts (includes any new rows)
+      const stylAccounts = coaData.stylAccounts;
+
+      const res = await fetch("/api/coa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save",
+          password: kbPw || sessionStorage.getItem("kb_pw") || "",
+          stylAccounts,
+          mapKey,
+          mapData: { label: existing.label || "Invesco", mappings: updatedMappings },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Save failed");
+      setCoaSaveMsg("Saved");
+      setCoaEdits({});
+      // Reload
+      await loadCoa();
+    } catch (e) { setCoaError(e.message); }
+    finally { setCoaSaving(false); }
+  };
+
+  const coaDeleteRow = (stylGl) => {
+    if (!coaData) return;
+    const updatedStyl = coaData.stylAccounts.filter(a => a.gl !== stylGl);
+    const maps = { ...coaData.maps };
+    for (const mk of Object.keys(maps)) {
+      if (maps[mk]?.mappings?.[stylGl]) {
+        const m = { ...maps[mk], mappings: { ...maps[mk].mappings } };
+        delete m.mappings[stylGl];
+        maps[mk] = m;
+      }
+    }
+    setCoaData({ stylAccounts: updatedStyl, maps });
+    // Remove any pending edit for this row
+    coaCancelEdit(stylGl);
+  };
+
+  const coaAddRow = () => {
+    if (!coaNewRow) return;
+    const { stylGl, stylName } = coaNewRow;
+    if (!stylGl?.trim() || !stylName?.trim()) { setCoaNewErr("STYL GL and Name required"); return; }
+    if (coaData?.stylAccounts.some(a => a.gl === stylGl.trim())) { setCoaNewErr("Duplicate STYL GL"); return; }
+    const newStyl = [{ gl: stylGl.trim(), name: stylName.trim() }, ...coaData.stylAccounts];
+    // Also set edit for the invesco mapping if provided
+    const inv = {};
+    if (coaNewRow.invGl?.trim() || coaNewRow.invName?.trim() || coaNewRow.invNotes?.trim()) {
+      inv[stylGl.trim()] = { gl: coaNewRow.invGl || "", name: coaNewRow.invName || "", notes: coaNewRow.invNotes || "" };
+    }
+    setCoaData({ ...coaData, stylAccounts: newStyl });
+    setCoaEdits(prev => ({ ...prev, ...inv }));
+    setCoaNewRow(null);
+    setCoaNewErr("");
   };
 
   const saveChecklist = async () => {
@@ -1298,6 +1407,7 @@ function AppInner() {
               {key:"reports",   label:"05 · Reports",    dot: !!reportContent},
               {key:"kb",        label:"06 · Knowledge Base"},
               {key:"portfolio", label:"07 · Portfolio",    dot: !!portfolioData?.properties?.length},
+              {key:"coa",       label:"08 · COA"},
             ].map(t => (
               <button key={t.key} className="tab" onClick={() => {
                 setTab(t.key);
@@ -1340,6 +1450,9 @@ function AppInner() {
                     })
                     .catch(() => setPortfolioData({ properties: [] }))
                     .finally(() => setPortfolioLoading(false));
+                }
+                if (t.key === "coa" && !coaData && !coaLoading) {
+                  loadCoa();
                 }
               }}
                 style={{...s.tab,...(tab===t.key?s.tabActive:{})}}>
@@ -3339,6 +3452,164 @@ function AppInner() {
               </div>
             )}
 
+          </div>
+        )}
+
+        {/* ── 08 · Chart of Accounts ─────────────────────────────────────────── */}
+        {tab === "coa" && (
+          <div className="fade-up">
+            {!kbAuthed ? (
+              <div style={{...s.panel, maxWidth:380, margin:"60px auto"}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:18,color:"#f5f5f5",marginBottom:6}}>Chart of Accounts</div>
+                <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563",marginBottom:24}}>Manager access required</div>
+                <input type="password" placeholder="Password" value={kbPw}
+                  onChange={e => { setKbPw(e.target.value); setKbPwErr(false); }}
+                  onKeyDown={e => { if (e.key === "Enter") attemptKbAuth(); }}
+                  autoFocus
+                  style={{...s.input, marginBottom:8, border:`1px solid ${kbPwErr ? "#f87171" : "#2a2a2a"}`}} />
+                {kbPwErr && <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#f87171",marginBottom:8}}>Incorrect password</div>}
+                <button className="btn" style={{...s.btnGold, width:"100%", marginTop:4}}
+                  onClick={attemptKbAuth}>
+                  Sign In
+                </button>
+              </div>
+            ) : (
+              <div style={s.panel}>
+                <div style={{...s.panelHead, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12}}>
+                  <div>
+                    <h2 style={{...s.panelTitle,marginBottom:4}}>Chart of Accounts</h2>
+                    <p style={s.panelDesc}>STYL GL mapping to Invesco. Edit inline, then save.</p>
+                  </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    {coaSaveMsg && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#22c55e"}}>{coaSaveMsg}</span>}
+                    {coaError && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#ef4444"}}>{coaError}</span>}
+                    <button className="btn" style={{...s.btn, opacity: coaNewRow ? 0.5 : 1}}
+                      onClick={() => { if (!coaNewRow) setCoaNewRow({ stylGl:"", stylName:"", invGl:"", invName:"", invNotes:"" }); }}
+                      disabled={!!coaNewRow}>
+                      + Add Row
+                    </button>
+                    <button className="btn" style={{...s.btnGold, opacity: (Object.keys(coaEdits).length === 0 && !coaNewRow) ? 0.5 : 1}}
+                      onClick={coaSave}
+                      disabled={coaSaving || (Object.keys(coaEdits).length === 0)}>
+                      {coaSaving ? "Saving..." : "Save"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search */}
+                <div style={{marginBottom:16}}>
+                  <input placeholder="Search GL or account name..."
+                    value={coaSearch} onChange={e => setCoaSearch(e.target.value)}
+                    style={{...s.input, maxWidth:360}} />
+                </div>
+
+                {coaLoading && (
+                  <div style={{fontFamily:"'Fira Code',monospace",fontSize:12,color:"#6b7280",padding:"20px 0"}}>Loading COA data...</div>
+                )}
+
+                {coaData && (
+                  <div style={{overflowX:"auto"}}>
+                    {/* New row form */}
+                    {coaNewRow && (
+                      <div style={{display:"grid",gridTemplateColumns:"100px 1.5fr 100px 1.5fr 1.5fr 40px 40px",gap:6,padding:"8px 10px",marginBottom:8,background:"#1a1a1a",borderRadius:8,border:"1px solid #2a2a2a",alignItems:"center"}}>
+                        <input placeholder="STYL GL" value={coaNewRow.stylGl}
+                          onChange={e => setCoaNewRow({...coaNewRow, stylGl: e.target.value})}
+                          style={{...s.input,padding:"5px 8px",fontSize:11}} />
+                        <input placeholder="STYL Name" value={coaNewRow.stylName}
+                          onChange={e => setCoaNewRow({...coaNewRow, stylName: e.target.value})}
+                          style={{...s.input,padding:"5px 8px",fontSize:11}} />
+                        <input placeholder="Inv GL" value={coaNewRow.invGl}
+                          onChange={e => setCoaNewRow({...coaNewRow, invGl: e.target.value})}
+                          style={{...s.input,padding:"5px 8px",fontSize:11}} />
+                        <input placeholder="Inv Name" value={coaNewRow.invName}
+                          onChange={e => setCoaNewRow({...coaNewRow, invName: e.target.value})}
+                          style={{...s.input,padding:"5px 8px",fontSize:11}} />
+                        <input placeholder="Notes" value={coaNewRow.invNotes}
+                          onChange={e => setCoaNewRow({...coaNewRow, invNotes: e.target.value})}
+                          style={{...s.input,padding:"5px 8px",fontSize:11}} />
+                        <button onClick={coaAddRow} style={{...s.btn,padding:"4px 8px",fontSize:11,color:"#22c55e",border:"1px solid #22c55e"}} title="Add">✓</button>
+                        <button onClick={() => { setCoaNewRow(null); setCoaNewErr(""); }} style={{...s.btn,padding:"4px 8px",fontSize:11,color:"#ef4444",border:"1px solid #ef4444"}} title="Cancel">✕</button>
+                      </div>
+                    )}
+                    {coaNewErr && <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#ef4444",marginBottom:8}}>{coaNewErr}</div>}
+
+                    {/* Table header */}
+                    <div style={{display:"grid",gridTemplateColumns:"100px 1.5fr 100px 1.5fr 1.5fr 40px",gap:6,padding:"8px 10px",borderBottom:"1px solid #1e1e1e"}}>
+                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>STYL GL</span>
+                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>STYL Account</span>
+                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>Invesco GL</span>
+                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>Invesco Account</span>
+                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6}}>Notes</span>
+                      <span />
+                    </div>
+
+                    {/* Table rows */}
+                    {(() => {
+                      const q = coaSearch.toLowerCase().trim();
+                      const invMap = coaData.maps?.invesco?.mappings || {};
+                      const rows = coaData.stylAccounts.filter(a => {
+                        if (!q) return true;
+                        const inv = invMap[a.gl] || {};
+                        return a.gl?.toLowerCase().includes(q) || a.name?.toLowerCase().includes(q)
+                          || inv.gl?.toLowerCase().includes(q) || inv.name?.toLowerCase().includes(q);
+                      });
+                      if (rows.length === 0) return (
+                        <div style={{padding:"20px 10px",fontFamily:"'Fira Code',monospace",fontSize:12,color:"#4b5563"}}>
+                          {q ? "No matching accounts" : "No accounts loaded"}
+                        </div>
+                      );
+                      return rows.map((acct, idx) => {
+                        const inv = invMap[acct.gl] || {};
+                        const editing = coaEdits[acct.gl];
+                        const bg = idx % 2 === 0 ? "transparent" : "#0e0e0e";
+                        return (
+                          <div key={acct.gl} style={{display:"grid",gridTemplateColumns:"100px 1.5fr 100px 1.5fr 1.5fr 40px",gap:6,padding:"6px 10px",background:bg,alignItems:"center",borderBottom:"1px solid #141414"}}>
+                            {/* STYL GL - fixed */}
+                            <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468"}}>{acct.gl}</span>
+                            {/* STYL Name - fixed */}
+                            <span style={{fontFamily:"'Lora',serif",fontSize:12,color:"#d1d5db",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acct.name}</span>
+
+                            {editing ? (
+                              <>
+                                <input value={editing.gl} onChange={e => coaUpdateEdit(acct.gl, "gl", e.target.value)}
+                                  style={{...s.input,padding:"3px 6px",fontSize:11}} />
+                                <input value={editing.name} onChange={e => coaUpdateEdit(acct.gl, "name", e.target.value)}
+                                  style={{...s.input,padding:"3px 6px",fontSize:11}} />
+                                <input value={editing.notes} onChange={e => coaUpdateEdit(acct.gl, "notes", e.target.value)}
+                                  style={{...s.input,padding:"3px 6px",fontSize:11}} />
+                                <button onClick={() => coaCancelEdit(acct.gl)} style={{...s.btn,padding:"2px 6px",fontSize:10,color:"#6b7280"}} title="Cancel">✕</button>
+                              </>
+                            ) : (
+                              <>
+                                <span onClick={() => coaStartEdit(acct.gl, inv)} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color: inv.gl ? "#9ca3af" : "#2a2a2a",cursor:"pointer",padding:"3px 6px",borderRadius:4,border:"1px solid transparent"}}
+                                  onMouseEnter={e => e.target.style.borderColor="#2a2a2a"} onMouseLeave={e => e.target.style.borderColor="transparent"}>
+                                  {inv.gl || "—"}
+                                </span>
+                                <span onClick={() => coaStartEdit(acct.gl, inv)} style={{fontFamily:"'Lora',serif",fontSize:12,color: inv.name ? "#9ca3af" : "#2a2a2a",cursor:"pointer",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",padding:"3px 6px",borderRadius:4,border:"1px solid transparent"}}
+                                  onMouseEnter={e => e.target.style.borderColor="#2a2a2a"} onMouseLeave={e => e.target.style.borderColor="transparent"}>
+                                  {inv.name || "—"}
+                                </span>
+                                <span onClick={() => coaStartEdit(acct.gl, inv)} style={{fontFamily:"'Fira Code',monospace",fontSize:11,color: inv.notes ? "#6b7280" : "#2a2a2a",cursor:"pointer",fontStyle: inv.notes ? "italic" : "normal",padding:"3px 6px",borderRadius:4,border:"1px solid transparent"}}
+                                  onMouseEnter={e => e.target.style.borderColor="#2a2a2a"} onMouseLeave={e => e.target.style.borderColor="transparent"}>
+                                  {inv.notes || "—"}
+                                </span>
+                                <button onClick={() => coaDeleteRow(acct.gl)} style={{...s.btn,padding:"2px 6px",fontSize:10,color:"#4b5563"}} title="Delete row">🗑</button>
+                              </>
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
+
+                    {/* Footer count */}
+                    <div style={{padding:"12px 10px",borderTop:"1px solid #1e1e1e",fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>
+                      {coaData.stylAccounts.length} accounts
+                      {Object.keys(coaEdits).length > 0 && <span style={{color:"#e8c468",marginLeft:12}}>{Object.keys(coaEdits).length} unsaved edits</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

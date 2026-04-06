@@ -1,0 +1,4061 @@
+{
+  "stylAccounts": [
+    {
+      "gl": "100002",
+      "name": "Cash - Operating"
+    },
+    {
+      "gl": "100001",
+      "name": "Cash - Depository"
+    },
+    {
+      "gl": "100003",
+      "name": "Cash - Other"
+    },
+    {
+      "gl": "102000",
+      "name": "Cash - Security Deposit"
+    },
+    {
+      "gl": "110001",
+      "name": "Accounts Receivable"
+    },
+    {
+      "gl": "110100",
+      "name": "A/R - Other"
+    },
+    {
+      "gl": "110400",
+      "name": "Utility Rebill Receivable"
+    },
+    {
+      "gl": "110999",
+      "name": "Allowance for Doubtful Accounts"
+    },
+    {
+      "gl": "120001",
+      "name": "Prepaid Insurance"
+    },
+    {
+      "gl": "120004",
+      "name": "Prepaid Property Taxes"
+    },
+    {
+      "gl": "120005",
+      "name": "Prepaid Expenses Other"
+    },
+    {
+      "gl": "104000",
+      "name": "Utility Deposits"
+    },
+    {
+      "gl": "152001",
+      "name": "Vacant Land"
+    },
+    {
+      "gl": "152002",
+      "name": "Land (Acquisition)"
+    },
+    {
+      "gl": "152200",
+      "name": "MAJ Land Improvements"
+    },
+    {
+      "gl": "152100",
+      "name": "Building (Acquisition)"
+    },
+    {
+      "gl": "154001",
+      "name": "MAJ Pool"
+    },
+    {
+      "gl": "154003",
+      "name": "MAJ Pool Deck"
+    },
+    {
+      "gl": "154004",
+      "name": "MAJ Pool Furniture / Equipment"
+    },
+    {
+      "gl": "154005",
+      "name": "MAJ Sports Courts"
+    },
+    {
+      "gl": "154007",
+      "name": "MAJ ADA Upgrades"
+    },
+    {
+      "gl": "154008",
+      "name": "MAJ Fitness Room"
+    },
+    {
+      "gl": "154009",
+      "name": "MAJ Furniture"
+    },
+    {
+      "gl": "154010",
+      "name": "MAJ Clubhouse / Office"
+    },
+    {
+      "gl": "154011",
+      "name": "MAJ Playground"
+    },
+    {
+      "gl": "154012",
+      "name": "MAJ Pet Stations"
+    },
+    {
+      "gl": "154013",
+      "name": "MAJ Mailbox"
+    },
+    {
+      "gl": "154014",
+      "name": "MAJ Package Lockers"
+    },
+    {
+      "gl": "154015",
+      "name": "MAJ Painting - Interior"
+    },
+    {
+      "gl": "154016",
+      "name": "MAJ Model Unit"
+    },
+    {
+      "gl": "154017",
+      "name": "MAJ Interior Improvements"
+    },
+    {
+      "gl": "155006",
+      "name": "MAJ Painting - Exterior"
+    },
+    {
+      "gl": "157012",
+      "name": "REHAB Smart Home"
+    },
+    {
+      "gl": "158001",
+      "name": "MAJ Admin / Supervision Fees"
+    },
+    {
+      "gl": "158002",
+      "name": "MAJ Construction Fees"
+    },
+    {
+      "gl": "158006",
+      "name": "MAJ Cert of Occ / Life Safety"
+    },
+    {
+      "gl": "158007",
+      "name": "MAJ Entitlements"
+    },
+    {
+      "gl": "158008",
+      "name": "MAJ Expeditor Fees"
+    },
+    {
+      "gl": "159005",
+      "name": "Commercial - Building Improvements"
+    },
+    {
+      "gl": "159006",
+      "name": "Commercial - Deferred Maintenance"
+    },
+    {
+      "gl": "152201",
+      "name": "MAJ Landscape"
+    },
+    {
+      "gl": "152202",
+      "name": "MAJ Irrigation"
+    },
+    {
+      "gl": "152205",
+      "name": "MAJ Sidewalks"
+    },
+    {
+      "gl": "152206",
+      "name": "MAJ Tree Trimming"
+    },
+    {
+      "gl": "152209",
+      "name": "MAJ Drainage / Ponds / Fountains"
+    },
+    {
+      "gl": "152210",
+      "name": "MAJ Concrete Work"
+    },
+    {
+      "gl": "152212",
+      "name": "MAJ Fencing"
+    },
+    {
+      "gl": "153001",
+      "name": "MAJ Foundation"
+    },
+    {
+      "gl": "152211",
+      "name": "MAJ Access Gates"
+    },
+    {
+      "gl": "153002",
+      "name": "MAJ Electrical"
+    },
+    {
+      "gl": "153003",
+      "name": "MAJ Elevator"
+    },
+    {
+      "gl": "153004",
+      "name": "MAJ Plumbing"
+    },
+    {
+      "gl": "153005",
+      "name": "MAJ Gutters"
+    },
+    {
+      "gl": "153006",
+      "name": "MAJ Structural"
+    },
+    {
+      "gl": "153007",
+      "name": "MAJ Subfloor"
+    },
+    {
+      "gl": "153008",
+      "name": "MAJ Termite"
+    },
+    {
+      "gl": "153010",
+      "name": "MAJ Fire / Security System"
+    },
+    {
+      "gl": "155001",
+      "name": "MAJ Decking / Balcony"
+    },
+    {
+      "gl": "155002",
+      "name": "MAJ Windows/Caulking"
+    },
+    {
+      "gl": "155003",
+      "name": "MAJ Facade"
+    },
+    {
+      "gl": "155007",
+      "name": "MAJ Trash Enclosures"
+    },
+    {
+      "gl": "155004",
+      "name": "MAJ Roof"
+    },
+    {
+      "gl": "152204",
+      "name": "MAJ Parking Lot"
+    },
+    {
+      "gl": "152207",
+      "name": "MAJ Paving / Driveway"
+    },
+    {
+      "gl": "152208",
+      "name": "MAJ Sealcoat / Striping"
+    },
+    {
+      "gl": "155005",
+      "name": "MAJ Garage / Carport"
+    },
+    {
+      "gl": "151019",
+      "name": "REP HVAC"
+    },
+    {
+      "gl": "151020",
+      "name": "REP Boiler"
+    },
+    {
+      "gl": "151021",
+      "name": "REP Water Heater"
+    },
+    {
+      "gl": "151023",
+      "name": "REP Interior Unit Other"
+    },
+    {
+      "gl": "153009",
+      "name": "MAJ Chiller / Boiler"
+    },
+    {
+      "gl": "151024",
+      "name": "REP Plumbing"
+    },
+    {
+      "gl": "152203",
+      "name": "MAJ Environmental"
+    },
+    {
+      "gl": "154002",
+      "name": "MAJ Pool Resurfacing"
+    },
+    {
+      "gl": "155008",
+      "name": "MAJ Casualty Loss"
+    },
+    {
+      "gl": "155009",
+      "name": "MAJ Exterior Improvements"
+    },
+    {
+      "gl": "155010",
+      "name": "MAJ Contingency"
+    },
+    {
+      "gl": "158004",
+      "name": "MAJ Testing / Remediation"
+    },
+    {
+      "gl": "151001",
+      "name": "REP Labor"
+    },
+    {
+      "gl": "151002",
+      "name": "REP Refrigerator"
+    },
+    {
+      "gl": "151003",
+      "name": "REP Stove/Micro"
+    },
+    {
+      "gl": "151004",
+      "name": "REP Washer/Dryer"
+    },
+    {
+      "gl": "151005",
+      "name": "REP Dishwasher"
+    },
+    {
+      "gl": "151006",
+      "name": "REP Garbage Disposal"
+    },
+    {
+      "gl": "151007",
+      "name": "REP Ceiling Fans"
+    },
+    {
+      "gl": "151008",
+      "name": "REP Light Fixtures"
+    },
+    {
+      "gl": "151009",
+      "name": "REP Countertops"
+    },
+    {
+      "gl": "151010",
+      "name": "REP Kitchen / Bath Fixtures"
+    },
+    {
+      "gl": "151011",
+      "name": "REP Cabinets"
+    },
+    {
+      "gl": "151014",
+      "name": "REP Door Replacement"
+    },
+    {
+      "gl": "151015",
+      "name": "REP Window Treatments"
+    },
+    {
+      "gl": "151016",
+      "name": "REP Glass & Screen"
+    },
+    {
+      "gl": "151017",
+      "name": "REP Electrical"
+    },
+    {
+      "gl": "151018",
+      "name": "REP Hardware"
+    },
+    {
+      "gl": "157001",
+      "name": "REHAB Labor"
+    },
+    {
+      "gl": "157002",
+      "name": "REHAB Refrigerator"
+    },
+    {
+      "gl": "157003",
+      "name": "REHAB Stove / Micro"
+    },
+    {
+      "gl": "157004",
+      "name": "REHAB Dishwasher"
+    },
+    {
+      "gl": "157005",
+      "name": "REHAB Washer / Dryer"
+    },
+    {
+      "gl": "157006",
+      "name": "REHAB Garbage Disposal"
+    },
+    {
+      "gl": "157007",
+      "name": "REHAB Ceiling Fans"
+    },
+    {
+      "gl": "157008",
+      "name": "REHAB Light Fixtures"
+    },
+    {
+      "gl": "157009",
+      "name": "REHAB Countertops"
+    },
+    {
+      "gl": "157010",
+      "name": "REHAB Cabinets"
+    },
+    {
+      "gl": "157011",
+      "name": "REHAB Kitchen / Bath Fixtures"
+    },
+    {
+      "gl": "157013",
+      "name": "REHAB Window Treatments"
+    },
+    {
+      "gl": "157014",
+      "name": "REHAB Demo"
+    },
+    {
+      "gl": "157015",
+      "name": "REHAB Condo Rehab"
+    },
+    {
+      "gl": "157016",
+      "name": "REHAB Decking / Balcony"
+    },
+    {
+      "gl": "157017",
+      "name": "REHAB Down Units"
+    },
+    {
+      "gl": "157018",
+      "name": "REHAB Water Heater"
+    },
+    {
+      "gl": "157019",
+      "name": "REHAB Awnings"
+    },
+    {
+      "gl": "157020",
+      "name": "REHAB Boiler"
+    },
+    {
+      "gl": "157021",
+      "name": "REHAB Door Replacement"
+    },
+    {
+      "gl": "157022",
+      "name": "REHAB Electrical"
+    },
+    {
+      "gl": "157023",
+      "name": "REHAB Hardware"
+    },
+    {
+      "gl": "157024",
+      "name": "REHAB Glass & Screen"
+    },
+    {
+      "gl": "157025",
+      "name": "REHAB HVAC"
+    },
+    {
+      "gl": "157026",
+      "name": "REHAB Interior Unit Other"
+    },
+    {
+      "gl": "157027",
+      "name": "REHAB Admin / Supervisor"
+    },
+    {
+      "gl": "157028",
+      "name": "REHAB Thermostat"
+    },
+    {
+      "gl": "157029",
+      "name": "REHAB Backsplash"
+    },
+    {
+      "gl": "157030",
+      "name": "REHAB Paint"
+    },
+    {
+      "gl": "157031",
+      "name": "REHAB Sheetrock"
+    },
+    {
+      "gl": "157032",
+      "name": "REHAB Clean"
+    },
+    {
+      "gl": "157033",
+      "name": "REHAB Pet Yard"
+    },
+    {
+      "gl": "157034",
+      "name": "REHAB Contingency"
+    },
+    {
+      "gl": "157100",
+      "name": "REHAB Carpet"
+    },
+    {
+      "gl": "157101",
+      "name": "REHAB Flooring"
+    },
+    {
+      "gl": "154006",
+      "name": "MAJ Common Areas"
+    },
+    {
+      "gl": "154018",
+      "name": "MAJ Hallway Flooring"
+    },
+    {
+      "gl": "158003",
+      "name": "MAJ Architect / Engineering"
+    },
+    {
+      "gl": "151012",
+      "name": "REP Carpet"
+    },
+    {
+      "gl": "159001",
+      "name": "Commercial - Landlord Construction"
+    },
+    {
+      "gl": "159002",
+      "name": "Commercial - Tenant Improvements"
+    },
+    {
+      "gl": "158005",
+      "name": "MAJ Asbestos Cleanup"
+    },
+    {
+      "gl": "151013",
+      "name": "REP Flooring"
+    },
+    {
+      "gl": "159003",
+      "name": "Commercial - Leasing Commission - LL Rep"
+    },
+    {
+      "gl": "159004",
+      "name": "Commercial - Leasing Commission - TT Rep"
+    },
+    {
+      "gl": "158009",
+      "name": "MAJ Furniture, Fixtures, & Equipment"
+    },
+    {
+      "gl": "158010",
+      "name": "MAJ Signage"
+    },
+    {
+      "gl": "158011",
+      "name": "MAJ Computer Equipment"
+    },
+    {
+      "gl": "158012",
+      "name": "MAJ Computer Software"
+    },
+    {
+      "gl": "158013",
+      "name": "MAJ Vehicles"
+    },
+    {
+      "gl": "158100",
+      "name": "Start Up - Marketing / Capital"
+    },
+    {
+      "gl": "200001",
+      "name": "Trade Accounts Payable"
+    },
+    {
+      "gl": "220001",
+      "name": "Prepaid Rent"
+    },
+    {
+      "gl": "240001",
+      "name": "Security Deposits"
+    },
+    {
+      "gl": "240002",
+      "name": "Security Deposits - Clearing"
+    },
+    {
+      "gl": "210002",
+      "name": "Accrued Management Fees"
+    },
+    {
+      "gl": "210005",
+      "name": "Accrued Payroll"
+    },
+    {
+      "gl": "210001",
+      "name": "Accrued Expenses"
+    },
+    {
+      "gl": "200004",
+      "name": "Unclaimed Property Payable"
+    },
+    {
+      "gl": "210008",
+      "name": "Accrued Expense - Other"
+    },
+    {
+      "gl": "210003",
+      "name": "Accrued Property Taxes"
+    },
+    {
+      "gl": "200003",
+      "name": "Sales Tax Payable"
+    },
+    {
+      "gl": "200002",
+      "name": "A/P - Other"
+    },
+    {
+      "gl": "310000",
+      "name": "Contributions"
+    },
+    {
+      "gl": "320000",
+      "name": "Distributions"
+    },
+    {
+      "gl": "380000",
+      "name": "Current Year Earnings"
+    },
+    {
+      "gl": "390000",
+      "name": "Retained Earnings"
+    },
+    {
+      "gl": "411001",
+      "name": "Residential Income"
+    },
+    {
+      "gl": "411007",
+      "name": "Takeover / Prorated Rents"
+    },
+    {
+      "gl": "412001",
+      "name": "Gain / Loss To Lease"
+    },
+    {
+      "gl": "450001",
+      "name": "Commercial - Base Rent"
+    },
+    {
+      "gl": "413002",
+      "name": "Concessions - Recurring - Renewal Lease"
+    },
+    {
+      "gl": "413001",
+      "name": "Concessions - Recurring - New Lease"
+    },
+    {
+      "gl": "413003",
+      "name": "Concessions - One-Time - New Lease"
+    },
+    {
+      "gl": "413004",
+      "name": "Concessions - One-Time - Renewal Lease"
+    },
+    {
+      "gl": "413005",
+      "name": "Other Rent Concessions"
+    },
+    {
+      "gl": "440035",
+      "name": "Storage Rent"
+    },
+    {
+      "gl": "450006",
+      "name": "Commercial - Reimbursement - CAM"
+    },
+    {
+      "gl": "450016",
+      "name": "Commercial - PY Expense Rec - CAM"
+    },
+    {
+      "gl": "450007",
+      "name": "Commercial - Reimbursement - Taxes"
+    },
+    {
+      "gl": "415001",
+      "name": "Courtesy Officer Units"
+    },
+    {
+      "gl": "415002",
+      "name": "Model Unit"
+    },
+    {
+      "gl": "606102",
+      "name": "Corporate Apartment Expense"
+    },
+    {
+      "gl": "414000",
+      "name": "Vacancy Loss"
+    },
+    {
+      "gl": "414001",
+      "name": "Vacancy Loss - Rehab Construction Period"
+    },
+    {
+      "gl": "419002",
+      "name": "Bad Debt Recoveries"
+    },
+    {
+      "gl": "419001",
+      "name": "Bad Debt Expense"
+    },
+    {
+      "gl": "440050",
+      "name": "Other Income - Write-off"
+    },
+    {
+      "gl": "440007",
+      "name": "Late Fee Income"
+    },
+    {
+      "gl": "630006",
+      "name": "Interest Expense on Late Tax Payment"
+    },
+    {
+      "gl": "430001",
+      "name": "Utility Rebill - Electric"
+    },
+    {
+      "gl": "430002",
+      "name": "Utility Rebill - Gas"
+    },
+    {
+      "gl": "430003",
+      "name": "Utility Rebill - Water / Sewer"
+    },
+    {
+      "gl": "430004",
+      "name": "Utility Rebill - Pest Control"
+    },
+    {
+      "gl": "430005",
+      "name": "Utility Rebill - Trash"
+    },
+    {
+      "gl": "430006",
+      "name": "Utility Rebill - Valet Trash"
+    },
+    {
+      "gl": "430008",
+      "name": "Utility Rebill - Other Rebills"
+    },
+    {
+      "gl": "430009",
+      "name": "Utility Rebill - Service Fee Reimbursement"
+    },
+    {
+      "gl": "440016",
+      "name": "Cable Income"
+    },
+    {
+      "gl": "440036",
+      "name": "Telephone Income"
+    },
+    {
+      "gl": "440019",
+      "name": "Club Room Rental Fees"
+    },
+    {
+      "gl": "440024",
+      "name": "Deposit Forfeitures"
+    },
+    {
+      "gl": "440008",
+      "name": "Legal / Eviction Fees"
+    },
+    {
+      "gl": "440011",
+      "name": "Common Area Locks / Keys / Fob Income"
+    },
+    {
+      "gl": "440020",
+      "name": "Amenity Fees"
+    },
+    {
+      "gl": "440022",
+      "name": "Corporate Unit Income"
+    },
+    {
+      "gl": "440023",
+      "name": "Credit Card Fee Reimbursements"
+    },
+    {
+      "gl": "440027",
+      "name": "Guest Suite Income"
+    },
+    {
+      "gl": "440029",
+      "name": "Fines"
+    },
+    {
+      "gl": "440032",
+      "name": "Liability Insurance Fees"
+    },
+    {
+      "gl": "440033",
+      "name": "Unit Locks / Key / Fob Income"
+    },
+    {
+      "gl": "440051",
+      "name": "Misc Residential Income"
+    },
+    {
+      "gl": "440009",
+      "name": "NSF Fees"
+    },
+    {
+      "gl": "440004",
+      "name": "Pet Fees - Non-Refundable"
+    },
+    {
+      "gl": "420001",
+      "name": "Damage Fees - Unit Clean on Turn"
+    },
+    {
+      "gl": "420002",
+      "name": "Damage Fees - Painting"
+    },
+    {
+      "gl": "420003",
+      "name": "Damage Fees - Carpet Cleaning / Repair"
+    },
+    {
+      "gl": "420004",
+      "name": "Damage Fees - Carpet Replacement"
+    },
+    {
+      "gl": "420005",
+      "name": "Damage Fees - Other"
+    },
+    {
+      "gl": "420006",
+      "name": "Damage Fees - Write-off"
+    },
+    {
+      "gl": "440037",
+      "name": "Transfer Fee"
+    },
+    {
+      "gl": "440003",
+      "name": "Pet Rent"
+    },
+    {
+      "gl": "440001",
+      "name": "Application Fees"
+    },
+    {
+      "gl": "440002",
+      "name": "Administrative Fees"
+    },
+    {
+      "gl": "440048",
+      "name": "Lease Termination Fees"
+    },
+    {
+      "gl": "440049",
+      "name": "Lease Termination Fees - Write-off"
+    },
+    {
+      "gl": "440005",
+      "name": "Parking / Carport Income"
+    },
+    {
+      "gl": "440030",
+      "name": "Interest Income"
+    },
+    {
+      "gl": "105005",
+      "name": "Interest Reserve Escrow"
+    },
+    {
+      "gl": "603001",
+      "name": "Manager"
+    },
+    {
+      "gl": "603003",
+      "name": "Leasing - Manager"
+    },
+    {
+      "gl": "603004",
+      "name": "Leasing - Staff"
+    },
+    {
+      "gl": "603011",
+      "name": "Maintenance - Manager"
+    },
+    {
+      "gl": "603012",
+      "name": "Maintenance - Staff"
+    },
+    {
+      "gl": "603019",
+      "name": "Overtime - Outside Staff"
+    },
+    {
+      "gl": "603006",
+      "name": "Maid"
+    },
+    {
+      "gl": "603104",
+      "name": "Payroll Taxes"
+    },
+    {
+      "gl": "603103",
+      "name": "Group Insurance"
+    },
+    {
+      "gl": "603005",
+      "name": "Bonuses - Leasing"
+    },
+    {
+      "gl": "603008",
+      "name": "Bonuses - Performance"
+    },
+    {
+      "gl": "603102",
+      "name": "401k"
+    },
+    {
+      "gl": "603106",
+      "name": "Workers Compensation"
+    },
+    {
+      "gl": "603009",
+      "name": "Temp Help - Inside"
+    },
+    {
+      "gl": "603010",
+      "name": "Overtime - Inside Staff"
+    },
+    {
+      "gl": "603018",
+      "name": "Temp Help - Outside"
+    },
+    {
+      "gl": "415000",
+      "name": "Employee Units"
+    },
+    {
+      "gl": "603023",
+      "name": "Payroll - Other"
+    },
+    {
+      "gl": "606501",
+      "name": "Radio / TV Advertising"
+    },
+    {
+      "gl": "606502",
+      "name": "Digital Advertising - General"
+    },
+    {
+      "gl": "606504",
+      "name": "Digital Advertising - Social Media"
+    },
+    {
+      "gl": "606505",
+      "name": "Digital Advertising - Remarketing"
+    },
+    {
+      "gl": "606602",
+      "name": "ILS - Zillow Network"
+    },
+    {
+      "gl": "606603",
+      "name": "ILS - ApartmentList"
+    },
+    {
+      "gl": "606604",
+      "name": "ILS - CoStar Network"
+    },
+    {
+      "gl": "606605",
+      "name": "ILS - RentPath Network"
+    },
+    {
+      "gl": "606610",
+      "name": "ILS - Yelp"
+    },
+    {
+      "gl": "606816",
+      "name": "Third Party Services - Rooof"
+    },
+    {
+      "gl": "606822",
+      "name": "Third Party Services - ReachLocal"
+    },
+    {
+      "gl": "606402",
+      "name": "Collateral Materials / Promotional Products"
+    },
+    {
+      "gl": "606104",
+      "name": "Resident Incentives / Retention"
+    },
+    {
+      "gl": "606101",
+      "name": "Model Expense"
+    },
+    {
+      "gl": "606103",
+      "name": "Property Event & Decorative Expense"
+    },
+    {
+      "gl": "606106",
+      "name": "Prospect Refreshments"
+    },
+    {
+      "gl": "606105",
+      "name": "Resident Referral Fees"
+    },
+    {
+      "gl": "606201",
+      "name": "Locator Fees"
+    },
+    {
+      "gl": "606702",
+      "name": "Reputation Management - Ellis Surveys"
+    },
+    {
+      "gl": "606801",
+      "name": "Shop Reports / Market Research"
+    },
+    {
+      "gl": "603007",
+      "name": "Concierge"
+    },
+    {
+      "gl": "607008",
+      "name": "Concierge Service"
+    },
+    {
+      "gl": "606001",
+      "name": "Marketing General & Non Specific"
+    },
+    {
+      "gl": "606304",
+      "name": "Virtual Tour"
+    },
+    {
+      "gl": "606609",
+      "name": "ILS - ApartmentRatings.com"
+    },
+    {
+      "gl": "606705",
+      "name": "Reputation Management - Chatmeter"
+    },
+    {
+      "gl": "606809",
+      "name": "Third Party Services - LeaseLabs"
+    },
+    {
+      "gl": "606802",
+      "name": "Call Center / Answering Service"
+    },
+    {
+      "gl": "607011",
+      "name": "Cell Phones"
+    },
+    {
+      "gl": "607012",
+      "name": "Telephone Expense"
+    },
+    {
+      "gl": "607013",
+      "name": "Data / Internet"
+    },
+    {
+      "gl": "607014",
+      "name": "Cable / Satellite"
+    },
+    {
+      "gl": "607005",
+      "name": "Recruitment"
+    },
+    {
+      "gl": "607003",
+      "name": "Travel / Transportation / Lodging"
+    },
+    {
+      "gl": "607002",
+      "name": "Meals & Entertainment"
+    },
+    {
+      "gl": "607001",
+      "name": "Employee Engagement / Team Building"
+    },
+    {
+      "gl": "607025",
+      "name": "Office Supplies"
+    },
+    {
+      "gl": "607026",
+      "name": "Postage / Express Mail / Delivery"
+    },
+    {
+      "gl": "607030",
+      "name": "Subscriptions / Dues"
+    },
+    {
+      "gl": "607031",
+      "name": "Forms"
+    },
+    {
+      "gl": "605002",
+      "name": "Copy Machine Contract"
+    },
+    {
+      "gl": "607027",
+      "name": "Printing"
+    },
+    {
+      "gl": "607004",
+      "name": "Training"
+    },
+    {
+      "gl": "603101",
+      "name": "Payroll Processing"
+    },
+    {
+      "gl": "607015",
+      "name": "Furniture & Equipment Rental"
+    },
+    {
+      "gl": "601043",
+      "name": "Exercise / Weight Room Supplies & Repairs"
+    },
+    {
+      "gl": "607009",
+      "name": "IT Consulting Fees"
+    },
+    {
+      "gl": "606301",
+      "name": "Property Web Site"
+    },
+    {
+      "gl": "606403",
+      "name": "Signs / Flags / Banners"
+    },
+    {
+      "gl": "606803",
+      "name": "CRM / Lead Generation & Tracking"
+    },
+    {
+      "gl": "606813",
+      "name": "Third Party Services - Mobile Doorman"
+    },
+    {
+      "gl": "607016",
+      "name": "Computer Software License Fees"
+    },
+    {
+      "gl": "607017",
+      "name": "Computer Hardware"
+    },
+    {
+      "gl": "607018",
+      "name": "Revenue Management"
+    },
+    {
+      "gl": "607022",
+      "name": "Core Acctg / Operating System"
+    },
+    {
+      "gl": "607019",
+      "name": "Resident Screening"
+    },
+    {
+      "gl": "607036",
+      "name": "Green / Environmental"
+    },
+    {
+      "gl": "607010",
+      "name": "Legal Fees / Evictions"
+    },
+    {
+      "gl": "607042",
+      "name": "Other Admin Expense"
+    },
+    {
+      "gl": "607028",
+      "name": "License / Permit / Tax / Insp"
+    },
+    {
+      "gl": "607020",
+      "name": "Payment Processing Fees"
+    },
+    {
+      "gl": "607029",
+      "name": "Bank Fees"
+    },
+    {
+      "gl": "607035",
+      "name": "Fines / Violations / Late Fees"
+    },
+    {
+      "gl": "607038",
+      "name": "Tenant Liability Insurance"
+    },
+    {
+      "gl": "607023",
+      "name": "Admin / Accounting Fees"
+    },
+    {
+      "gl": "615600",
+      "name": "Legal Fees"
+    },
+    {
+      "gl": "608001",
+      "name": "External Management Fee Expense"
+    },
+    {
+      "gl": "601030",
+      "name": "Garage / Carport Supplies & Repairs"
+    },
+    {
+      "gl": "605023",
+      "name": "Landscape Maintenance Contract"
+    },
+    {
+      "gl": "601024",
+      "name": "Snow and Ice Removal"
+    },
+    {
+      "gl": "605024",
+      "name": "Snow / Ice Removal Contract"
+    },
+    {
+      "gl": "601026",
+      "name": "Sprinkler / Irrigation Supplies & Repairs"
+    },
+    {
+      "gl": "601017",
+      "name": "Carpet Cleaning Supplies & Repairs"
+    },
+    {
+      "gl": "601018",
+      "name": "Flooring Supplies & Repairs"
+    },
+    {
+      "gl": "602003",
+      "name": "T/O Vinyl / Tile Supplies & Repair"
+    },
+    {
+      "gl": "602011",
+      "name": "T/O Blinds / Drapes Repair"
+    },
+    {
+      "gl": "602005",
+      "name": "T/O Painting Supplies"
+    },
+    {
+      "gl": "601012",
+      "name": "Door Supplies & Repairs"
+    },
+    {
+      "gl": "602001",
+      "name": "T/O Cleaning Services / Supplies"
+    },
+    {
+      "gl": "602004",
+      "name": "T/O Paint Contractor"
+    },
+    {
+      "gl": "602002",
+      "name": "T/O Carpet Cleaning / Repair"
+    },
+    {
+      "gl": "602006",
+      "name": "T/O Resurfacing - Fixtures / Count"
+    },
+    {
+      "gl": "602007",
+      "name": "T/O Resurfacing - Tub / Shower"
+    },
+    {
+      "gl": "602008",
+      "name": "T/O Appliance Repair"
+    },
+    {
+      "gl": "602010",
+      "name": "T/O Locks & Keys"
+    },
+    {
+      "gl": "602015",
+      "name": "T/O Drywall Supplies & Repairs"
+    },
+    {
+      "gl": "602016",
+      "name": "T/O Other"
+    },
+    {
+      "gl": "605020",
+      "name": "Pest Control Contract"
+    },
+    {
+      "gl": "601002",
+      "name": "Plumbing Supplies & Repairs"
+    },
+    {
+      "gl": "601003",
+      "name": "Backflow Inspections"
+    },
+    {
+      "gl": "605026",
+      "name": "Access Gate Maintenance Contract"
+    },
+    {
+      "gl": "605030",
+      "name": "Other Contract Services"
+    },
+    {
+      "gl": "604206",
+      "name": "Water / Sewer - Water Treatment"
+    },
+    {
+      "gl": "601001",
+      "name": "Electrical Supplies & Repairs"
+    },
+    {
+      "gl": "601004",
+      "name": "HVAC Supplies & Repairs"
+    },
+    {
+      "gl": "605010",
+      "name": "HVAC Maintenance Contract"
+    },
+    {
+      "gl": "601008",
+      "name": "Appliance Supplies & Repairs"
+    },
+    {
+      "gl": "601006",
+      "name": "Equipment Supplies & Repairs"
+    },
+    {
+      "gl": "601009",
+      "name": "Garbage Disposal Supplies & Repairs"
+    },
+    {
+      "gl": "601022",
+      "name": "Exterior Supplies & Repairs"
+    },
+    {
+      "gl": "601010",
+      "name": "Trash Compactor Supplies & Repairs"
+    },
+    {
+      "gl": "601039",
+      "name": "Common Area Supplies & Repairs"
+    },
+    {
+      "gl": "601034",
+      "name": "Hand Tools / Maintenance Equipment"
+    },
+    {
+      "gl": "601007",
+      "name": "Drywall Supplies & Repairs"
+    },
+    {
+      "gl": "601020",
+      "name": "Interior Supplies & Repairs"
+    },
+    {
+      "gl": "601021",
+      "name": "Exterior Painting"
+    },
+    {
+      "gl": "601016",
+      "name": "Lighting / Ceiling Fan Supplies & Repairs"
+    },
+    {
+      "gl": "601033",
+      "name": "Fuel & Propane"
+    },
+    {
+      "gl": "601014",
+      "name": "Fireplace Supplies & Repairs"
+    },
+    {
+      "gl": "601015",
+      "name": "Cabinet / Closet Supplies & Repairs"
+    },
+    {
+      "gl": "601036",
+      "name": "Boiler / Water Heater Supplies & Repairs"
+    },
+    {
+      "gl": "601049",
+      "name": "Other General Maintenance"
+    },
+    {
+      "gl": "601005",
+      "name": "Roof Supplies & Repairs"
+    },
+    {
+      "gl": "601027",
+      "name": "Pest Control - Non Recurring"
+    },
+    {
+      "gl": "601040",
+      "name": "Signage / Directory Strips"
+    },
+    {
+      "gl": "605012",
+      "name": "Elevator Maintenance Contract"
+    },
+    {
+      "gl": "605001",
+      "name": "Cable TV Contract"
+    },
+    {
+      "gl": "601031",
+      "name": "Vehicle Expense"
+    },
+    {
+      "gl": "601045",
+      "name": "Sauna / Jacuzzi Supplies & Repairs"
+    },
+    {
+      "gl": "601046",
+      "name": "Pool Repairs & Supplies"
+    },
+    {
+      "gl": "605006",
+      "name": "Pool Maintenance Contract"
+    },
+    {
+      "gl": "601028",
+      "name": "Access Gate Expense"
+    },
+    {
+      "gl": "601029",
+      "name": "Parking Lot / Sidewalk Supplies & Repairs"
+    },
+    {
+      "gl": "601019",
+      "name": "Interior Plant Maintenance"
+    },
+    {
+      "gl": "601011",
+      "name": "Locks & Keys"
+    },
+    {
+      "gl": "601048",
+      "name": "Other Amenities Repairs & Supplies"
+    },
+    {
+      "gl": "605014",
+      "name": "Equipment Maintenance Contract"
+    },
+    {
+      "gl": "605019",
+      "name": "Janitorial Contract"
+    },
+    {
+      "gl": "601032",
+      "name": "Uniforms"
+    },
+    {
+      "gl": "601013",
+      "name": "Window Supplies & Repairs"
+    },
+    {
+      "gl": "605016",
+      "name": "Fire Protection / Life Safety Contract"
+    },
+    {
+      "gl": "605017",
+      "name": "Intrusion Alarm Contract"
+    },
+    {
+      "gl": "601037",
+      "name": "Fire and Life Safety Supplies & Repairs"
+    },
+    {
+      "gl": "601038",
+      "name": "Security / Intrusion Alarm Supplies & Repairs"
+    },
+    {
+      "gl": "603020",
+      "name": "Courtesy / Patrol / Security - Salaries"
+    },
+    {
+      "gl": "605018",
+      "name": "Patrol / Courtesy Officer Contract"
+    },
+    {
+      "gl": "604003",
+      "name": "Electric - Vacant Units"
+    },
+    {
+      "gl": "604004",
+      "name": "Electric - Common Areas"
+    },
+    {
+      "gl": "604401",
+      "name": "Utility Billing Service Fees"
+    },
+    {
+      "gl": "604001",
+      "name": "Electricity"
+    },
+    {
+      "gl": "604103",
+      "name": "Gas - Vacant Units"
+    },
+    {
+      "gl": "604104",
+      "name": "Gas - Common Areas"
+    },
+    {
+      "gl": "604204",
+      "name": "Water / Sewer - Irrigation"
+    },
+    {
+      "gl": "604201",
+      "name": "Water / Sewer"
+    },
+    {
+      "gl": "604301",
+      "name": "Trash - Removal"
+    },
+    {
+      "gl": "640002",
+      "name": "General Liability Insurance"
+    },
+    {
+      "gl": "640001",
+      "name": "Property Insurance"
+    },
+    {
+      "gl": "750011",
+      "name": "Casualty Loss"
+    },
+    {
+      "gl": "630004",
+      "name": "Personal Property Tax"
+    },
+    {
+      "gl": "630001",
+      "name": "Real Estate Tax"
+    },
+    {
+      "gl": "630003",
+      "name": "Real Estate Tax - Prior Year Adjustments"
+    },
+    {
+      "gl": "630005",
+      "name": "External Tax Consulting Fees"
+    },
+    {
+      "gl": "750007",
+      "name": "Sales & Use Taxes"
+    },
+    {
+      "gl": "606704",
+      "name": "Reputation Management - Kingsley Surveys"
+    },
+    {
+      "gl": "701001",
+      "name": "1st Mortgage Interest Expense"
+    },
+    {
+      "gl": "750016",
+      "name": "Commercial - Owner Admin"
+    },
+    {
+      "gl": "750005",
+      "name": "Audit Fees"
+    },
+    {
+      "gl": "750004",
+      "name": "Accounting Fees"
+    },
+    {
+      "gl": "750009",
+      "name": "Other Misc. Expenses"
+    },
+    {
+      "gl": "750013",
+      "name": "External Appraisal Fees"
+    },
+    {
+      "gl": "750014",
+      "name": "Corporate Entity Maintenance"
+    },
+    {
+      "gl": "750021",
+      "name": "Partnership/Owner Expense"
+    },
+    {
+      "gl": "780001",
+      "name": "Asset Management Fee Expense"
+    },
+    {
+      "gl": "770001",
+      "name": "Fair Value Gain / Loss on Real Estate"
+    }
+  ],
+  "maps": {
+    "invesco": {
+      "label": "Invesco",
+      "mappings": {
+        "100002": {
+          "gl": "1010-0001",
+          "name": "Cash - Operating Acct/Money Market",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "100001": {
+          "gl": "1015-0000",
+          "name": "Cash - Lock Box/Depository",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "100003": {
+          "gl": "1040-0000",
+          "name": "Ownership Cash",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "102000": {
+          "gl": "1055-0000",
+          "name": "Security Deposits - Money Market",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "110001": {
+          "gl": "1100-0000",
+          "name": "A/R-Tenant",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "110100": {
+          "gl": "1100-3009",
+          "name": "A/R - Tenants - Other",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "110400": {
+          "gl": "1101-0000",
+          "name": "A/R-Tenant Unbilled Reimbursements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "110999": {
+          "gl": "1102-0000",
+          "name": "Allow For Doubtful Accounts",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "120001": {
+          "gl": "1300-0000",
+          "name": "Prepaid Insurance - Property",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "120004": {
+          "gl": "1315-0000",
+          "name": "Prepaid Taxes",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "120005": {
+          "gl": "1320-0000",
+          "name": "Prepaid Other",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "104000": {
+          "gl": "1330-0000",
+          "name": "Deposits - Utilities",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152001": {
+          "gl": "1419-0000",
+          "name": "Undeveloped Land",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152002": {
+          "gl": "1421-0000",
+          "name": "Land Acquisition Costs",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152200": {
+          "gl": "1422-0000",
+          "name": "Land Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152100": {
+          "gl": "1437-0000",
+          "name": "Building Acquisition Costs",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154001": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154003": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154004": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154005": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154007": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154008": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154009": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154010": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154011": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154012": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154013": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154014": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154015": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154016": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154017": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "155006": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157012": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158001": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158002": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158006": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158007": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158008": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "159005": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "159006": {
+          "gl": "1441-0000",
+          "name": "Building Improvements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152201": {
+          "gl": "1442-0000",
+          "name": "Major Repairs - Land",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152202": {
+          "gl": "1442-0000",
+          "name": "Major Repairs - Land",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152205": {
+          "gl": "1442-0000",
+          "name": "Major Repairs - Land",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152206": {
+          "gl": "1442-0000",
+          "name": "Major Repairs - Land",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152209": {
+          "gl": "1442-0000",
+          "name": "Major Repairs - Land",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152210": {
+          "gl": "1442-0000",
+          "name": "Major Repairs - Land",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152212": {
+          "gl": "1442-0000",
+          "name": "Major Repairs - Land",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "153001": {
+          "gl": "1442-0000",
+          "name": "Major Repairs - Land",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152211": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "153002": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "153003": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "153004": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "153005": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "153006": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "153007": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "153008": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "153010": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "155001": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "155002": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "155003": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "155007": {
+          "gl": "1443-0000",
+          "name": "Major Repairs - Buildings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "155004": {
+          "gl": "1444-0000",
+          "name": "Major Repairs - Roof",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152204": {
+          "gl": "1445-0000",
+          "name": "Major Repairs - Parking",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152207": {
+          "gl": "1445-0000",
+          "name": "Major Repairs - Parking",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152208": {
+          "gl": "1445-0000",
+          "name": "Major Repairs - Parking",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "155005": {
+          "gl": "1445-0000",
+          "name": "Major Repairs - Parking",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151019": {
+          "gl": "1446-0000",
+          "name": "Major Repairs - HVAC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151020": {
+          "gl": "1446-0000",
+          "name": "Major Repairs - HVAC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151021": {
+          "gl": "1446-0000",
+          "name": "Major Repairs - HVAC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151023": {
+          "gl": "1446-0000",
+          "name": "Major Repairs - HVAC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "153009": {
+          "gl": "1446-0000",
+          "name": "Major Repairs - HVAC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151024": {
+          "gl": "1448-0000",
+          "name": "Major Repairs - HVAC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "152203": {
+          "gl": "1448-0000",
+          "name": "Major Repairs - Other",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154002": {
+          "gl": "1448-0000",
+          "name": "Major Repairs - Other",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "155008": {
+          "gl": "1448-0000",
+          "name": "Major Repairs - Other",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "155009": {
+          "gl": "1448-0000",
+          "name": "Major Repairs - Other",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "155010": {
+          "gl": "1448-0000",
+          "name": "Major Repairs - Other",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158004": {
+          "gl": "1448-0000",
+          "name": "Major Repairs - Other",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151001": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151002": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151003": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151004": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151005": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151006": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151007": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151008": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151009": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151010": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151011": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151014": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151015": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151016": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151017": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151018": {
+          "gl": "1449-0000",
+          "name": "Appliances",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157001": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157002": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157003": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157004": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157005": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157006": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157007": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157008": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157009": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157010": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157011": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157013": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157014": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157015": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157016": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157017": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157018": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157019": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157020": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157021": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157022": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157023": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157024": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157025": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157026": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157027": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157028": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157029": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157030": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157031": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157032": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157033": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157034": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157100": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "157101": {
+          "gl": "1450-0000",
+          "name": "Unit Upgrade",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154006": {
+          "gl": "1451-0000",
+          "name": "Major Renovations",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "154018": {
+          "gl": "1451-0000",
+          "name": "Major Renovations",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158003": {
+          "gl": "1451-0000",
+          "name": "Major Renovations",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151012": {
+          "gl": "1453-0000",
+          "name": "Carpet Replacement",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "159001": {
+          "gl": "1455-0000",
+          "name": "Tenant Improvments",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "159002": {
+          "gl": "1455-0000",
+          "name": "Tenant Improvments",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158005": {
+          "gl": "1456-0000",
+          "name": "Asbestos Abatement",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "151013": {
+          "gl": "1457-0000",
+          "name": "Vinyl Replacement",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "159003": {
+          "gl": "1458-0000",
+          "name": "Commissions",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "159004": {
+          "gl": "1458-0000",
+          "name": "Commissions",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158009": {
+          "gl": "1460-0000",
+          "name": "Furniture Fixtures & Equipment",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158010": {
+          "gl": "1460-0000",
+          "name": "Furniture Fixtures & Equipment",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158011": {
+          "gl": "1460-0000",
+          "name": "Furniture Fixtures & Equipment",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158012": {
+          "gl": "1460-0000",
+          "name": "Furniture Fixtures & Equipment",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158013": {
+          "gl": "1470-0000",
+          "name": "Vehicles",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "158100": {
+          "gl": "1487-0000",
+          "name": "Syndication Costs",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "200001": {
+          "gl": "2000-0000",
+          "name": "Accounts Payable",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "220001": {
+          "gl": "2010-0000",
+          "name": "Prepaid Rents",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "240001": {
+          "gl": "2100-0000",
+          "name": "Security Deposit Liability",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "240002": {
+          "gl": "2101-0000",
+          "name": "Tenant Clearing",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "210002": {
+          "gl": "2200-0000",
+          "name": "Accrued Management Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "210005": {
+          "gl": "2260-0000",
+          "name": "Accrued Payroll",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "210001": {
+          "gl": "2270-0000",
+          "name": "Accrued Other",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "200004": {
+          "gl": "2271-0000",
+          "name": "Unclaimed Property",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "210008": {
+          "gl": "2275-0000",
+          "name": "Accrued Capital Expenditures",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "210003": {
+          "gl": "2280-0000",
+          "name": "Accrued Property Taxes",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "200003": {
+          "gl": "2281-0000",
+          "name": "Sales Tax Payable",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "200002": {
+          "gl": "2288-0000",
+          "name": "Other Current Liabilities",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "310000": {
+          "gl": "3010-0000",
+          "name": "Owner Contr  - Original",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "320000": {
+          "gl": "3013-0000",
+          "name": "Owner Distribution - Operation Cash Flow",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "380000": {
+          "gl": "3016-0000",
+          "name": "Current Year Income/(Loss)",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "390000": {
+          "gl": "3017-0000",
+          "name": "Retained Earnings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "411001": {
+          "gl": "5001-0000",
+          "name": "Market Rent",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "411007": {
+          "gl": "5001-0000",
+          "name": "Market Rent",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "412001": {
+          "gl": "5002-0000",
+          "name": "Loss To Lease",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "450001": {
+          "gl": "5010-0000",
+          "name": "Base Rent Income",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "413002": {
+          "gl": "5020-0000",
+          "name": "Rent Concessions / Incentives",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "413001": {
+          "gl": "5023-0000",
+          "name": "Term Concessions",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "413003": {
+          "gl": "5024-0000",
+          "name": "One-time Concessions",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "413004": {
+          "gl": "5024-0000",
+          "name": "One-time Concessions",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "413005": {
+          "gl": "5024-0000",
+          "name": "One-time Concessions",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440035": {
+          "gl": "5040-0000",
+          "name": "Storage Rent",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "450006": {
+          "gl": "5050-0000",
+          "name": "Operating Exp Reimb - Current Year",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "450016": {
+          "gl": "5051-0000",
+          "name": "Operating Exp Reimb - PY Recon",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "450007": {
+          "gl": "5060-0000",
+          "name": "Tax Reimbursement - Current Year",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "415001": {
+          "gl": "5130-0000",
+          "name": "Non-Income Units",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "415002": {
+          "gl": "5130-0000",
+          "name": "Non-Income Units",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606102": {
+          "gl": "5130-0000",
+          "name": "Non-Income Units",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "414000": {
+          "gl": "5150-0000",
+          "name": "Vacancy Loss",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "414001": {
+          "gl": "5150-0000",
+          "name": "Vacancy Loss",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "419002": {
+          "gl": "5170-0000",
+          "name": "Past Due Collected - Former Resident",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "419001": {
+          "gl": "5171-0000",
+          "name": "Bad Debt Loss",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440050": {
+          "gl": "5171-0000",
+          "name": "Bad Debt Loss",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440007": {
+          "gl": "5200-0000",
+          "name": "Late Charges",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "630006": {
+          "gl": "5201-0000",
+          "name": "Tenant Interest Charges",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "430001": {
+          "gl": "5205-0000",
+          "name": "Electricity Reimbursement",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "430002": {
+          "gl": "5206-0000",
+          "name": "Gas Reimbursement",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "430003": {
+          "gl": "5207-0000",
+          "name": "Sewer/Water Reimbursement",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "430004": {
+          "gl": "5208-0000",
+          "name": "Other Utility Reimbursements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "430005": {
+          "gl": "5208-0000",
+          "name": "Other Utility Reimbursements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "430006": {
+          "gl": "5208-0000",
+          "name": "Other Utility Reimbursements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "430008": {
+          "gl": "5208-0000",
+          "name": "Other Utility Reimbursements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "430009": {
+          "gl": "5208-0000",
+          "name": "Other Utility Reimbursements",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440016": {
+          "gl": "5213-0000",
+          "name": "Internet Service Income",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440036": {
+          "gl": "5215-0000",
+          "name": "Pay Telephone Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440019": {
+          "gl": "5230-0000",
+          "name": "Clubroom Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440024": {
+          "gl": "5240-0000",
+          "name": "Forfeited Deposits",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440008": {
+          "gl": "5245-0000",
+          "name": "Miscellaneous",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440011": {
+          "gl": "5245-0000",
+          "name": "Miscellaneous",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440020": {
+          "gl": "5245-0000",
+          "name": "Miscellaneous",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440022": {
+          "gl": "5245-0000",
+          "name": "Miscellaneous",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440023": {
+          "gl": "5245-0000",
+          "name": "Miscellaneous",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440027": {
+          "gl": "5245-0000",
+          "name": "Miscellaneous",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440029": {
+          "gl": "5245-0000",
+          "name": "Miscellaneous",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440032": {
+          "gl": "5245-0000",
+          "name": "Miscellaneous",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440033": {
+          "gl": "5245-0000",
+          "name": "Miscellaneous",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440051": {
+          "gl": "5245-0000",
+          "name": "Miscellaneous",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440009": {
+          "gl": "5250-0000",
+          "name": "Non-sufficient Funds (NSF) Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440004": {
+          "gl": "5255-0000",
+          "name": "Pet Fees - Non-Refundable",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "420001": {
+          "gl": "5260-0000",
+          "name": "Damage / Cleaning Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "420002": {
+          "gl": "5260-0000",
+          "name": "Damage / Cleaning Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "420003": {
+          "gl": "5260-0000",
+          "name": "Damage / Cleaning Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "420004": {
+          "gl": "5260-0000",
+          "name": "Damage / Cleaning Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "420005": {
+          "gl": "5260-0000",
+          "name": "Damage / Cleaning Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "420006": {
+          "gl": "5260-0000",
+          "name": "Damage / Cleaning Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440037": {
+          "gl": "5265-0000",
+          "name": "Transfer Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440003": {
+          "gl": "5270-0000",
+          "name": "Monthly Pet Charges",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440001": {
+          "gl": "5285-0000",
+          "name": "Application Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440002": {
+          "gl": "5285-0000",
+          "name": "Application Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440048": {
+          "gl": "5290-0000",
+          "name": "Cancellation / Termination Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440049": {
+          "gl": "5290-0000",
+          "name": "Bad Debt Loss",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440005": {
+          "gl": "5310-0000",
+          "name": "Parking Income - Monthly",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "440030": {
+          "gl": "5330-0000",
+          "name": "Interest Income - Operating",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "105005": {
+          "gl": "5335-0000",
+          "name": "Interest Income - Escrow",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603001": {
+          "gl": "7000-0000",
+          "name": "Property Manager Salary",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603003": {
+          "gl": "7005-0000",
+          "name": "Assistant Manager Salary",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603004": {
+          "gl": "7010-0000",
+          "name": "Leasing Associate Salary",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603011": {
+          "gl": "7025-0000",
+          "name": "Maintenance Supervisor Salary",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603012": {
+          "gl": "7026-0000",
+          "name": "Maintenance Assistant Salary",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603019": {
+          "gl": "7026-0000",
+          "name": "Maintenance Assistant Salary",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603006": {
+          "gl": "7037-0000",
+          "name": "Housekeeper Salary",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603104": {
+          "gl": "7040-0000",
+          "name": "Taxes - FUTA/FICA/SUTA",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603103": {
+          "gl": "7045-0000",
+          "name": "Group Insurance",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603005": {
+          "gl": "7078-0000",
+          "name": "Leasing Commission / Bonus",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603008": {
+          "gl": "7080-0000",
+          "name": "Quarterly and Periodic Bonuses",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603102": {
+          "gl": "7081-0000",
+          "name": "401k Match",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603106": {
+          "gl": "7085-0000",
+          "name": "Workers Compensation Insurance",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603009": {
+          "gl": "7090-0000",
+          "name": "Temporary Help",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603010": {
+          "gl": "7090-0000",
+          "name": "Temporary Help",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603018": {
+          "gl": "7090-0000",
+          "name": "Temporary Help",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "415000": {
+          "gl": "7094-0000",
+          "name": "Employee Units",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603023": {
+          "gl": "7095-0000",
+          "name": "Other salary and benefits",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606501": {
+          "gl": "7101-0000",
+          "name": "Media (Newspaper / Radio / TV)",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606502": {
+          "gl": "7103-0000",
+          "name": "Internet Advertising",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606504": {
+          "gl": "7103-0000",
+          "name": "Internet Advertising",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606505": {
+          "gl": "7103-0000",
+          "name": "Internet Advertising",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606602": {
+          "gl": "7103-0000",
+          "name": "Internet Advertising",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606603": {
+          "gl": "7103-0000",
+          "name": "Internet Advertising",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606604": {
+          "gl": "7103-0000",
+          "name": "Internet Advertising",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606605": {
+          "gl": "7103-0000",
+          "name": "Internet Advertising",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606610": {
+          "gl": "7103-0000",
+          "name": "Internet Advertising",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606816": {
+          "gl": "7103-0000",
+          "name": "Internet Advertising",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606822": {
+          "gl": "7103-0000",
+          "name": "Internet Advertising",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606402": {
+          "gl": "7120-0000",
+          "name": "Collateral Materials",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606104": {
+          "gl": "7140-0000",
+          "name": "Resident Incentives",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606101": {
+          "gl": "7145-0000",
+          "name": "Model Maintenance & Cleaning",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606103": {
+          "gl": "7150-0000",
+          "name": "Promotional Events",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606106": {
+          "gl": "7155-0000",
+          "name": "Prospect Refreshments",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606105": {
+          "gl": "7169-0000",
+          "name": "Resident Referral",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606201": {
+          "gl": "7179-0000",
+          "name": "External Broker / Locator Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606702": {
+          "gl": "7180-0000",
+          "name": "Market Studies / Shopping",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606801": {
+          "gl": "7180-0000",
+          "name": "Market Studies / Shopping",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603007": {
+          "gl": "7191-0000",
+          "name": "Concierge Services",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607008": {
+          "gl": "7191-0000",
+          "name": "Concierge Services",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606001": {
+          "gl": "7197-0000",
+          "name": "Other Marketing",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606304": {
+          "gl": "7197-0000",
+          "name": "Other Marketing",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606609": {
+          "gl": "7197-0000",
+          "name": "Other Marketing",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606705": {
+          "gl": "7197-0000",
+          "name": "Other Marketing",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606809": {
+          "gl": "7197-0000",
+          "name": "Other Marketing",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606802": {
+          "gl": "7200-0000",
+          "name": "Answering Service",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607011": {
+          "gl": "7205-0000",
+          "name": "Telephone",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607012": {
+          "gl": "7205-0000",
+          "name": "Telephone",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607013": {
+          "gl": "7205-0000",
+          "name": "Telephone",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607014": {
+          "gl": "7205-0000",
+          "name": "Telephone",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607005": {
+          "gl": "7210-0000",
+          "name": "Employment Ads",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607003": {
+          "gl": "7221-0000",
+          "name": "Travel",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607002": {
+          "gl": "7222-0000",
+          "name": "Meals and Entertainment",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607001": {
+          "gl": "7225-0000",
+          "name": "Associate Recognition",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607025": {
+          "gl": "7230-0000",
+          "name": "Office Supplies",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607026": {
+          "gl": "7235-0000",
+          "name": "Postage",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607030": {
+          "gl": "7240-0000",
+          "name": "Dues & Subscriptions",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607031": {
+          "gl": "7245-0000",
+          "name": "Forms",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605002": {
+          "gl": "7246-0000",
+          "name": "Printing & Supplies",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607027": {
+          "gl": "7246-0000",
+          "name": "Printing & Supplies",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607004": {
+          "gl": "7250-0000",
+          "name": "Training",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603101": {
+          "gl": "7254-0000",
+          "name": "Payroll Services",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607015": {
+          "gl": "7260-0000",
+          "name": "Equipment Rental / Leasing",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601043": {
+          "gl": "7272-0000",
+          "name": "Fitness Center",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607009": {
+          "gl": "7274-0000",
+          "name": "Computer Equipment, Repairs and Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606301": {
+          "gl": "7280-0000",
+          "name": "Computer Software - PMC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606403": {
+          "gl": "7280-0000",
+          "name": "Computer Software - PMC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606803": {
+          "gl": "7280-0000",
+          "name": "Computer Software - PMC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606813": {
+          "gl": "7280-0000",
+          "name": "Computer Software - PMC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607016": {
+          "gl": "7280-0000",
+          "name": "Computer Software - PMC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607017": {
+          "gl": "7280-0000",
+          "name": "Computer Software",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607018": {
+          "gl": "7280-0000",
+          "name": "Computer Software - PMC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607022": {
+          "gl": "7280-0000",
+          "name": "Computer Software - PMC",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607019": {
+          "gl": "7300-0000",
+          "name": "Credit Bureau Fees (Residential Only)",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607036": {
+          "gl": "7302-0000",
+          "name": "Energy Data Tracking Program and Related Costs",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607010": {
+          "gl": "7305-0000",
+          "name": "Legal Costs / Evictions",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607042": {
+          "gl": "7308-0000",
+          "name": "Other Professional Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607028": {
+          "gl": "7320-0000",
+          "name": "Governmental License / Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607020": {
+          "gl": "7325-0000",
+          "name": "Bank Charges",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607029": {
+          "gl": "7325-0000",
+          "name": "Bank Charges",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607035": {
+          "gl": "7330-0000",
+          "name": "Miscellaneous General",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607038": {
+          "gl": "7330-0000",
+          "name": "Miscellaneous General",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "607023": {
+          "gl": "7341-0000",
+          "name": "Accounting Related Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "615600": {
+          "gl": "7350-9002",
+          "name": "Legal Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "608001": {
+          "gl": "7380-0000",
+          "name": "Management Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601030": {
+          "gl": "7400-0000",
+          "name": "Garage Maintenance & Repair",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605023": {
+          "gl": "7600-0000",
+          "name": "Landscaping",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601024": {
+          "gl": "7640-0000",
+          "name": "Snow Removal",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605024": {
+          "gl": "7640-0000",
+          "name": "Snow Removal",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601026": {
+          "gl": "7670-0000",
+          "name": "Irrigation Repair & Maintenance",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601017": {
+          "gl": "7700-0000",
+          "name": "Carpet Repairs",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601018": {
+          "gl": "7705-0000",
+          "name": "Vinyl Repair",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602003": {
+          "gl": "7705-0000",
+          "name": "Vinyl Repair",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602011": {
+          "gl": "7720-0000",
+          "name": "Window Coverings",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602005": {
+          "gl": "7730-0000",
+          "name": "Painting Supplies",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601012": {
+          "gl": "7740-0000",
+          "name": "Millwork / Doors / Hardware",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602001": {
+          "gl": "7750-0000",
+          "name": "Interior Cleaning",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602004": {
+          "gl": "7760-0000",
+          "name": "Painting",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602002": {
+          "gl": "7770-0000",
+          "name": "Carpet Cleaning - Turnkey",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602006": {
+          "gl": "7780-0000",
+          "name": "Interior Repairs / Material",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602007": {
+          "gl": "7780-0000",
+          "name": "Interior Repairs / Material",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602008": {
+          "gl": "7780-0000",
+          "name": "Interior Repairs / Material",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602010": {
+          "gl": "7780-0000",
+          "name": "Interior Repairs / Material",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602015": {
+          "gl": "7780-0000",
+          "name": "Interior Repairs / Material",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "602016": {
+          "gl": "7780-0000",
+          "name": "Interior Repairs / Material",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605020": {
+          "gl": "7790-0000",
+          "name": "Pest Control Service",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601002": {
+          "gl": "7800-0000",
+          "name": "Plumbing",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601003": {
+          "gl": "7800-0000",
+          "name": "Plumbing",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605026": {
+          "gl": "7808-0000",
+          "name": "Building Maintenance System - R&M",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605030": {
+          "gl": "7808-0000",
+          "name": "Building Maintenance System - R&M",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "604206": {
+          "gl": "7809-0000",
+          "name": "Water Treatment",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601001": {
+          "gl": "7810-0000",
+          "name": "Electrical",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601004": {
+          "gl": "7815-0000",
+          "name": "Heating & Air Conditioning",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605010": {
+          "gl": "7816-0000",
+          "name": "HVAC Contracted - Interior",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601008": {
+          "gl": "7820-0000",
+          "name": "Appliance Maintenance / Repair",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601006": {
+          "gl": "7821-0000",
+          "name": "Equipment Repair & Maintenance",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601009": {
+          "gl": "7821-0000",
+          "name": "Equipment Repair & Maintenance",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601022": {
+          "gl": "7821-0000",
+          "name": "Equipment Repair & Maintenance",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601010": {
+          "gl": "7824-0000",
+          "name": "Supplies",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601039": {
+          "gl": "7824-0000",
+          "name": "Supplies",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601034": {
+          "gl": "7827-0000",
+          "name": "Miscellaneous Supplies",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601007": {
+          "gl": "7828-0000",
+          "name": "Painting",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601020": {
+          "gl": "7828-0000",
+          "name": "Painting",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601021": {
+          "gl": "7828-0000",
+          "name": "Painting",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601016": {
+          "gl": "7834-0000",
+          "name": "Light Bulbs",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601033": {
+          "gl": "7837-0000",
+          "name": "Fuels & Lubricants",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601014": {
+          "gl": "7839-0000",
+          "name": "Repairs / Labor",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601015": {
+          "gl": "7839-0000",
+          "name": "Repairs / Labor",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601036": {
+          "gl": "7839-0000",
+          "name": "Repairs / Labor",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601049": {
+          "gl": "7839-0000",
+          "name": "Repairs / Labor",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601005": {
+          "gl": "7843-0000",
+          "name": "Roof Repair",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601027": {
+          "gl": "7845-0000",
+          "name": "Exterminating",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601040": {
+          "gl": "7849-0000",
+          "name": "Signage R&M",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605012": {
+          "gl": "7850-0000",
+          "name": "Elevator/Escalator Maint Contract",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605001": {
+          "gl": "7858-0000",
+          "name": "Internet Service Expense",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601031": {
+          "gl": "7860-0000",
+          "name": "Maintenance Vehicles Expense",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601045": {
+          "gl": "7865-0000",
+          "name": "Pool Maintenance & Supplies",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601046": {
+          "gl": "7865-0000",
+          "name": "Pool Maintenance & Supplies",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605006": {
+          "gl": "7865-0000",
+          "name": "Pool Maintenance & Supplies",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601028": {
+          "gl": "7868-0000",
+          "name": "Access Gate R&M",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601029": {
+          "gl": "7875-0000",
+          "name": "Parking Lot Repairs",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601019": {
+          "gl": "7896-0000",
+          "name": "Interior Plant Maintenance",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601011": {
+          "gl": "7897-0000",
+          "name": "Locks & Keys",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601048": {
+          "gl": "7898-0000",
+          "name": "Maintenance - Other",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605014": {
+          "gl": "7898-0000",
+          "name": "Maintenance - Other",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605019": {
+          "gl": "7900-0000",
+          "name": "Janitorial Contract",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601032": {
+          "gl": "7920-0000",
+          "name": "Uniforms",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601013": {
+          "gl": "7940-0000",
+          "name": "Window Washing",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605016": {
+          "gl": "8000-0000",
+          "name": "Security Fire Alarm Monitor",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605017": {
+          "gl": "8010-0000",
+          "name": "Security Communications",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601037": {
+          "gl": "8020-0000",
+          "name": "Fire Alarm & Sprinkler",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "601038": {
+          "gl": "8030-0000",
+          "name": "Contracted Security Service",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "603020": {
+          "gl": "8030-0000",
+          "name": "Contracted Security Service",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "605018": {
+          "gl": "8030-0000",
+          "name": "Contracted Security Service",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "604003": {
+          "gl": "8100-0000",
+          "name": "Electricity - Vacant (Residential Only)",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "604004": {
+          "gl": "8110-0000",
+          "name": "Electricity - Common Area",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "604401": {
+          "gl": "8118-0000",
+          "name": "Utility Billing Services",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "604001": {
+          "gl": "8119-0000",
+          "name": "Electricity",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "604103": {
+          "gl": "8120-0000",
+          "name": "Gas - Vacant",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "604104": {
+          "gl": "8130-0000",
+          "name": "Gas - Common Area",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "604204": {
+          "gl": "8146-0000",
+          "name": "Water For Irrigation",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "604201": {
+          "gl": "8149-0000",
+          "name": "Water and Sewer",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "604301": {
+          "gl": "8170-0000",
+          "name": "Garbage Collection",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "640002": {
+          "gl": "8203-0000",
+          "name": "Ins Prem - General Liability",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "640001": {
+          "gl": "8204-0000",
+          "name": "Ins Prem - Property",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "750011": {
+          "gl": "8214-0000",
+          "name": "Uninsured Loss",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "630004": {
+          "gl": "8300-0000",
+          "name": "Personal Property Taxes",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "630001": {
+          "gl": "8310-0000",
+          "name": "Property Taxes",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "630003": {
+          "gl": "8311-0000",
+          "name": "Property Taxes - Prior Year",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "630005": {
+          "gl": "8320-0000",
+          "name": "Property Tax Service - Base",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "750007": {
+          "gl": "8330-0000",
+          "name": "Other Taxes",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "606704": {
+          "gl": "8466-0000",
+          "name": "Non-Escalatable Passthroughs - LL",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "701001": {
+          "gl": "8610-0000",
+          "name": "Interest - 1st Lien",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "750016": {
+          "gl": "8624-0000",
+          "name": "Administration Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "750005": {
+          "gl": "9100-0000",
+          "name": "Ownership Auditing",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "750004": {
+          "gl": "9110-0000",
+          "name": "Ownership Accounting",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "750009": {
+          "gl": "9121-0000",
+          "name": "Ownership Miscellaneous",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "750013": {
+          "gl": "9125-0000",
+          "name": "Appraisal",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "750014": {
+          "gl": "9127-0000",
+          "name": "Entity Maintenance Costs",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "750021": {
+          "gl": "9135-0000",
+          "name": "Ownership Property Level Data and Analytics",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "780001": {
+          "gl": "9150-0000",
+          "name": "Advisory Fees",
+          "notes": "",
+          "updatedAt": ""
+        },
+        "770001": {
+          "gl": "9310-0000",
+          "name": "Unrealized Appreciation",
+          "notes": "",
+          "updatedAt": ""
+        }
+      }
+    }
+  }
+}
