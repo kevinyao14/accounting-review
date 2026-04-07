@@ -259,7 +259,11 @@ function AppInner() {
     if (!draft) return false;
     if (draft.general?.trim()) return true;
     if (draft.accountNotes?.some(n => n.accountNumber?.trim() || n.note?.trim())) return true;
-    if (Object.values(draft.findings || {}).some(v => v?.trim())) return true;
+    if (Object.values(draft.findings || {}).some(v => {
+      if (!v) return false;
+      if (typeof v === "string") return !!v.trim();
+      return !!(v.rating || v.note?.trim?.());
+    })) return true;
     return false;
   };
 
