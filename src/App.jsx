@@ -565,24 +565,26 @@ function AppInner() {
     setCoaImportApplying(true);
     setCoaError("");
     try {
-      const { mapKey, mapLabel, isNewGroup, rows } = coaImportPreview;
+      const { mapKey, mapLabel, rows } = coaImportPreview;
       const pw = kbPw || sessionStorage.getItem("kb_pw") || "";
 
-      // Create group if new
-      if (isNewGroup) {
-        const res = await fetch("/api/coa", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "create-map", password: pw, mapKey, label: mapLabel }),
-        });
-        const d = await res.json();
-        if (!res.ok) throw new Error(d.error || "Failed to create group");
-      }
+      // Ensure group exists (idempotent — API returns OK if already exists)
+      const createRes = await fetch("/api/coa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create-map", password: pw, mapKey, label: mapLabel }),
+      });
+      const createData = await createRes.json();
+      if (!createRes.ok) throw new Error(createData.error || "Failed to ensure group");
 
-      // Build updated STYL accounts (add any new ones)
+      // Reload fresh data to avoid stale-state conflicts
+      const freshRes = await fetch("/api/coa");
+      const freshData = await freshRes.json();
+
+      // Build updated STYL accounts (add only truly new ones)
       const stylLookup = {};
-      coaData.stylAccounts.forEach(a => { stylLookup[a.gl] = true; });
-      const newStylAccounts = [...coaData.stylAccounts];
+      freshData.stylAccounts.forEach(a => { stylLookup[a.gl] = true; });
+      const newStylAccounts = [...freshData.stylAccounts];
       rows.forEach(r => {
         if (!stylLookup[r.stylGl] && r.stylName) {
           newStylAccounts.push({ gl: r.stylGl, name: r.stylName });
@@ -590,8 +592,8 @@ function AppInner() {
         }
       });
 
-      // Build updated mappings
-      const existingMap = coaData.maps?.[mapKey] || { label: mapLabel, mappings: {} };
+      // Build updated mappings (merge onto fresh server state)
+      const existingMap = freshData.maps?.[mapKey] || { label: mapLabel, mappings: {} };
       const updatedMappings = { ...existingMap.mappings };
       rows.forEach(r => {
         if (r.mGl || r.mName) {

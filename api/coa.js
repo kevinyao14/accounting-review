@@ -111,7 +111,8 @@ export default async function handler(req, res) {
         const mkRaw = await kvGet(KV_MAPKEYS);
         const mapKeys = mkRaw ? JSON.parse(mkRaw) : [];
         if (mapKeys.some(m => m.key === mapKey)) {
-          return res.status(400).json({ error: "Map group already exists" });
+          // Idempotent: already exists is OK (needed for import upserts)
+          return res.status(200).json({ ok: true, mapKeys, existed: true });
         }
         mapKeys.push({ key: mapKey, label });
         await kvSet(KV_MAPKEYS, JSON.stringify(mapKeys));
