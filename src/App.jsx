@@ -232,6 +232,7 @@ function AppInner() {
   const budgetFileRef     = useRef(null);
   const coaImportRef      = useRef(null);
   const expandedReviewRef = useRef(null);
+  const findingsFbRef     = useRef(null);
 
   // Load checklist: localStorage first (instant), then sync from KV in background
   useEffect(() => {
@@ -254,28 +255,100 @@ function AppInner() {
       .catch(() => {});
   }, []);
 
-  // Collapse expanded review on outside click, unless feedback draft has content
+  const hasDraftContent = (draft) => {
+    if (!draft) return false;
+    if (draft.general?.trim()) return true;
+    if (draft.accountNotes?.some(n => n.accountNumber?.trim() || n.note?.trim())) return true;
+    if (Object.values(draft.findings || {}).some(v => v?.trim())) return true;
+    return false;
+  };
+
+  const submitFeedbackForBlob = async (blobUrl) => {
+    const r = historyIndex.find(x => x.blobUrl === blobUrl);
+    if (!r) return false;
+    setFeedbackSaving(true);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          blobUrl: r.blobUrl,
+          feedback: {
+            ...feedbackDraft,
+            reviewMeta: { property: r.property, period: r.period, timestamp: r.timestamp },
+          },
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setFeedbackMode(null);
+      setHistoryIndex(prev => prev.map(e =>
+        e.blobUrl === r.blobUrl ? { ...e, hasFeedback: true } : e
+      ));
+      return true;
+    } catch { alert("Failed to save feedback — please try again."); return false; }
+    finally { setFeedbackSaving(false); }
+  };
+
+  const submitFindingsFb = async () => {
+    setFindingsFbSaving(true);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          blobUrl: reviewBlobUrl,
+          feedback: {
+            ...findingsFbDraft,
+            reviewMeta: { property: reviewPropertyName, period: reviewMonth, timestamp: new Date().toISOString() },
+          },
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setFindingsFbSaved(true);
+      setFindingsFbMode(false);
+      setHistoryIndex(prev => prev.map(e =>
+        e.blobUrl === reviewBlobUrl ? { ...e, hasFeedback: true } : e
+      ));
+      return true;
+    } catch { alert("Failed to save feedback — please try again."); return false; }
+    finally { setFindingsFbSaving(false); }
+  };
+
+  // Collapse expanded review on outside click; auto-submit feedback if draft has content
   useEffect(() => {
-    function hasDraftContent(draft) {
-      if (!draft) return false;
-      if (draft.general?.trim()) return true;
-      if (draft.accountNotes?.some(n => n.accountNumber?.trim() || n.note?.trim())) return true;
-      if (Object.values(draft.findings || {}).some(v => v?.trim())) return true;
-      return false;
-    }
     function handleMouseDown(e) {
       if (!expandedReview) return;
       const el = expandedReviewRef.current;
       if (!el) return;
       if (el.contains(e.target)) return; // click inside the box — ignore
-      // If feedback panel is open and has typed content, don't collapse
-      if (feedbackMode && hasDraftContent(feedbackDraft)) return;
+      // If feedback panel is open with content, auto-submit before collapsing
+      if (feedbackMode && hasDraftContent(feedbackDraft)) {
+        submitFeedbackForBlob(feedbackMode).then(ok => {
+          if (ok) setExpandedReview(null);
+        });
+        return;
+      }
       setExpandedReview(null);
       setFeedbackMode(null);
     }
     document.addEventListener("mousedown", handleMouseDown);
     return () => document.removeEventListener("mousedown", handleMouseDown);
-  }, [expandedReview, feedbackMode, feedbackDraft]);
+  }, [expandedReview, feedbackMode, feedbackDraft, historyIndex]);
+
+  // Auto-submit findings feedback on outside click (if there's content)
+  useEffect(() => {
+    if (!findingsFbMode) return;
+    function handleMouseDown(e) {
+      const el = findingsFbRef.current;
+      if (!el) return;
+      if (el.contains(e.target)) return; // click inside the panel — ignore
+      if (hasDraftContent(findingsFbDraft)) {
+        submitFindingsFb();
+      }
+    }
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [findingsFbMode, findingsFbDraft, reviewBlobUrl, reviewPropertyName, reviewMonth]);
 
   // Claude API status (polls Anthropic Statuspage every 2 minutes)
   useEffect(() => {
@@ -1951,7 +2024,7 @@ function AppInner() {
         )}
 
         {tab==="findings" && (
-          <div className="fade-up" style={s.panel}>
+          <div ref={findingsFbRef} className="fade-up" style={s.panel}>
             <div style={s.panelHead}>
               <h2 style={s.panelTitle}>Findings</h2>
               <p style={s.panelDesc}>
@@ -2420,34 +2493,9 @@ function AppInner() {
                         style={{...s.textarea,minHeight:90,width:"100%",marginBottom:12}}
                       />
                       <div style={{display:"flex",alignItems:"center",gap:12}}>
-                        <button className="btn" disabled={findingsFbSaving}
-                          onClick={async () => {
-                            setFindingsFbSaving(true);
-                            try {
-                              const res = await fetch("/api/feedback", {
-                                method: "POST",
-                                headers: {"Content-Type":"application/json"},
-                                body: JSON.stringify({
-                                  blobUrl: reviewBlobUrl,
-                                  feedback: {
-                                    ...findingsFbDraft,
-                                    reviewMeta: { property: reviewPropertyName, period: reviewMonth, timestamp: new Date().toISOString() },
-                                  },
-                                }),
-                              });
-                              if (!res.ok) throw new Error();
-                              setFindingsFbSaved(true);
-                              setFindingsFbMode(false);
-                              setHistoryIndex(prev => prev.map(e =>
-                                e.blobUrl === reviewBlobUrl ? { ...e, hasFeedback: true } : e
-                              ));
-                            } catch { alert("Failed to save feedback — please try again."); }
-                            finally { setFindingsFbSaving(false); }
-                          }}
-                          style={{...s.btnGold,fontSize:12,padding:"6px 20px"}}>
-                          {findingsFbSaving ? "Saving…" : "Submit Feedback"}
-                        </button>
-                        {findingsFbSaved && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4ade80"}}>Saved ✓</span>}
+                        <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",fontStyle:"italic"}}>
+                          {findingsFbSaving ? "Saving…" : findingsFbSaved ? "Saved ✓" : "Auto-saves when you click outside this panel"}
+                        </span>
                       </div>
                     </div>
                   </>
@@ -3175,32 +3223,9 @@ function AppInner() {
                                   style={{...s.textarea,minHeight:90,width:"100%",marginBottom:12}}
                                 />
                                 <div style={{display:"flex",alignItems:"center",gap:12}}>
-                                  <button className="btn" disabled={feedbackSaving}
-                                    onClick={async () => {
-                                      setFeedbackSaving(true);
-                                      try {
-                                        const res = await fetch("/api/feedback", {
-                                          method: "POST",
-                                          headers: {"Content-Type":"application/json"},
-                                          body: JSON.stringify({
-                                            blobUrl:  r.blobUrl,
-                                            feedback: {
-                                              ...feedbackDraft,
-                                              reviewMeta: { property: r.property, period: r.period, timestamp: r.timestamp },
-                                            },
-                                          }),
-                                        });
-                                        if (!res.ok) throw new Error();
-                                        setFeedbackMode(null);
-                                        setHistoryIndex(prev => prev.map(e =>
-                                          e.blobUrl === r.blobUrl ? { ...e, hasFeedback: true } : e
-                                        ));
-                                      } catch { alert("Failed to save feedback — please try again."); }
-                                      finally { setFeedbackSaving(false); }
-                                    }}
-                                    style={{...s.btnGold,fontSize:12,padding:"6px 20px"}}>
-                                    {feedbackSaving ? "Saving…" : "Submit Feedback"}
-                                  </button>
+                                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",fontStyle:"italic"}}>
+                                    {feedbackSaving ? "Saving…" : "Auto-saves when you click outside this review"}
+                                  </span>
                                 </div>
                               </div>
                             )}
