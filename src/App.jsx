@@ -207,6 +207,7 @@ function AppInner() {
   const [coaNewMapErr, setCoaNewMapErr]     = useState("");
   const [coaImportPreview, setCoaImportPreview] = useState(null); // { mapLabel, mapKey, isNewGroup, rows[], diff }
   const [coaImportApplying, setCoaImportApplying] = useState(false);
+  const [coaDirty, setCoaDirty]             = useState(false);   // true if rows added/deleted locally
 
   const [detailOpen, setDetailOpen]           = useState({});
   const toggleDetail = (acct, type) => setDetailOpen(prev => ({
@@ -312,6 +313,7 @@ function AppInner() {
       const data = await res.json();
       setCoaData(data);
       setCoaEdits({});
+      setCoaDirty(false);
       setCoaSaveMsg("");
       // Default to first map if none selected
       if (!coaActiveMap && data.mapKeys?.length > 0) setCoaActiveMap(data.mapKeys[0].key);
@@ -376,6 +378,7 @@ function AppInner() {
       }
     }
     setCoaData({ stylAccounts: updatedStyl, maps });
+    setCoaDirty(true);
     coaCancelEdit(stylGl);
   };
 
@@ -391,6 +394,7 @@ function AppInner() {
     }
     setCoaData({ ...coaData, stylAccounts: newStyl });
     setCoaEdits(prev => ({ ...prev, ...mapEdit }));
+    setCoaDirty(true);
     setCoaNewRow(null);
     setCoaNewErr("");
   };
@@ -3711,9 +3715,9 @@ function AppInner() {
                         disabled={!!coaNewRow}>
                         + Add Row
                       </button>
-                      <button className="btn" style={{...s.btnGold, opacity: Object.keys(coaEdits).length === 0 ? 0.5 : 1}}
+                      <button className="btn" style={{...s.btnGold, opacity: (Object.keys(coaEdits).length === 0 && !coaDirty) ? 0.5 : 1}}
                         onClick={coaSave}
-                        disabled={coaSaving || Object.keys(coaEdits).length === 0}>
+                        disabled={coaSaving || (Object.keys(coaEdits).length === 0 && !coaDirty)}>
                         {coaSaving ? "Saving..." : "Save"}
                       </button>
                     </>
