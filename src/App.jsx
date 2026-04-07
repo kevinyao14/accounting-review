@@ -314,18 +314,25 @@ function AppInner() {
     finally { setFindingsFbSaving(false); }
   };
 
-  // Collapse expanded review on outside click; auto-submit feedback if draft has content
+  // Collapse expanded review on outside click; confirm submit if draft has content
   useEffect(() => {
     function handleMouseDown(e) {
       if (!expandedReview) return;
       const el = expandedReviewRef.current;
       if (!el) return;
       if (el.contains(e.target)) return; // click inside the box — ignore
-      // If feedback panel is open with content, auto-submit before collapsing
+      // If feedback panel is open with content, ask whether to submit before collapsing
       if (feedbackMode && hasDraftContent(feedbackDraft)) {
-        submitFeedbackForBlob(feedbackMode).then(ok => {
-          if (ok) setExpandedReview(null);
-        });
+        const blobUrl = feedbackMode;
+        const wantsSubmit = window.confirm("Submit this feedback before closing?");
+        if (wantsSubmit) {
+          submitFeedbackForBlob(blobUrl).then(ok => {
+            if (ok) setExpandedReview(null);
+          });
+        } else {
+          setExpandedReview(null);
+          setFeedbackMode(null);
+        }
         return;
       }
       setExpandedReview(null);
@@ -335,7 +342,7 @@ function AppInner() {
     return () => document.removeEventListener("mousedown", handleMouseDown);
   }, [expandedReview, feedbackMode, feedbackDraft, historyIndex]);
 
-  // Auto-submit findings feedback on outside click (if there's content)
+  // Findings feedback: confirm submit on outside click (if there's content)
   useEffect(() => {
     if (!findingsFbMode) return;
     function handleMouseDown(e) {
@@ -343,7 +350,12 @@ function AppInner() {
       if (!el) return;
       if (el.contains(e.target)) return; // click inside the panel — ignore
       if (hasDraftContent(findingsFbDraft)) {
-        submitFindingsFb();
+        const wantsSubmit = window.confirm("Submit this feedback before closing?");
+        if (wantsSubmit) {
+          submitFindingsFb();
+        } else {
+          setFindingsFbMode(false);
+        }
       }
     }
     document.addEventListener("mousedown", handleMouseDown);
@@ -2494,7 +2506,7 @@ function AppInner() {
                       />
                       <div style={{display:"flex",alignItems:"center",gap:12}}>
                         <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",fontStyle:"italic"}}>
-                          {findingsFbSaving ? "Saving…" : findingsFbSaved ? "Saved ✓" : "Auto-saves when you click outside this panel"}
+                          {findingsFbSaving ? "Saving…" : findingsFbSaved ? "Saved ✓" : "Click outside this panel to submit"}
                         </span>
                       </div>
                     </div>
@@ -3224,7 +3236,7 @@ function AppInner() {
                                 />
                                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                                   <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",fontStyle:"italic"}}>
-                                    {feedbackSaving ? "Saving…" : "Auto-saves when you click outside this review"}
+                                    {feedbackSaving ? "Saving…" : "Click outside this review to submit"}
                                   </span>
                                 </div>
                               </div>
