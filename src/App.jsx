@@ -541,8 +541,8 @@ function AppInner() {
       const row = { "STYL GL": a.gl, "STYL Account": a.name, [`${mapLabel} GL`]: m.gl || "", [`${mapLabel} Account`]: m.name || "" };
       if (propLabel) {
         const p = propData[a.gl] || {};
-        row[`${propLabel} GL`] = p.gl || "";
-        row[`${propLabel} Account`] = p.name || "";
+        row[`${propLabel} GL`] = p.gl || m.gl || "";
+        row[`${propLabel} Account`] = p.name || m.name || "";
       } else {
         row[`${mapLabel} Notes`] = m.notes || "";
       }
@@ -1774,7 +1774,7 @@ function AppInner() {
               {key:"reports",   label:"05 · Reports",    dot: !!reportContent},
               {key:"kb",        label:"06 · Knowledge Base"},
               {key:"portfolio", label:"07 · Portfolio",    dot: !!portfolioData?.properties?.length},
-              {key:"coa",       label:"08 · COA"},
+              {key:"coa",       label:"08 · COAs"},
             ].map(t => (
               <button key={t.key} className="tab" onClick={() => {
                 setTab(t.key);
