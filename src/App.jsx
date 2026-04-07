@@ -1625,7 +1625,7 @@ function AppInner() {
       `}</style>
 
       <header style={s.header}>
-        <div style={s.headerInner}>
+        <div style={{...s.headerInner, ...(tab === "coa" ? {maxWidth:1176} : {})}}>
           <div style={s.logo}>
             <span style={s.logoMark}>◈</span>
             <div>
@@ -1700,7 +1700,7 @@ function AppInner() {
         </div>
       </header>
 
-      <main style={s.main}>
+      <main style={{...s.main, ...(tab === "coa" ? {maxWidth:1176} : {})}}>
 
         {tab==="review" && (
           <div className="fade-up" style={s.panel}>
