@@ -210,6 +210,9 @@ function AppInner() {
   const [coaNewPropLabel, setCoaNewPropLabel] = useState("");
   const [coaNewPropErr, setCoaNewPropErr]   = useState("");
   const [coaNewPropOpen, setCoaNewPropOpen] = useState(false);
+  const [coaPropSearch, setCoaPropSearch]   = useState("");
+  const [coaPropSearchOpen, setCoaPropSearchOpen] = useState(false);
+  const coaPropSearchRef = useRef(null);
   const [coaImportPreview, setCoaImportPreview] = useState(null);
   const [coaImportApplying, setCoaImportApplying] = useState(false);
   const [coaDirty, setCoaDirty]             = useState(false);
@@ -329,6 +332,36 @@ function AppInner() {
   };
 
   const hasProp = coaActiveProp && coaActiveProp !== "";
+
+  // Build flat list of all properties across all groups for search
+  const allProperties = (() => {
+    if (!coaData?.propKeys) return [];
+    const list = [];
+    for (const [mapKey, props] of Object.entries(coaData.propKeys)) {
+      const groupLabel = coaData.mapKeys?.find(m => m.key === mapKey)?.label || mapKey;
+      for (const pk of props) {
+        list.push({ mapKey, groupLabel, propKey: pk.key, propLabel: pk.label });
+      }
+    }
+    return list;
+  })();
+
+  const filteredPropSearch = coaPropSearch.trim()
+    ? allProperties.filter(p =>
+        p.propLabel.toLowerCase().includes(coaPropSearch.trim().toLowerCase()) ||
+        p.groupLabel.toLowerCase().includes(coaPropSearch.trim().toLowerCase())
+      )
+    : allProperties;
+
+  // Close property search dropdown on click outside
+  useEffect(() => {
+    if (!coaPropSearchOpen) return;
+    const handler = (e) => {
+      if (coaPropSearchRef.current && !coaPropSearchRef.current.contains(e.target)) setCoaPropSearchOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [coaPropSearchOpen]);
 
   const coaStartEdit = (stylGl, groupCur, propCur) => {
     if (!kbAuthed) return;
@@ -3888,6 +3921,51 @@ function AppInner() {
                       <option key={pk.key} value={pk.key}>{pk.label}</option>
                     ))}
                   </select>
+                  {/* Property search across all groups */}
+                  {allProperties.length > 0 && (
+                    <div ref={coaPropSearchRef} style={{position:"relative",marginLeft:8}}>
+                      <input
+                        placeholder="Search properties..."
+                        value={coaPropSearch}
+                        onChange={e => { setCoaPropSearch(e.target.value); setCoaPropSearchOpen(true); }}
+                        onFocus={() => setCoaPropSearchOpen(true)}
+                        style={{...s.input,padding:"4px 10px",fontSize:11,width:200,background:"#0e0e0e",border:"1px solid #2a2a2a",borderRadius:6}}
+                      />
+                      {coaPropSearchOpen && (
+                        <div style={{position:"absolute",top:"100%",left:0,marginTop:4,width:300,maxHeight:260,overflowY:"auto",background:"#141414",border:"1px solid #2a2a2a",borderRadius:8,zIndex:50,boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+                          {filteredPropSearch.length === 0 ? (
+                            <div style={{padding:"10px 14px",fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>No properties found</div>
+                          ) : (
+                            filteredPropSearch.map(p => {
+                              const isActive = coaActiveMap === p.mapKey && coaActiveProp === p.propKey;
+                              return (
+                                <div key={`${p.mapKey}:${p.propKey}`}
+                                  onClick={() => {
+                                    setCoaActiveMap(p.mapKey);
+                                    setCoaActiveProp(p.propKey);
+                                    setCoaEdits({});
+                                    setCoaPropEdits({});
+                                    setCoaSort({col:"styl",dir:"asc"});
+                                    setCoaNewRow(null);
+                                    setCoaPropSearch("");
+                                    setCoaPropSearchOpen(false);
+                                  }}
+                                  style={{padding:"8px 14px",cursor:"pointer",borderBottom:"1px solid #1e1e1e",
+                                    background: isActive ? "#1a1a1a" : "transparent",
+                                    transition:"background 0.1s"}}
+                                  onMouseEnter={e => { if(!isActive) e.currentTarget.style.background="#1a1a1a"; }}
+                                  onMouseLeave={e => { if(!isActive) e.currentTarget.style.background="transparent"; }}
+                                >
+                                  <div style={{fontFamily:"'Fira Code',monospace",fontSize:12,color: isActive ? "#e8c468" : "#f5f5f5"}}>{p.propLabel}</div>
+                                  <div style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#4b5563",marginTop:2}}>{p.groupLabel}</div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {kbAuthed && hasProp && (
                     <button className="btn" onClick={() => { if (confirm(`Delete property "${coaData.propKeys?.[coaActiveMap]?.find(p=>p.key===coaActiveProp)?.label}" and all its mappings?`)) coaDeleteProp(coaActiveProp); }}
                       style={{fontFamily:"'Fira Code',monospace",fontSize:10,padding:"4px 8px",color:"#ef4444",background:"transparent",border:"1px solid #3a1a1a",borderRadius:6,cursor:"pointer"}}>
