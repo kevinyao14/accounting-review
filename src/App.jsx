@@ -3751,7 +3751,7 @@ function AppInner() {
                         + Add Group
                       </button>
                       {coaData.mapKeys.length > 1 && (
-                        <button className="btn" onClick={() => { if (confirm(`Delete "${coaData.mapKeys.find(m=>m.key===coaActiveMap)?.label}" mapping group?`)) coaDeleteMap(coaActiveMap); }}
+                        <button className="btn" onClick={() => { if (confirm(`Delete "${coaData.mapKeys.find(m=>m.key===coaActiveMap)?.label}" mapping group and all its mappings? This cannot be undone.`)) coaDeleteMap(coaActiveMap); }}
                           style={{fontFamily:"'Fira Code',monospace",fontSize:10,padding:"4px 8px",color:"#ef4444",background:"transparent",border:"1px solid #3a1a1a",borderRadius:6,cursor:"pointer"}}>
                           Delete Group
                         </button>
@@ -3790,7 +3790,8 @@ function AppInner() {
                       <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#6b7280",marginLeft:10}}>{coaImportPreview.fileName}</span>
                     </div>
                     <div style={{display:"flex",gap:8}}>
-                      <button className="btn" style={{...s.btnGold,padding:"6px 16px",fontSize:12}} onClick={coaImportApply} disabled={coaImportApplying}>
+                      <button className="btn" style={{...s.btnGold,padding:"6px 16px",fontSize:12}} disabled={coaImportApplying}
+                        onClick={() => { if (confirm(`Apply import? This will update ${coaImportPreview.diff.updated} mapping(s), add ${coaImportPreview.diff.added} new mapping(s)${coaImportPreview.diff.newStyl ? `, and create ${coaImportPreview.diff.newStyl} new STYL account(s)` : ""}${coaImportPreview.isNewGroup ? `, and create new group "${coaImportPreview.mapLabel}"` : ""}.`)) coaImportApply(); }}>
                         {coaImportApplying ? "Applying..." : "Apply Import"}
                       </button>
                       <button className="btn" style={{...s.btn,padding:"6px 12px",fontSize:11}} onClick={() => setCoaImportPreview(null)}>Cancel</button>
@@ -3961,7 +3962,7 @@ function AppInner() {
                                   {mp.notes || "\u2014"}
                                 </span>
                                 {kbAuthed && (
-                                  <button onClick={() => coaDeleteRow(acct.gl)} style={{...s.btn,padding:"2px 6px",fontSize:10,color:"#4b5563"}} title="Delete row">&#128465;</button>
+                                  <button onClick={() => { if (confirm(`Delete STYL account ${acct.gl} (${acct.name})? This removes it from all mapping groups.`)) coaDeleteRow(acct.gl); }} style={{...s.btn,padding:"2px 6px",fontSize:10,color:"#ef4444",fontWeight:700}} title="Delete row">✕</button>
                                 )}
                               </>
                             )}
