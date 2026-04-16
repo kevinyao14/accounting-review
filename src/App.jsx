@@ -124,6 +124,9 @@ function AppInner() {
   const [historyLoaded, setHistoryLoaded]     = useState(false);
   const [historyLoading, setHistoryLoading]   = useState(false);
   const [historyPropertyFilter, setHistoryPropertyFilter] = useState("");
+  const [historyPropSearch, setHistoryPropSearch]         = useState("");
+  const [historyPropOpen, setHistoryPropOpen]             = useState(false);
+  const historyPropRef = useRef(null);
   const [expandedReview, setExpandedReview]   = useState(null); // { blobUrl, data|null, loading }
   const [feedbackMode, setFeedbackMode]       = useState(null); // blobUrl of review in feedback mode
   const [feedbackDraft, setFeedbackDraft]     = useState({ findings: {}, accountNotes: [{ id: 1, accountNumber: "", note: "" }], general: "" });
@@ -365,6 +368,16 @@ function AppInner() {
     document.addEventListener("mousedown", handleMouseDown);
     return () => document.removeEventListener("mousedown", handleMouseDown);
   }, [findingsFbMode, findingsFbDraft, reviewBlobUrl, reviewPropertyName, reviewMonth]);
+
+  // Close history property search dropdown on outside click
+  useEffect(() => {
+    if (!historyPropOpen) return;
+    const handler = (e) => {
+      if (historyPropRef.current && !historyPropRef.current.contains(e.target)) setHistoryPropOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [historyPropOpen]);
 
   // Claude API status (polls Anthropic Statuspage every 2 minutes)
   useEffect(() => {
@@ -2692,14 +2705,52 @@ function AppInner() {
               {historyIndex.length > 0 && (() => {
                 const props = [...new Set(historyIndex.map(r => r.property || "Unknown Property"))].sort();
                 if (props.length <= 1) return null;
+                const q = historyPropSearch.trim().toLowerCase();
+                const filtered = q ? props.filter(p => p.toLowerCase().includes(q)) : props;
+                const currentLabel = historyPropertyFilter || "All Properties";
                 return (
-                  <div style={{marginTop:12}}>
-                    <select value={historyPropertyFilter}
-                      onChange={e => setHistoryPropertyFilter(e.target.value)}
-                      style={{...s.select, fontSize:11, padding:"5px 10px", minWidth:220}}>
-                      <option value="">All Properties</option>
-                      {props.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
+                  <div style={{marginTop:12}} ref={historyPropRef}>
+                    <div style={{position:"relative",display:"inline-block"}}>
+                      <input
+                        value={historyPropOpen ? historyPropSearch : currentLabel}
+                        placeholder="Search properties…"
+                        onFocus={() => { setHistoryPropOpen(true); setHistoryPropSearch(""); }}
+                        onChange={e => { setHistoryPropSearch(e.target.value); setHistoryPropOpen(true); }}
+                        style={{...s.input, fontSize:11, padding:"5px 10px", minWidth:260, width:260,
+                          color: historyPropOpen ? "#f5f5f5" : (historyPropertyFilter ? "#e8c468" : "#9ca3af")}}
+                      />
+                      {historyPropOpen && (
+                        <div style={{position:"absolute",top:"100%",left:0,marginTop:4,width:300,maxHeight:280,overflowY:"auto",background:"#141414",border:"1px solid #2a2a2a",borderRadius:8,zIndex:50,boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+                          <div
+                            onClick={() => { setHistoryPropertyFilter(""); setHistoryPropSearch(""); setHistoryPropOpen(false); }}
+                            style={{padding:"8px 14px",cursor:"pointer",borderBottom:"1px solid #1e1e1e",fontFamily:"'Fira Code',monospace",fontSize:12,
+                              background: !historyPropertyFilter ? "#1a1a1a" : "transparent",
+                              color: !historyPropertyFilter ? "#e8c468" : "#d1d5db"}}
+                            onMouseEnter={e => { if(historyPropertyFilter) e.currentTarget.style.background="#1a1a1a"; }}
+                            onMouseLeave={e => { if(historyPropertyFilter) e.currentTarget.style.background="transparent"; }}>
+                            All Properties
+                          </div>
+                          {filtered.length === 0 ? (
+                            <div style={{padding:"10px 14px",fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>No matches</div>
+                          ) : (
+                            filtered.map(p => {
+                              const isActive = historyPropertyFilter === p;
+                              return (
+                                <div key={p}
+                                  onClick={() => { setHistoryPropertyFilter(p); setHistoryPropSearch(""); setHistoryPropOpen(false); }}
+                                  style={{padding:"8px 14px",cursor:"pointer",borderBottom:"1px solid #1e1e1e",fontFamily:"'Fira Code',monospace",fontSize:12,
+                                    background: isActive ? "#1a1a1a" : "transparent",
+                                    color: isActive ? "#e8c468" : "#f5f5f5"}}
+                                  onMouseEnter={e => { if(!isActive) e.currentTarget.style.background="#1a1a1a"; }}
+                                  onMouseLeave={e => { if(!isActive) e.currentTarget.style.background="transparent"; }}>
+                                  {p}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })()}
