@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
-import { DEFAULT_ITEMS, CATEGORIES, AUDIENCE_LABELS, serialize, serializeBySource, parseAIChecklist, parseIsDetail, parseGlDetail, glPeriodCheck, buildReportContext } from "./utils.js";
+import { DEFAULT_ITEMS, CATEGORIES, AUDIENCE_LABELS, serializeBySource, parseIsDetail, parseGlDetail, glPeriodCheck, buildReportContext } from "./utils.js";
 import { s } from "./styles.js";
 
 // ── Constants, parsers, and report helpers imported from ./utils.js ────────
@@ -1351,6 +1351,7 @@ function AppInner() {
         }
         const normalised = raw.map((item, i) => ({
           id: item.id ?? Date.now() + i,
+          source: item.source === "GL" ? "GL" : "IS",
           category: item.category ?? CATEGORIES[0],
           accounts: item.accounts ?? "",
           rule: item.rule === "CHECK" ? "CHECK" : "FLAG IF",

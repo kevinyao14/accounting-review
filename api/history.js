@@ -1,5 +1,5 @@
 import { put, del } from "@vercel/blob";
-import { kvGet, kvSet, kvDel, feedbackKey } from "../lib/storage.js";
+import { kvGet, kvSet, kvDel, feedbackKey, slugify } from "../lib/storage.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
       if (!findings || !timestamp) return res.status(400).json({ error: "Missing required fields" });
 
       // Build unique blob path
-      const slug     = (property || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+      const slug     = slugify(property);
       const ts       = (timestamp || new Date().toISOString()).replace(/[:.]/g, "-").slice(0, 19);
       const pathname = `reviews/${ts}-${slug}.json`;
 
