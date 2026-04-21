@@ -705,17 +705,18 @@ function AppInner() {
     }
   };
 
-  // Download a blank Property COA template. Columns: STYL GL, STYL Account,
-  // {Group} GL, {Group} Account, {Property} GL (blank). Property Account is
-  // omitted — it auto-populates from the Group Account on import/entry.
+  // Download a blank Property COA template (multi-property capable).
+  // Columns: STYL GL, STYL Account, {Group} GL, {Group} Account, Property Name, Property GL
+  // - One row per STYL account with Group columns pre-filled
+  // - "Property Name" pre-filled with the currently selected property's label (if any)
+  // - User can copy rows and change Property Name to cover multiple properties in one file
+  // - Property Account Name auto-inherits from Group on import
   const coaDownloadTemplate = (format) => {
     if (!coaData || !coaActiveMap) return;
     const mapKey = coaActiveMap;
     const mapLabel = coaData.mapKeys?.find(m => m.key === mapKey)?.label || mapKey;
     const mapData = coaData.maps?.[mapKey]?.mappings || {};
-    const propLabel = hasProp
-      ? (coaData.propKeys?.[mapKey]?.find(p => p.key === coaActiveProp)?.label || coaActiveProp)
-      : "Property";
+    const propLabel = hasProp ? (coaData.propKeys?.[mapKey]?.find(p => p.key === coaActiveProp)?.label || coaActiveProp) : "";
     const propData = hasProp ? (coaData.propMaps?.[mapKey]?.[coaActiveProp]?.mappings || {}) : {};
 
     const rows = coaData.stylAccounts.map(a => {
@@ -726,11 +727,14 @@ function AppInner() {
         "STYL Account": a.name,
         [`${mapLabel} GL`]: m.gl || "",
         [`${mapLabel} Account`]: m.name || "",
-        [`${propLabel} GL`]: p.gl || "",
+        "Property Name": propLabel,
+        "Property GL": p.gl || "",
       };
     });
 
-    const fileName = `COA_PropertyTemplate_${mapLabel}_${propLabel}`;
+    const fileName = propLabel
+      ? `COA_PropertyTemplate_${mapLabel}_${propLabel}`
+      : `COA_PropertyTemplate_${mapLabel}`;
     if (format === "csv") {
       const headers = Object.keys(rows[0] || {});
       const csvContent = [headers.join(","), ...rows.map(r => headers.map(h => `"${(r[h] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
@@ -741,7 +745,7 @@ function AppInner() {
     } else {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, `Template-${propLabel}`.slice(0, 31));
+      XLSX.utils.book_append_sheet(wb, ws, `Template-${mapLabel}`.slice(0, 31));
       XLSX.writeFile(wb, `${fileName}.xlsx`);
     }
   };
@@ -799,37 +803,42 @@ function AppInner() {
       const mapKey = mapLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
       const isNewGroup = !coaData?.mapKeys?.some(m => m.key === mapKey);
 
-      // Detect property columns.
-      //  Full format: cols are STYL GL, STYL Account, Group GL, Group Account, Prop GL, Prop Account
-      //  Template format: cols are STYL GL, STYL Account, Group GL, Group Account, Prop GL  (5 cols, no Prop Account — auto-inherits from Group)
-      //  Non-property: cols are STYL GL, STYL Account, Group GL, Group Account, Group Notes
-      let propLabel = null, propKey = null, propGlCol = null, propNameCol = null, isNewProp = false;
+      // Detect property columns. Three supported layouts:
+      //   A. Multi-property template (NEW): col5="Property Name", col6="Property GL"
+      //      → one row per (STYL, Property); Property Account auto-inherits from Group.
+      //   B. Single-property full format: col5 ends " GL", col6 ends " Account"
+      //      → property name is derived from the column header.
+      //   C. Single-property template (legacy 5-col): col5 ends " GL", no col6
+      //      → property name from header; Property Account auto-inherits from Group.
+      //   Otherwise: col5 treated as Group Notes.
       const col5 = headers[4];
       const col6 = headers[5];
-      if (col5 && /\s+GL$/i.test(col5) && col6 && /\s+Account$/i.test(col6)) {
-        // Full 6-col property import
+      const isMulti = col5 && /^property\s*name$/i.test(col5) && col6 && /^property\s*gl$|\s+GL$/i.test(col6);
+
+      let propLabel = null, propKey = null, propGlCol = null, propNameCol = null, propNameValCol = null, isNewProp = false;
+      if (isMulti) {
+        propNameValCol = col5;   // row-level value column for the property name
+        propGlCol = col6;
+      } else if (col5 && /\s+GL$/i.test(col5) && col6 && /\s+Account$/i.test(col6)) {
         propGlCol = col5;
         propNameCol = col6;
+        propLabel = col5.replace(/\s*GL$/i, "").trim();
       } else if (col5 && /\s+GL$/i.test(col5) && !col6) {
-        // 5-col template: only Prop GL, no Prop Account column (auto-fill from Group)
         propGlCol = col5;
-        propNameCol = null;
+        propLabel = col5.replace(/\s*GL$/i, "").trim();
       }
-      if (propGlCol) {
-        propLabel = propGlCol.replace(/\s*GL$/i, "").trim();
+      if (propLabel) {
         propKey = propLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
         const existingProps = coaData?.propKeys?.[mapKey] || [];
         isNewProp = !existingProps.some(p => p.key === propKey);
       }
-      const mapNotesCol = (!propGlCol && headers[4]) ? headers[4] : null;
+      const mapNotesCol = (!propGlCol && !propNameValCol && headers[4]) ? headers[4] : null;
 
       const existingMappings = coaData?.maps?.[mapKey]?.mappings || {};
-      const existingPropMappings = propKey ? (coaData?.propMaps?.[mapKey]?.[propKey]?.mappings || {}) : {};
       const stylLookup = {};
       (coaData?.stylAccounts || []).forEach(a => { stylLookup[a.gl] = a; });
 
       // Build unified Group GL → Name lookup: existing mappings + incoming mappings in this import.
-      // Property Account Names inherit from here; if a pGl isn't here, we flag "GL missing from Master COA".
       const groupGlToName = {};
       for (const m of Object.values(existingMappings)) {
         if (m?.gl) groupGlToName[String(m.gl).trim()] = m.name || "";
@@ -840,6 +849,12 @@ function AppInner() {
         if (mGl) groupGlToName[mGl] = mName || groupGlToName[mGl] || "";
       }
 
+      // Helper to turn a property label into a key
+      const toPropKey = (label) => String(label || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+
+      // In multi-property mode we track encountered properties as we build rows
+      const multiProps = {}; // propKey → { label, isNew, existingMappings, count }
+
       const diff = { added: 0, updated: 0, unchanged: 0, newStyl: 0, propAdded: 0, propUpdated: 0, propErrors: 0 };
       const rows = parsed.map(r => {
         const stylGl = String(r[stylGlCol] || "").trim();
@@ -849,6 +864,14 @@ function AppInner() {
         const mNotes = mapNotesCol ? String(r[mapNotesCol] || "").trim() : "";
         const pGl = propGlCol ? String(r[propGlCol] || "").trim() : "";
         let pName = propNameCol ? String(r[propNameCol] || "").trim() : "";
+
+        // Determine which property this row belongs to (multi-property mode)
+        let rowPropLabel = propLabel;
+        let rowPropKey = propKey;
+        if (isMulti) {
+          rowPropLabel = String(r[propNameValCol] || "").trim();
+          rowPropKey = toPropKey(rowPropLabel);
+        }
         if (!stylGl) return null;
 
         const isNewStyl = !stylLookup[stylGl];
@@ -863,26 +886,52 @@ function AppInner() {
         else if (changed) { status = "updated"; diff.updated++; }
         else { status = "unchanged"; diff.unchanged++; }
 
-        // Property: auto-inherit Name from Group mapping (ignore pName from file if present; lookup is the source of truth)
+        // Property: auto-inherit Name from Group mapping
         let propStatus = null;
         let propError = null;
-        if (propKey && pGl) {
+        if (rowPropKey && pGl) {
+          // Track this property and load its existing mappings once
+          if (!multiProps[rowPropKey]) {
+            const existingProps = coaData?.propKeys?.[mapKey] || [];
+            multiProps[rowPropKey] = {
+              label: rowPropLabel,
+              isNew: !existingProps.some(p => p.key === rowPropKey),
+              existingMappings: coaData?.propMaps?.[mapKey]?.[rowPropKey]?.mappings || {},
+              count: 0,
+            };
+          }
+          multiProps[rowPropKey].count++;
+
           if (pGl in groupGlToName) {
             pName = groupGlToName[pGl]; // inherit
-            const ep = existingPropMappings[stylGl] || {};
+            const ep = multiProps[rowPropKey].existingMappings[stylGl] || {};
             if (!ep.gl && !ep.name) { propStatus = "added"; diff.propAdded++; }
             else if (ep.gl !== pGl || ep.name !== pName) { propStatus = "updated"; diff.propUpdated++; }
           } else {
             propError = "GL missing from Master COA";
             diff.propErrors++;
           }
+        } else if (isMulti && pGl && !rowPropKey) {
+          // Property GL provided but no Property Name in multi-mode → error
+          propError = "Property Name required";
+          diff.propErrors++;
         }
 
-        return { stylGl, stylName, mGl, mName, mNotes, pGl, pName, status, propStatus, propError,
+        return { stylGl, stylName, mGl, mName, mNotes, pGl, pName,
+          propLabel: rowPropLabel, propKey: rowPropKey,
+          status, propStatus, propError,
           existing: { gl: ex.gl || "", name: ex.name || "", notes: ex.notes || "" } };
       }).filter(Boolean);
 
-      setCoaImportPreview({ mapLabel, mapKey, isNewGroup, propLabel, propKey, isNewProp, rows, diff, fileName: file.name });
+      const propsList = Object.entries(multiProps).map(([k, v]) => ({ key: k, label: v.label, isNew: v.isNew, count: v.count }));
+
+      setCoaImportPreview({
+        mapLabel, mapKey, isNewGroup,
+        isMulti,
+        propLabel, propKey, isNewProp, // single-property fields (legacy)
+        propsList,                     // multi-property summary
+        rows, diff, fileName: file.name,
+      });
     } catch (err) {
       setCoaError("Import error: " + err.message);
     }
@@ -893,7 +942,7 @@ function AppInner() {
     setCoaImportApplying(true);
     setCoaError("");
     try {
-      const { mapKey, mapLabel, propKey, propLabel, rows } = coaImportPreview;
+      const { mapKey, mapLabel, propKey, propLabel, isMulti, propsList, rows } = coaImportPreview;
       const pw = coaPw();
 
       // Ensure group exists
@@ -901,14 +950,17 @@ function AppInner() {
         body: JSON.stringify({ action: "create-map", password: pw, mapKey, label: mapLabel }) });
       if (!cr.ok) throw new Error((await cr.json()).error || "Failed to ensure group");
 
-      // Ensure property exists if importing property data
-      if (propKey) {
+      // Ensure all properties exist (idempotent).  Single or multi.
+      const propsToCreate = isMulti
+        ? (propsList || [])
+        : (propKey ? [{ key: propKey, label: propLabel }] : []);
+      for (const p of propsToCreate) {
         const pr = await fetch("/api/coa", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "create-prop", password: pw, mapKey, propKey, label: propLabel }) });
-        if (!pr.ok) throw new Error((await pr.json()).error || "Failed to ensure property");
+          body: JSON.stringify({ action: "create-prop", password: pw, mapKey, propKey: p.key, label: p.label }) });
+        if (!pr.ok) throw new Error((await pr.json()).error || `Failed to ensure property "${p.label}"`);
       }
 
-      // Reload fresh
+      // Reload fresh after any create-prop
       const freshData = await (await fetch("/api/coa")).json();
 
       // STYL accounts
@@ -937,8 +989,23 @@ function AppInner() {
         mapData: { label: existingMap.label || mapLabel, mappings: updatedMappings },
       };
 
-      // Property mappings — skip any row whose Property GL failed the Master COA lookup
-      if (propKey) {
+      if (isMulti) {
+        // Multi-property: build one propMapData per property, send as array
+        const byProp = {}; // propKey → updated mappings
+        for (const r of rows) {
+          if (r.propError || !r.propKey || (!r.pGl && !r.pName)) continue;
+          if (!byProp[r.propKey]) {
+            const existingProp = freshData.propMaps?.[mapKey]?.[r.propKey] || {};
+            byProp[r.propKey] = { label: r.propLabel, mappings: { ...(existingProp.mappings || {}) } };
+          }
+          byProp[r.propKey].mappings[r.stylGl] = { gl: r.pGl, name: r.pName, updatedAt: new Date().toISOString() };
+        }
+        body.properties = Object.entries(byProp).map(([pk, d]) => ({
+          propKey: pk,
+          propMapData: { label: d.label, mappings: d.mappings },
+        }));
+      } else if (propKey) {
+        // Single property (legacy single-header-based import)
         const existingProp = freshData.propMaps?.[mapKey]?.[propKey] || { label: propLabel, mappings: {} };
         const updatedPropMappings = { ...existingProp.mappings };
         rows.forEach(r => {
@@ -956,9 +1023,9 @@ function AppInner() {
       if (!res.ok) throw new Error(data.error || "Save failed");
 
       setCoaActiveMap(mapKey);
-      if (propKey) setCoaActiveProp(propKey);
+      if (!isMulti && propKey) setCoaActiveProp(propKey);
       setCoaImportPreview(null);
-      setCoaSaveMsg("Imported");
+      setCoaSaveMsg(isMulti && propsToCreate.length > 1 ? `Imported ${propsToCreate.length} properties` : "Imported");
       setTimeout(() => setCoaSaveMsg(""), 3000);
       await loadCoa();
     } catch (e) { setCoaError(e.message); }
@@ -4033,10 +4100,10 @@ function AppInner() {
                   {coaError && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#ef4444"}}>{coaError}</span>}
                   <button className="btn" style={s.btn} onClick={() => coaExport("csv")}>Export CSV</button>
                   <button className="btn" style={s.btn} onClick={() => coaExport("xlsx")}>Export Excel</button>
-                  {hasProp && (
+                  {coaActiveMap && (
                     <>
-                      <button className="btn" style={s.btn} onClick={() => coaDownloadTemplate("csv")} title="Blank Property COA template (Property GL column empty — Account Name inherits from Group on import)">Property Template CSV</button>
-                      <button className="btn" style={s.btn} onClick={() => coaDownloadTemplate("xlsx")} title="Blank Property COA template (Property GL column empty — Account Name inherits from Group on import)">Property Template Excel</button>
+                      <button className="btn" style={s.btn} onClick={() => coaDownloadTemplate("csv")} title="Multi-property template: one row per STYL x Property. Property Name pre-fills from current selection. Copy rows to cover multiple properties in one file. Property Account auto-inherits on import.">Property Template CSV</button>
+                      <button className="btn" style={s.btn} onClick={() => coaDownloadTemplate("xlsx")} title="Multi-property template: one row per STYL x Property. Property Name pre-fills from current selection. Copy rows to cover multiple properties in one file. Property Account auto-inherits on import.">Property Template Excel</button>
                     </>
                   )}
                   {kbAuthed && (
@@ -4206,7 +4273,21 @@ function AppInner() {
                     </div>
                     <div style={{display:"flex",gap:8}}>
                       <button className="btn" style={{...s.btnGold,padding:"6px 16px",fontSize:12}} disabled={coaImportApplying}
-                        onClick={() => { if (confirm(`Apply import? ${coaImportPreview.diff.updated} update(s), ${coaImportPreview.diff.added} new mapping(s)${coaImportPreview.diff.newStyl ? `, ${coaImportPreview.diff.newStyl} new STYL account(s)` : ""}${coaImportPreview.isNewGroup ? `, new group "${coaImportPreview.mapLabel}"` : ""}${coaImportPreview.isNewProp ? `, new property "${coaImportPreview.propLabel}"` : ""}${coaImportPreview.diff.propAdded ? `, ${coaImportPreview.diff.propAdded} new prop mapping(s)` : ""}${coaImportPreview.diff.propUpdated ? `, ${coaImportPreview.diff.propUpdated} prop update(s)` : ""}.`)) coaImportApply(); }}>
+                        onClick={() => {
+                          const p = coaImportPreview;
+                          const multiNewProps = p.isMulti ? (p.propsList || []).filter(x => x.isNew).map(x => x.label) : [];
+                          const parts = [];
+                          if (p.diff.updated) parts.push(`${p.diff.updated} update(s)`);
+                          if (p.diff.added) parts.push(`${p.diff.added} new mapping(s)`);
+                          if (p.diff.newStyl) parts.push(`${p.diff.newStyl} new STYL account(s)`);
+                          if (p.isNewGroup) parts.push(`new group "${p.mapLabel}"`);
+                          if (!p.isMulti && p.isNewProp) parts.push(`new property "${p.propLabel}"`);
+                          if (p.isMulti && multiNewProps.length) parts.push(`${multiNewProps.length} new ${multiNewProps.length === 1 ? "property" : "properties"} (${multiNewProps.join(", ")})`);
+                          if (p.diff.propAdded) parts.push(`${p.diff.propAdded} new prop mapping(s)`);
+                          if (p.diff.propUpdated) parts.push(`${p.diff.propUpdated} prop update(s)`);
+                          if (p.diff.propErrors) parts.push(`${p.diff.propErrors} row(s) will be SKIPPED (Property GL missing from Master COA)`);
+                          if (confirm(`Apply import? ${parts.join(", ") || "no changes"}.`)) coaImportApply();
+                        }}>
                         {coaImportApplying ? "Applying..." : "Apply Import"}
                       </button>
                       <button className="btn" style={{...s.btn,padding:"6px 12px",fontSize:11}} onClick={() => setCoaImportPreview(null)}>Cancel</button>
@@ -4217,10 +4298,23 @@ function AppInner() {
                       <span style={{color:"#6b7280"}}>Group: </span><span style={{color:"#e8c468"}}>{coaImportPreview.mapLabel}</span>
                       {coaImportPreview.isNewGroup && <span style={{color:"#22c55e",marginLeft:6}}>(new)</span>}
                     </span>
-                    {coaImportPreview.propLabel && (
+                    {!coaImportPreview.isMulti && coaImportPreview.propLabel && (
                       <span style={{fontFamily:"'Fira Code',monospace",fontSize:11}}>
                         <span style={{color:"#6b7280"}}>Property: </span><span style={{color:"#e8c468"}}>{coaImportPreview.propLabel}</span>
                         {coaImportPreview.isNewProp && <span style={{color:"#22c55e",marginLeft:6}}>(new)</span>}
+                      </span>
+                    )}
+                    {coaImportPreview.isMulti && coaImportPreview.propsList?.length > 0 && (
+                      <span style={{fontFamily:"'Fira Code',monospace",fontSize:11}}>
+                        <span style={{color:"#6b7280"}}>Properties ({coaImportPreview.propsList.length}): </span>
+                        {coaImportPreview.propsList.map((p, i) => (
+                          <span key={p.key}>
+                            {i > 0 && <span style={{color:"#4b5563"}}>, </span>}
+                            <span style={{color:"#e8c468"}}>{p.label}</span>
+                            <span style={{color:"#4b5563"}}> ({p.count})</span>
+                            {p.isNew && <span style={{color:"#22c55e",marginLeft:3}}>•new</span>}
+                          </span>
+                        ))}
                       </span>
                     )}
                     <span style={{fontFamily:"'Fira Code',monospace",fontSize:11}}><span style={{color:"#6b7280"}}>Rows: </span><span style={{color:"#d1d5db"}}>{coaImportPreview.rows.length}</span></span>
@@ -4234,26 +4328,43 @@ function AppInner() {
                   {(() => {
                     const changed = coaImportPreview.rows.filter(r => r.status !== "unchanged" || r.propStatus || r.propError);
                     if (changed.length === 0) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>No changes detected.</div>;
+                    const isMulti = coaImportPreview.isMulti;
+                    const grid = isMulti
+                      ? "90px 1fr 90px 1fr 110px 90px 1fr 90px"
+                      : "90px 1fr 90px 1fr 90px 1fr 90px";
+                    const hdrs = isMulti
+                      ? ["STYL GL","STYL Account","New GL","New Account","Property","Prop GL","Prop Account","Status"]
+                      : ["STYL GL","STYL Account","New GL","New Account","Old GL","Old Account","Status"];
                     return (
                       <div style={{maxHeight:300,overflowY:"auto"}}>
-                        <div style={{display:"grid",gridTemplateColumns:"90px 1fr 90px 1fr 90px 1fr 90px",gap:4,padding:"6px 8px",borderBottom:"1px solid #1e1e1e"}}>
-                          {["STYL GL","STYL Account","New GL","New Account","Old GL","Old Account","Status"].map(h => (
+                        <div style={{display:"grid",gridTemplateColumns:grid,gap:4,padding:"6px 8px",borderBottom:"1px solid #1e1e1e"}}>
+                          {hdrs.map(h => (
                             <span key={h} style={{fontFamily:"'Fira Code',monospace",fontSize:9,color:"#6b7280",textTransform:"uppercase"}}>{h}</span>
                           ))}
                         </div>
                         {changed.map((r, i) => {
-                          const sc = r.propError ? "#ef4444" : r.status === "new-styl" ? "#a78bfa" : r.status === "added" ? "#22c55e" : r.status === "updated" ? "#fbbf24" : "#4b5563";
-                          const sl = r.propError ? "GL MISSING" : r.status === "new-styl" ? "NEW ACCT" : r.status === "added" ? "NEW MAP" : r.status === "updated" ? "UPDATE" : (r.propStatus ? "PROP" : "");
+                          const sc = r.propError ? "#ef4444" : r.status === "new-styl" ? "#a78bfa" : r.status === "added" ? "#22c55e" : r.status === "updated" ? "#fbbf24" : (r.propStatus === "added" ? "#22c55e" : r.propStatus === "updated" ? "#fbbf24" : "#4b5563");
+                          const sl = r.propError ? "GL MISSING" : r.status === "new-styl" ? "NEW ACCT" : r.status === "added" ? "NEW MAP" : r.status === "updated" ? "UPDATE" : (r.propStatus === "added" ? "PROP NEW" : r.propStatus === "updated" ? "PROP UPD" : "");
                           return (
                             <div key={i} title={r.propError || ""}
-                              style={{display:"grid",gridTemplateColumns:"90px 1fr 90px 1fr 90px 1fr 90px",gap:4,padding:"4px 8px",borderBottom:"1px solid #141414",alignItems:"center",
+                              style={{display:"grid",gridTemplateColumns:grid,gap:4,padding:"4px 8px",borderBottom:"1px solid #141414",alignItems:"center",
                                 background: r.propError ? "#1a0a0a" : undefined}}>
                               <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468"}}>{r.stylGl}</span>
                               <span style={{fontFamily:"'Lora',serif",fontSize:11,color:"#d1d5db",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.stylName}</span>
                               <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#9ca3af"}}>{r.mGl || "\u2014"}</span>
                               <span style={{fontFamily:"'Lora',serif",fontSize:11,color:"#9ca3af",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.mName || "\u2014"}</span>
-                              <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:r.status==="updated"?"#6b7280":"#2a2a2a"}}>{r.existing.gl || "\u2014"}</span>
-                              <span style={{fontFamily:"'Lora',serif",fontSize:11,color:r.status==="updated"?"#6b7280":"#2a2a2a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.existing.name || "\u2014"}</span>
+                              {isMulti ? (
+                                <>
+                                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#a78bfa",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.propLabel || "\u2014"}</span>
+                                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color: r.propError ? "#ef4444" : "#9ca3af"}}>{r.pGl || "\u2014"}</span>
+                                  <span style={{fontFamily:"'Lora',serif",fontSize:11,color:"#9ca3af",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.pName || "\u2014"}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:r.status==="updated"?"#6b7280":"#2a2a2a"}}>{r.existing.gl || "\u2014"}</span>
+                                  <span style={{fontFamily:"'Lora',serif",fontSize:11,color:r.status==="updated"?"#6b7280":"#2a2a2a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.existing.name || "\u2014"}</span>
+                                </>
+                              )}
                               <span style={{fontFamily:"'Fira Code',monospace",fontSize:9,color:sc,fontWeight:600}}>{sl}</span>
                             </div>
                           );

@@ -87,12 +87,18 @@ export default async function handler(req, res) {
       const expected = process.env.KB_PASSWORD;
       if (!expected || password !== expected) return res.status(401).json({ error: "Incorrect password" });
 
-      // ── Save: update STYL accounts, group map, and/or property map ──
+      // ── Save: update STYL accounts, group map, and/or property map(s) ──
+      // Accepts either a single propKey/propMapData OR an array `properties: [{propKey, propMapData}]`
       if (action === "save") {
-        const { stylAccounts, mapKey, mapData, propKey, propMapData } = req.body;
+        const { stylAccounts, mapKey, mapData, propKey, propMapData, properties } = req.body;
         if (stylAccounts) await kvSet(KV_STYL, JSON.stringify(stylAccounts));
         if (mapKey && mapData) await kvSet(kvMapKey(mapKey), JSON.stringify(mapData));
         if (mapKey && propKey && propMapData) await kvSet(kvPropMap(mapKey, propKey), JSON.stringify(propMapData));
+        if (mapKey && Array.isArray(properties)) {
+          for (const p of properties) {
+            if (p?.propKey && p?.propMapData) await kvSet(kvPropMap(mapKey, p.propKey), JSON.stringify(p.propMapData));
+          }
+        }
         return res.status(200).json({ ok: true });
       }
 
