@@ -479,12 +479,44 @@ function AppInner() {
   const coaUpdateEdit = (stylGl, field, value) => {
     setCoaEdits(prev => ({ ...prev, [stylGl]: { ...prev[stylGl], [field]: value } }));
   };
+
+  // Look up an Account Name by searching the active Group mapping for a matching GL.
+  // Property Account Names are derived (not manually entered) — they inherit from the Group.
+  const coaLookupGroupName = (gl) => {
+    if (!gl || !coaActiveMap) return { found: false, name: "" };
+    const groupMappings = coaData?.maps?.[coaActiveMap]?.mappings || {};
+    const trimmed = String(gl).trim();
+    if (!trimmed) return { found: false, name: "" };
+    for (const entry of Object.values(groupMappings)) {
+      if ((entry?.gl || "").trim() === trimmed) return { found: true, name: entry.name || "" };
+    }
+    return { found: false, name: "" };
+  };
+
   const coaUpdatePropEdit = (stylGl, field, value) => {
-    setCoaPropEdits(prev => ({ ...prev, [stylGl]: { ...prev[stylGl], [field]: value } }));
+    setCoaPropEdits(prev => {
+      const cur = prev[stylGl] || {};
+      const next = { ...cur, [field]: value };
+      // When GL changes, derive Name from the Group mapping
+      if (field === "gl") next.name = coaLookupGroupName(value).name;
+      return { ...prev, [stylGl]: next };
+    });
   };
 
   const coaSave = async () => {
     if (!coaData || !coaActiveMap) return;
+    // Validate property edits: every non-empty Property GL must resolve in the Group mapping
+    if (hasProp) {
+      const bad = [];
+      for (const [stylGl, edit] of Object.entries(coaPropEdits)) {
+        const gl = (edit.gl || "").trim();
+        if (gl && !coaLookupGroupName(gl).found) bad.push(`STYL ${stylGl}: "${gl}"`);
+      }
+      if (bad.length) {
+        setCoaError("GL missing from Master COA — " + bad.join(", "));
+        return;
+      }
+    }
     setCoaSaving(true);
     setCoaSaveMsg("");
     setCoaError("");
@@ -550,6 +582,11 @@ function AppInner() {
     const { stylGl, stylName } = coaNewRow;
     if (!stylGl?.trim() || !stylName?.trim()) { setCoaNewErr("STYL GL and Name required"); return; }
     if (coaData?.stylAccounts.some(a => a.gl === stylGl.trim())) { setCoaNewErr("Duplicate STYL GL"); return; }
+    // Validate property GL resolves in Group if present
+    if (hasProp && coaNewRow.propGl?.trim()) {
+      const lookup = coaLookupGroupName(coaNewRow.propGl);
+      if (!lookup.found) { setCoaNewErr(`GL missing from Master COA: "${coaNewRow.propGl.trim()}"`); return; }
+    }
     const newStyl = [{ gl: stylGl.trim(), name: stylName.trim() }, ...coaData.stylAccounts];
     const mapEdit = {};
     if (coaNewRow.mapGl?.trim() || coaNewRow.mapName?.trim()) {
@@ -557,8 +594,9 @@ function AppInner() {
     }
     setCoaData({ ...coaData, stylAccounts: newStyl });
     setCoaEdits(prev => ({ ...prev, ...mapEdit }));
-    if (hasProp && (coaNewRow.propGl?.trim() || coaNewRow.propName?.trim())) {
-      setCoaPropEdits(prev => ({ ...prev, [stylGl.trim()]: { gl: coaNewRow.propGl || "", name: coaNewRow.propName || "" } }));
+    if (hasProp && coaNewRow.propGl?.trim()) {
+      const pName = coaLookupGroupName(coaNewRow.propGl).name;
+      setCoaPropEdits(prev => ({ ...prev, [stylGl.trim()]: { gl: coaNewRow.propGl.trim(), name: pName } }));
     }
     setCoaDirty(true);
     setCoaNewRow(null);
@@ -667,6 +705,47 @@ function AppInner() {
     }
   };
 
+  // Download a blank Property COA template. Columns: STYL GL, STYL Account,
+  // {Group} GL, {Group} Account, {Property} GL (blank). Property Account is
+  // omitted — it auto-populates from the Group Account on import/entry.
+  const coaDownloadTemplate = (format) => {
+    if (!coaData || !coaActiveMap) return;
+    const mapKey = coaActiveMap;
+    const mapLabel = coaData.mapKeys?.find(m => m.key === mapKey)?.label || mapKey;
+    const mapData = coaData.maps?.[mapKey]?.mappings || {};
+    const propLabel = hasProp
+      ? (coaData.propKeys?.[mapKey]?.find(p => p.key === coaActiveProp)?.label || coaActiveProp)
+      : "Property";
+    const propData = hasProp ? (coaData.propMaps?.[mapKey]?.[coaActiveProp]?.mappings || {}) : {};
+
+    const rows = coaData.stylAccounts.map(a => {
+      const m = mapData[a.gl] || {};
+      const p = propData[a.gl] || {};
+      return {
+        "STYL GL": a.gl,
+        "STYL Account": a.name,
+        [`${mapLabel} GL`]: m.gl || "",
+        [`${mapLabel} Account`]: m.name || "",
+        [`${propLabel} GL`]: p.gl || "",
+      };
+    });
+
+    const fileName = `COA_PropertyTemplate_${mapLabel}_${propLabel}`;
+    if (format === "csv") {
+      const headers = Object.keys(rows[0] || {});
+      const csvContent = [headers.join(","), ...rows.map(r => headers.map(h => `"${(r[h] || "").replace(/"/g, '""')}"`).join(","))].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = `${fileName}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, `Template-${propLabel}`.slice(0, 31));
+      XLSX.writeFile(wb, `${fileName}.xlsx`);
+    }
+  };
+
   const coaParseFile = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -720,22 +799,27 @@ function AppInner() {
       const mapKey = mapLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
       const isNewGroup = !coaData?.mapKeys?.some(m => m.key === mapKey);
 
-      // Detect property columns (5th & 6th columns, if they look like "[Name] GL" / "[Name] Account")
+      // Detect property columns.
+      //  Full format: cols are STYL GL, STYL Account, Group GL, Group Account, Prop GL, Prop Account
+      //  Template format: cols are STYL GL, STYL Account, Group GL, Group Account, Prop GL  (5 cols, no Prop Account — auto-inherits from Group)
+      //  Non-property: cols are STYL GL, STYL Account, Group GL, Group Account, Group Notes
       let propLabel = null, propKey = null, propGlCol = null, propNameCol = null, isNewProp = false;
-      // With property: cols are STYL GL, STYL Account, Group GL, Group Account, Prop GL, Prop Account
-      // Without property: cols are STYL GL, STYL Account, Group GL, Group Account, Group Notes
-      if (headers.length >= 6) {
-        const col5 = headers[4];
-        const col6 = headers[5];
-        // If col5 ends with " GL" and col6 ends with " Account", it's a property import
-        if (/\s+GL$/i.test(col5) && /\s+Account$/i.test(col6)) {
-          propGlCol = col5;
-          propNameCol = col6;
-          propLabel = col5.replace(/\s*GL$/i, "").trim();
-          propKey = propLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-          const existingProps = coaData?.propKeys?.[mapKey] || [];
-          isNewProp = !existingProps.some(p => p.key === propKey);
-        }
+      const col5 = headers[4];
+      const col6 = headers[5];
+      if (col5 && /\s+GL$/i.test(col5) && col6 && /\s+Account$/i.test(col6)) {
+        // Full 6-col property import
+        propGlCol = col5;
+        propNameCol = col6;
+      } else if (col5 && /\s+GL$/i.test(col5) && !col6) {
+        // 5-col template: only Prop GL, no Prop Account column (auto-fill from Group)
+        propGlCol = col5;
+        propNameCol = null;
+      }
+      if (propGlCol) {
+        propLabel = propGlCol.replace(/\s*GL$/i, "").trim();
+        propKey = propLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+        const existingProps = coaData?.propKeys?.[mapKey] || [];
+        isNewProp = !existingProps.some(p => p.key === propKey);
       }
       const mapNotesCol = (!propGlCol && headers[4]) ? headers[4] : null;
 
@@ -744,7 +828,19 @@ function AppInner() {
       const stylLookup = {};
       (coaData?.stylAccounts || []).forEach(a => { stylLookup[a.gl] = a; });
 
-      const diff = { added: 0, updated: 0, unchanged: 0, newStyl: 0, propAdded: 0, propUpdated: 0 };
+      // Build unified Group GL → Name lookup: existing mappings + incoming mappings in this import.
+      // Property Account Names inherit from here; if a pGl isn't here, we flag "GL missing from Master COA".
+      const groupGlToName = {};
+      for (const m of Object.values(existingMappings)) {
+        if (m?.gl) groupGlToName[String(m.gl).trim()] = m.name || "";
+      }
+      for (const r of parsed) {
+        const mGl = String(r[mapGlCol] || "").trim();
+        const mName = mapNameCol ? String(r[mapNameCol] || "").trim() : "";
+        if (mGl) groupGlToName[mGl] = mName || groupGlToName[mGl] || "";
+      }
+
+      const diff = { added: 0, updated: 0, unchanged: 0, newStyl: 0, propAdded: 0, propUpdated: 0, propErrors: 0 };
       const rows = parsed.map(r => {
         const stylGl = String(r[stylGlCol] || "").trim();
         const stylName = String(r[stylNameCol] || "").trim();
@@ -752,7 +848,7 @@ function AppInner() {
         const mName = mapNameCol ? String(r[mapNameCol] || "").trim() : "";
         const mNotes = mapNotesCol ? String(r[mapNotesCol] || "").trim() : "";
         const pGl = propGlCol ? String(r[propGlCol] || "").trim() : "";
-        const pName = propNameCol ? String(r[propNameCol] || "").trim() : "";
+        let pName = propNameCol ? String(r[propNameCol] || "").trim() : "";
         if (!stylGl) return null;
 
         const isNewStyl = !stylLookup[stylGl];
@@ -767,15 +863,22 @@ function AppInner() {
         else if (changed) { status = "updated"; diff.updated++; }
         else { status = "unchanged"; diff.unchanged++; }
 
-        // Property diff
+        // Property: auto-inherit Name from Group mapping (ignore pName from file if present; lookup is the source of truth)
         let propStatus = null;
-        if (propKey && (pGl || pName)) {
-          const ep = existingPropMappings[stylGl] || {};
-          if (!ep.gl && !ep.name) { propStatus = "added"; diff.propAdded++; }
-          else if (ep.gl !== pGl || ep.name !== pName) { propStatus = "updated"; diff.propUpdated++; }
+        let propError = null;
+        if (propKey && pGl) {
+          if (pGl in groupGlToName) {
+            pName = groupGlToName[pGl]; // inherit
+            const ep = existingPropMappings[stylGl] || {};
+            if (!ep.gl && !ep.name) { propStatus = "added"; diff.propAdded++; }
+            else if (ep.gl !== pGl || ep.name !== pName) { propStatus = "updated"; diff.propUpdated++; }
+          } else {
+            propError = "GL missing from Master COA";
+            diff.propErrors++;
+          }
         }
 
-        return { stylGl, stylName, mGl, mName, mNotes, pGl, pName, status, propStatus,
+        return { stylGl, stylName, mGl, mName, mNotes, pGl, pName, status, propStatus, propError,
           existing: { gl: ex.gl || "", name: ex.name || "", notes: ex.notes || "" } };
       }).filter(Boolean);
 
@@ -834,11 +937,12 @@ function AppInner() {
         mapData: { label: existingMap.label || mapLabel, mappings: updatedMappings },
       };
 
-      // Property mappings
+      // Property mappings — skip any row whose Property GL failed the Master COA lookup
       if (propKey) {
         const existingProp = freshData.propMaps?.[mapKey]?.[propKey] || { label: propLabel, mappings: {} };
         const updatedPropMappings = { ...existingProp.mappings };
         rows.forEach(r => {
+          if (r.propError) return;
           if (r.pGl || r.pName) {
             updatedPropMappings[r.stylGl] = { gl: r.pGl, name: r.pName, updatedAt: new Date().toISOString() };
           }
@@ -3929,6 +4033,12 @@ function AppInner() {
                   {coaError && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#ef4444"}}>{coaError}</span>}
                   <button className="btn" style={s.btn} onClick={() => coaExport("csv")}>Export CSV</button>
                   <button className="btn" style={s.btn} onClick={() => coaExport("xlsx")}>Export Excel</button>
+                  {hasProp && (
+                    <>
+                      <button className="btn" style={s.btn} onClick={() => coaDownloadTemplate("csv")} title="Blank Property COA template (Property GL column empty — Account Name inherits from Group on import)">Property Template CSV</button>
+                      <button className="btn" style={s.btn} onClick={() => coaDownloadTemplate("xlsx")} title="Blank Property COA template (Property GL column empty — Account Name inherits from Group on import)">Property Template Excel</button>
+                    </>
+                  )}
                   {kbAuthed && (
                     <>
                       <button className="btn" style={s.btn} onClick={() => coaImportRef.current?.click()}>Import</button>
@@ -4119,22 +4229,25 @@ function AppInner() {
                     {coaImportPreview.diff.updated > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#fbbf24"}}>{coaImportPreview.diff.updated} updated</span>}
                     {coaImportPreview.diff.propAdded > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#22c55e"}}>{coaImportPreview.diff.propAdded} new prop maps</span>}
                     {coaImportPreview.diff.propUpdated > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#fbbf24"}}>{coaImportPreview.diff.propUpdated} prop updated</span>}
+                    {coaImportPreview.diff.propErrors > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#ef4444"}}>{coaImportPreview.diff.propErrors} Property GL missing from Master COA (will skip)</span>}
                   </div>
                   {(() => {
-                    const changed = coaImportPreview.rows.filter(r => r.status !== "unchanged" || r.propStatus);
+                    const changed = coaImportPreview.rows.filter(r => r.status !== "unchanged" || r.propStatus || r.propError);
                     if (changed.length === 0) return <div style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>No changes detected.</div>;
                     return (
                       <div style={{maxHeight:300,overflowY:"auto"}}>
-                        <div style={{display:"grid",gridTemplateColumns:"90px 1fr 90px 1fr 90px 1fr 70px",gap:4,padding:"6px 8px",borderBottom:"1px solid #1e1e1e"}}>
+                        <div style={{display:"grid",gridTemplateColumns:"90px 1fr 90px 1fr 90px 1fr 90px",gap:4,padding:"6px 8px",borderBottom:"1px solid #1e1e1e"}}>
                           {["STYL GL","STYL Account","New GL","New Account","Old GL","Old Account","Status"].map(h => (
                             <span key={h} style={{fontFamily:"'Fira Code',monospace",fontSize:9,color:"#6b7280",textTransform:"uppercase"}}>{h}</span>
                           ))}
                         </div>
                         {changed.map((r, i) => {
-                          const sc = r.status === "new-styl" ? "#a78bfa" : r.status === "added" ? "#22c55e" : r.status === "updated" ? "#fbbf24" : "#4b5563";
-                          const sl = r.status === "new-styl" ? "NEW ACCT" : r.status === "added" ? "NEW MAP" : r.status === "updated" ? "UPDATE" : (r.propStatus ? "PROP" : "");
+                          const sc = r.propError ? "#ef4444" : r.status === "new-styl" ? "#a78bfa" : r.status === "added" ? "#22c55e" : r.status === "updated" ? "#fbbf24" : "#4b5563";
+                          const sl = r.propError ? "GL MISSING" : r.status === "new-styl" ? "NEW ACCT" : r.status === "added" ? "NEW MAP" : r.status === "updated" ? "UPDATE" : (r.propStatus ? "PROP" : "");
                           return (
-                            <div key={i} style={{display:"grid",gridTemplateColumns:"90px 1fr 90px 1fr 90px 1fr 70px",gap:4,padding:"4px 8px",borderBottom:"1px solid #141414",alignItems:"center"}}>
+                            <div key={i} title={r.propError || ""}
+                              style={{display:"grid",gridTemplateColumns:"90px 1fr 90px 1fr 90px 1fr 90px",gap:4,padding:"4px 8px",borderBottom:"1px solid #141414",alignItems:"center",
+                                background: r.propError ? "#1a0a0a" : undefined}}>
                               <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#e8c468"}}>{r.stylGl}</span>
                               <span style={{fontFamily:"'Lora',serif",fontSize:11,color:"#d1d5db",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.stylName}</span>
                               <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#9ca3af"}}>{r.mGl || "\u2014"}</span>
@@ -4175,12 +4288,26 @@ function AppInner() {
                         <input placeholder="STYL Name" value={coaNewRow.stylName} onChange={e => setCoaNewRow({...coaNewRow, stylName: e.target.value})} style={{...s.input,padding:"5px 8px",fontSize:11}} />
                         <input placeholder={`${mapLabel} GL`} value={coaNewRow.mapGl} onChange={e => setCoaNewRow({...coaNewRow, mapGl: e.target.value})} style={{...s.input,padding:"5px 8px",fontSize:11}} />
                         <input placeholder={`${mapLabel} Name`} value={coaNewRow.mapName} onChange={e => setCoaNewRow({...coaNewRow, mapName: e.target.value})} style={{...s.input,padding:"5px 8px",fontSize:11}} />
-                        {hasProp ? (
-                          <>
-                            <input placeholder={`${propLabel} GL`} value={coaNewRow.propGl || ""} onChange={e => setCoaNewRow({...coaNewRow, propGl: e.target.value})} style={{...s.input,padding:"5px 8px",fontSize:11}} />
-                            <input placeholder={`${propLabel} Name`} value={coaNewRow.propName || ""} onChange={e => setCoaNewRow({...coaNewRow, propName: e.target.value})} style={{...s.input,padding:"5px 8px",fontSize:11}} />
-                          </>
-                        ) : (
+                        {hasProp ? (() => {
+                          const pGl = coaNewRow.propGl || "";
+                          const lookup = coaLookupGroupName(pGl);
+                          const invalid = pGl.trim() && !lookup.found;
+                          return (
+                            <>
+                              <input placeholder={`${propLabel} GL`} value={pGl}
+                                onChange={e => setCoaNewRow({...coaNewRow, propGl: e.target.value, propName: coaLookupGroupName(e.target.value).name})}
+                                style={{...s.input,padding:"5px 8px",fontSize:11,
+                                  border: invalid ? "1px solid #ef4444" : undefined}} />
+                              <input readOnly tabIndex={-1}
+                                value={lookup.found ? lookup.name : ""}
+                                placeholder={invalid ? "GL missing from Master COA" : `${propLabel} Name (auto)`}
+                                title={invalid ? "GL missing from Master COA" : "Inherited from Group mapping"}
+                                style={{...s.input,padding:"5px 8px",fontSize:11,background:"#0a0a0a",
+                                  color: invalid ? "#ef4444" : "#9ca3af",
+                                  border: invalid ? "1px solid #ef4444" : "1px dashed #2a2a2a"}} />
+                            </>
+                          );
+                        })() : (
                           <input placeholder="Notes" value={coaNewRow.mapNotes} onChange={e => setCoaNewRow({...coaNewRow, mapNotes: e.target.value})} style={{...s.input,padding:"5px 8px",fontSize:11}} />
                         )}
                         <button onClick={coaAddRow} style={{...s.btn,padding:"4px 8px",fontSize:11,color:"#22c55e",border:"1px solid #22c55e"}} title="Add">&#10003;</button>
@@ -4262,12 +4389,24 @@ function AppInner() {
                               <>
                                 <input value={(editing||{}).gl||""} onChange={e => coaUpdateEdit(acct.gl, "gl", e.target.value)} style={{...s.input,padding:"3px 6px",fontSize:11}} />
                                 <input value={(editing||{}).name||""} onChange={e => coaUpdateEdit(acct.gl, "name", e.target.value)} style={{...s.input,padding:"3px 6px",fontSize:11}} />
-                                {hasProp ? (
-                                  <>
-                                    <input value={(propEditing||{}).gl||""} onChange={e => coaUpdatePropEdit(acct.gl, "gl", e.target.value)} style={{...s.input,padding:"3px 6px",fontSize:11}} />
-                                    <input value={(propEditing||{}).name||""} onChange={e => coaUpdatePropEdit(acct.gl, "name", e.target.value)} style={{...s.input,padding:"3px 6px",fontSize:11}} />
-                                  </>
-                                ) : (
+                                {hasProp ? (() => {
+                                  const pGl = (propEditing||{}).gl||"";
+                                  const lookup = coaLookupGroupName(pGl);
+                                  const invalid = pGl.trim() && !lookup.found;
+                                  return (
+                                    <>
+                                      <input value={pGl} onChange={e => coaUpdatePropEdit(acct.gl, "gl", e.target.value)}
+                                        style={{...s.input,padding:"3px 6px",fontSize:11,
+                                          border: invalid ? "1px solid #ef4444" : undefined}} />
+                                      <input readOnly value={lookup.found ? lookup.name : ""} tabIndex={-1}
+                                        placeholder={invalid ? "GL missing from Master COA" : "(auto)"}
+                                        title={invalid ? "GL missing from Master COA" : "Inherited from Group mapping"}
+                                        style={{...s.input,padding:"3px 6px",fontSize:11,background:"#0a0a0a",
+                                          color: invalid ? "#ef4444" : "#9ca3af",
+                                          border: invalid ? "1px solid #ef4444" : "1px dashed #2a2a2a"}} />
+                                    </>
+                                  );
+                                })() : (
                                   <input value={(editing||{}).notes||""} onChange={e => coaUpdateEdit(acct.gl, "notes", e.target.value)} style={{...s.input,padding:"3px 6px",fontSize:11}} />
                                 )}
                                 <button onClick={() => coaCancelEdit(acct.gl)} style={{...s.btn,padding:"2px 6px",fontSize:10,color:"#6b7280"}} title="Cancel">&#10005;</button>
