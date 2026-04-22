@@ -484,12 +484,17 @@ function AppInner() {
 
   // Look up an Account Name by searching the active Group mapping for a matching GL.
   // Property Account Names are derived (not manually entered) — they inherit from the Group.
+  // Searches both STYL-keyed mappings AND group-only entries (both are part of the Master COA).
   const coaLookupGroupName = (gl) => {
     if (!gl || !coaActiveMap) return { found: false, name: "" };
-    const groupMappings = coaData?.maps?.[coaActiveMap]?.mappings || {};
+    const group = coaData?.maps?.[coaActiveMap];
+    if (!group) return { found: false, name: "" };
     const trimmed = String(gl).trim();
     if (!trimmed) return { found: false, name: "" };
-    for (const entry of Object.values(groupMappings)) {
+    for (const entry of Object.values(group.mappings || {})) {
+      if ((entry?.gl || "").trim() === trimmed) return { found: true, name: entry.name || "" };
+    }
+    for (const entry of (group.groupOnly || [])) {
       if ((entry?.gl || "").trim() === trimmed) return { found: true, name: entry.name || "" };
     }
     return { found: false, name: "" };
