@@ -216,6 +216,7 @@ function AppInner() {
   const [coaPropSearch, setCoaPropSearch]   = useState("");
   const [coaPropSearchOpen, setCoaPropSearchOpen] = useState(false);
   const coaPropSearchRef = useRef(null);
+  const [coaGroupOnlyEdits, setCoaGroupOnlyEdits] = useState({}); // { [index]: { gl, name, notes } }
   const [coaImportPreview, setCoaImportPreview] = useState(null);
   const [coaImportApplying, setCoaImportApplying] = useState(false);
   const [coaDirty, setCoaDirty]             = useState(false);
@@ -426,6 +427,7 @@ function AppInner() {
       setCoaData(data);
       setCoaEdits({});
       setCoaPropEdits({});
+      setCoaGroupOnlyEdits({});
       setCoaDirty(false);
       setCoaSaveMsg("");
       if (!coaActiveMap && data.mapKeys?.length > 0) setCoaActiveMap(data.mapKeys[0].key);
@@ -522,17 +524,25 @@ function AppInner() {
     setCoaError("");
     try {
       const mapKey = coaActiveMap;
-      const existing = coaData.maps?.[mapKey] || { label: mapKey, mappings: {} };
+      const existing = coaData.maps?.[mapKey] || { label: mapKey, mappings: {}, groupOnly: [] };
       const updatedMappings = { ...existing.mappings };
       for (const [stylGl, edit] of Object.entries(coaEdits)) {
         updatedMappings[stylGl] = { gl: edit.gl, name: edit.name, notes: edit.notes, updatedAt: new Date().toISOString() };
       }
 
+      // Merge any pending groupOnly edits into the current groupOnly array
+      const nowIso = new Date().toISOString();
+      const updatedGroupOnly = (existing.groupOnly || []).map((entry, i) => {
+        const edit = coaGroupOnlyEdits[i];
+        if (!edit) return entry;
+        return { gl: edit.gl || "", name: edit.name || "", notes: edit.notes || "", updatedAt: nowIso };
+      });
+
       const body = {
         action: "save", password: coaPw(),
         stylAccounts: coaData.stylAccounts,
         mapKey,
-        mapData: { label: existing.label || mapKey, mappings: updatedMappings },
+        mapData: { label: existing.label || mapKey, mappings: updatedMappings, groupOnly: updatedGroupOnly },
       };
 
       // Include property edits if a property is active
@@ -556,9 +566,46 @@ function AppInner() {
       setCoaSaveMsg("Saved");
       setCoaEdits({});
       setCoaPropEdits({});
+      setCoaGroupOnlyEdits({});
       await loadCoa();
     } catch (e) { setCoaError(e.message); }
     finally { setCoaSaving(false); }
+  };
+
+  // ── Group-only row helpers ────────────────────────────────────────────
+  const coaStartEditGroupOnly = (idx, entry) => {
+    if (!kbAuthed) return;
+    setCoaGroupOnlyEdits(prev => ({
+      ...prev,
+      [idx]: { gl: entry.gl || "", name: entry.name || "", notes: entry.notes || "" },
+    }));
+  };
+  const coaCancelEditGroupOnly = (idx) => {
+    setCoaGroupOnlyEdits(prev => { const n = { ...prev }; delete n[idx]; return n; });
+  };
+  const coaUpdateGroupOnlyEdit = (idx, field, value) => {
+    setCoaGroupOnlyEdits(prev => ({ ...prev, [idx]: { ...prev[idx], [field]: value } }));
+  };
+  const coaDeleteGroupOnlyRow = (idx) => {
+    if (!coaData || !coaActiveMap) return;
+    const existing = coaData.maps?.[coaActiveMap];
+    if (!existing?.groupOnly) return;
+    const groupOnly = existing.groupOnly.filter((_, i) => i !== idx);
+    setCoaData({
+      ...coaData,
+      maps: { ...coaData.maps, [coaActiveMap]: { ...existing, groupOnly } },
+    });
+    // Drop any pending edit at this index and re-index later edits
+    setCoaGroupOnlyEdits(prev => {
+      const next = {};
+      for (const [k, v] of Object.entries(prev)) {
+        const i = parseInt(k, 10);
+        if (i === idx) continue;
+        next[i > idx ? i - 1 : i] = v;
+      }
+      return next;
+    });
+    setCoaDirty(true);
   };
 
   const coaDeleteRow = (stylGl) => {
@@ -580,9 +627,37 @@ function AppInner() {
   const coaAddRow = () => {
     if (!coaNewRow) return;
     const { stylGl, stylName } = coaNewRow;
-    if (!stylGl?.trim() || !stylName?.trim()) { setCoaNewErr("STYL GL and Name required"); return; }
-    if (coaData?.stylAccounts.some(a => a.gl === stylGl.trim())) { setCoaNewErr("Duplicate STYL GL"); return; }
-    // Validate property GL resolves in Group if present
+    const hasStyl = stylGl?.trim() && stylName?.trim();
+    const hasGroupOnly = !stylGl?.trim() && !stylName?.trim() && coaNewRow.mapGl?.trim();
+
+    if (!hasStyl && !hasGroupOnly) {
+      setCoaNewErr("Provide STYL GL+Name, or at minimum a Group GL (for a group-only entry)");
+      return;
+    }
+    if (stylGl?.trim() && !stylName?.trim()) { setCoaNewErr("STYL Name required when STYL GL is provided"); return; }
+    if (!stylGl?.trim() && stylName?.trim()) { setCoaNewErr("STYL GL required when STYL Name is provided"); return; }
+    if (hasStyl && coaData?.stylAccounts.some(a => a.gl === stylGl.trim())) { setCoaNewErr("Duplicate STYL GL"); return; }
+
+    // Group-only path: append to the active group's groupOnly array
+    if (hasGroupOnly) {
+      const mapKey = coaActiveMap;
+      const existing = coaData.maps?.[mapKey] || { label: mapKey, mappings: {}, groupOnly: [] };
+      const groupOnly = [...(existing.groupOnly || []), {
+        gl: coaNewRow.mapGl.trim(),
+        name: (coaNewRow.mapName || "").trim(),
+        notes: (coaNewRow.mapNotes || "").trim(),
+      }];
+      setCoaData({
+        ...coaData,
+        maps: { ...coaData.maps, [mapKey]: { ...existing, groupOnly } },
+      });
+      setCoaDirty(true);
+      setCoaNewRow(null);
+      setCoaNewErr("");
+      return;
+    }
+
+    // Standard STYL path
     if (hasProp && coaNewRow.propGl?.trim()) {
       const lookup = coaLookupGroupName(coaNewRow.propGl);
       if (!lookup.found) { setCoaNewErr(`GL missing from Master COA: "${coaNewRow.propGl.trim()}"`); return; }
@@ -687,6 +762,19 @@ function AppInner() {
         row[`${mapLabel} Notes`] = m.notes || "";
       }
       return row;
+    });
+
+    // Append group-only entries with blank STYL columns
+    const groupOnly = coaData.maps?.[mapKey]?.groupOnly || [];
+    groupOnly.forEach(entry => {
+      const row = { "STYL GL": "", "STYL Account": "", [`${mapLabel} GL`]: entry.gl || "", [`${mapLabel} Account`]: entry.name || "" };
+      if (propLabel) {
+        row[`${propLabel} GL`] = "";
+        row[`${propLabel} Account`] = "";
+      } else {
+        row[`${mapLabel} Notes`] = entry.notes || "";
+      }
+      rows.push(row);
     });
 
     const fileName = propLabel ? `COA_STYL_${mapLabel}_${propLabel}` : `COA_STYL_${mapLabel}`;
@@ -838,10 +926,14 @@ function AppInner() {
       const stylLookup = {};
       (coaData?.stylAccounts || []).forEach(a => { stylLookup[a.gl] = a; });
 
-      // Build unified Group GL → Name lookup: existing mappings + incoming mappings in this import.
+      // Build unified Group GL → Name lookup: existing mappings + existing group-only + incoming mappings.
       const groupGlToName = {};
       for (const m of Object.values(existingMappings)) {
         if (m?.gl) groupGlToName[String(m.gl).trim()] = m.name || "";
+      }
+      const existingGroupOnly = coaData?.maps?.[mapKey]?.groupOnly || [];
+      for (const entry of existingGroupOnly) {
+        if (entry?.gl) groupGlToName[String(entry.gl).trim()] = entry.name || "";
       }
       for (const r of parsed) {
         const mGl = String(r[mapGlCol] || "").trim();
@@ -855,7 +947,11 @@ function AppInner() {
       // In multi-property mode we track encountered properties as we build rows
       const multiProps = {}; // propKey → { label, isNew, existingMappings, count }
 
-      const diff = { added: 0, updated: 0, unchanged: 0, newStyl: 0, propAdded: 0, propUpdated: 0, propErrors: 0 };
+      // Collect group-only rows from the import (blank STYL + filled Group GL)
+      const groupOnlyRows = [];
+      const existingGroupOnlyGls = new Set(existingGroupOnly.map(e => String(e.gl || "").trim()).filter(Boolean));
+
+      const diff = { added: 0, updated: 0, unchanged: 0, newStyl: 0, propAdded: 0, propUpdated: 0, propErrors: 0, groupOnlyAdded: 0, groupOnlyUpdated: 0 };
       const rows = parsed.map(r => {
         const stylGl = String(r[stylGlCol] || "").trim();
         const stylName = String(r[stylNameCol] || "").trim();
@@ -872,6 +968,20 @@ function AppInner() {
           rowPropLabel = String(r[propNameValCol] || "").trim();
           rowPropKey = toPropKey(rowPropLabel);
         }
+
+        // Group-only rows: blank STYL + filled Group GL
+        if (!stylGl && !stylName && mGl) {
+          if (existingGroupOnlyGls.has(mGl)) {
+            groupOnlyRows.push({ gl: mGl, name: mName, notes: mNotes, status: "updated" });
+            diff.groupOnlyUpdated++;
+          } else {
+            groupOnlyRows.push({ gl: mGl, name: mName, notes: mNotes, status: "added" });
+            diff.groupOnlyAdded++;
+            existingGroupOnlyGls.add(mGl);
+          }
+          return null;
+        }
+
         if (!stylGl) return null;
 
         const isNewStyl = !stylLookup[stylGl];
@@ -930,6 +1040,7 @@ function AppInner() {
         isMulti,
         propLabel, propKey, isNewProp, // single-property fields (legacy)
         propsList,                     // multi-property summary
+        groupOnlyRows,
         rows, diff, fileName: file.name,
       });
     } catch (err) {
@@ -942,7 +1053,7 @@ function AppInner() {
     setCoaImportApplying(true);
     setCoaError("");
     try {
-      const { mapKey, mapLabel, propKey, propLabel, isMulti, propsList, rows } = coaImportPreview;
+      const { mapKey, mapLabel, propKey, propLabel, isMulti, propsList, rows, groupOnlyRows } = coaImportPreview;
       const pw = coaPw();
 
       // Ensure group exists
@@ -975,7 +1086,7 @@ function AppInner() {
       });
 
       // Group mappings
-      const existingMap = freshData.maps?.[mapKey] || { label: mapLabel, mappings: {} };
+      const existingMap = freshData.maps?.[mapKey] || { label: mapLabel, mappings: {}, groupOnly: [] };
       const updatedMappings = { ...existingMap.mappings };
       rows.forEach(r => {
         if (r.mGl || r.mName) {
@@ -983,10 +1094,19 @@ function AppInner() {
         }
       });
 
+      // Group-only rows: merge imports into existing groupOnly by GL (update in place, or append if new)
+      const nowIso = new Date().toISOString();
+      const mergedGroupOnly = [...(existingMap.groupOnly || [])];
+      (groupOnlyRows || []).forEach(g => {
+        const idx = mergedGroupOnly.findIndex(e => (e.gl || "").trim() === g.gl);
+        if (idx >= 0) mergedGroupOnly[idx] = { gl: g.gl, name: g.name, notes: g.notes, updatedAt: nowIso };
+        else mergedGroupOnly.push({ gl: g.gl, name: g.name, notes: g.notes, updatedAt: nowIso });
+      });
+
       const body = {
         action: "save", password: pw,
         stylAccounts: newStylAccounts, mapKey,
-        mapData: { label: existingMap.label || mapLabel, mappings: updatedMappings },
+        mapData: { label: existingMap.label || mapLabel, mappings: updatedMappings, groupOnly: mergedGroupOnly },
       };
 
       if (isMulti) {
@@ -4117,7 +4237,7 @@ function AppInner() {
                       </button>
                       <button className="btn" style={{...s.btnGold, opacity: (Object.keys(coaEdits).length === 0 && Object.keys(coaPropEdits).length === 0 && !coaDirty) ? 0.5 : 1}}
                         onClick={coaSave}
-                        disabled={coaSaving || (Object.keys(coaEdits).length === 0 && Object.keys(coaPropEdits).length === 0 && !coaDirty)}>
+                        disabled={coaSaving || (Object.keys(coaEdits).length === 0 && Object.keys(coaPropEdits).length === 0 && Object.keys(coaGroupOnlyEdits).length === 0 && !coaDirty)}>
                         {coaSaving ? "Saving..." : "Save"}
                       </button>
                     </>
@@ -4141,7 +4261,7 @@ function AppInner() {
                   <span style={{fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",textTransform:"uppercase",letterSpacing:0.6,marginRight:4,minWidth:110}}>Group Mapping:</span>
                   {coaData.mapKeys.map(mk => (
                     <button key={mk.key} className="btn"
-                      onClick={() => { setCoaActiveMap(mk.key); setCoaActiveProp(""); setCoaEdits({}); setCoaPropEdits({}); setCoaNewRow(null); setCoaSort({col:"styl",dir:"asc"}); }}
+                      onClick={() => { setCoaActiveMap(mk.key); setCoaActiveProp(""); setCoaEdits({}); setCoaPropEdits({}); setCoaGroupOnlyEdits({}); setCoaNewRow(null); setCoaSort({col:"styl",dir:"asc"}); }}
                       style={{fontFamily:"'Fira Code',monospace",fontSize:11,padding:"4px 12px",
                         background: coaActiveMap === mk.key ? "#1a1a1a" : "transparent",
                         color: coaActiveMap === mk.key ? "#e8c468" : "#6b7280",
@@ -4286,6 +4406,8 @@ function AppInner() {
                           if (p.diff.propAdded) parts.push(`${p.diff.propAdded} new prop mapping(s)`);
                           if (p.diff.propUpdated) parts.push(`${p.diff.propUpdated} prop update(s)`);
                           if (p.diff.propErrors) parts.push(`${p.diff.propErrors} row(s) will be SKIPPED (Property GL missing from Master COA)`);
+                          if (p.diff.groupOnlyAdded) parts.push(`${p.diff.groupOnlyAdded} new group-only entries`);
+                          if (p.diff.groupOnlyUpdated) parts.push(`${p.diff.groupOnlyUpdated} group-only updates`);
                           if (confirm(`Apply import? ${parts.join(", ") || "no changes"}.`)) coaImportApply();
                         }}>
                         {coaImportApplying ? "Applying..." : "Apply Import"}
@@ -4324,6 +4446,8 @@ function AppInner() {
                     {coaImportPreview.diff.propAdded > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#22c55e"}}>{coaImportPreview.diff.propAdded} new prop maps</span>}
                     {coaImportPreview.diff.propUpdated > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#fbbf24"}}>{coaImportPreview.diff.propUpdated} prop updated</span>}
                     {coaImportPreview.diff.propErrors > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#ef4444"}}>{coaImportPreview.diff.propErrors} Property GL missing from Master COA (will skip)</span>}
+                    {coaImportPreview.diff.groupOnlyAdded > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#22c55e"}}>{coaImportPreview.diff.groupOnlyAdded} new group-only</span>}
+                    {coaImportPreview.diff.groupOnlyUpdated > 0 && <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#fbbf24"}}>{coaImportPreview.diff.groupOnlyUpdated} group-only updated</span>}
                   </div>
                   {(() => {
                     const changed = coaImportPreview.rows.filter(r => r.status !== "unchanged" || r.propStatus || r.propError);
@@ -4544,10 +4668,87 @@ function AppInner() {
                       });
                     })()}
 
+                    {/* Group-only rows (no STYL counterpart) */}
+                    {(() => {
+                      const groupOnly = coaData.maps?.[coaActiveMap]?.groupOnly || [];
+                      if (groupOnly.length === 0) return null;
+                      const q = coaSearch.toLowerCase().trim();
+                      const filtered = groupOnly
+                        .map((entry, idx) => ({ entry, idx }))
+                        .filter(({ entry }) => !q ||
+                          entry.gl?.toLowerCase().includes(q) ||
+                          entry.name?.toLowerCase().includes(q) ||
+                          entry.notes?.toLowerCase().includes(q));
+                      if (filtered.length === 0) return null;
+                      return (
+                        <>
+                          <div style={{padding:"10px 10px 4px",fontFamily:"'Fira Code',monospace",fontSize:10,color:"#6b7280",letterSpacing:0.6,textTransform:"uppercase",marginTop:8,borderTop:"1px solid #1e1e1e"}}>
+                            Group-Only Entries <span style={{color:"#4b5563"}}>(no STYL mapping)</span>
+                          </div>
+                          {filtered.map(({ entry, idx }, i) => {
+                            const editing = coaGroupOnlyEdits[idx];
+                            const isEditing = !!editing;
+                            const bg = i % 2 === 0 ? "transparent" : "#0e0e0e";
+                            return (
+                              <div key={`go-${idx}`} style={{display:"grid",gridTemplateColumns:colGrid,gap:6,padding:"6px 10px",background:bg,alignItems:"center",borderBottom:"1px solid #141414"}}>
+                                <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#2a2a2a"}} title="No STYL GL">—</span>
+                                <span style={{fontFamily:"'Lora',serif",fontSize:12,color:"#2a2a2a"}} title="No STYL Account">—</span>
+                                {isEditing ? (
+                                  <>
+                                    <input value={editing.gl || ""} onChange={e => coaUpdateGroupOnlyEdit(idx, "gl", e.target.value)} style={{...s.input,padding:"3px 6px",fontSize:11}} />
+                                    <input value={editing.name || ""} onChange={e => coaUpdateGroupOnlyEdit(idx, "name", e.target.value)} style={{...s.input,padding:"3px 6px",fontSize:11}} />
+                                    {hasProp ? (
+                                      <>
+                                        <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#2a2a2a"}} title="Property mapping unavailable for group-only rows">—</span>
+                                        <span style={{fontFamily:"'Lora',serif",fontSize:12,color:"#2a2a2a"}}>—</span>
+                                      </>
+                                    ) : (
+                                      <input value={editing.notes || ""} onChange={e => coaUpdateGroupOnlyEdit(idx, "notes", e.target.value)} style={{...s.input,padding:"3px 6px",fontSize:11}} />
+                                    )}
+                                    <button onClick={() => coaCancelEditGroupOnly(idx)} style={{...s.btn,padding:"2px 6px",fontSize:10,color:"#6b7280"}} title="Cancel">&#10005;</button>
+                                  </>
+                                ) : (() => {
+                                  const click = () => coaStartEditGroupOnly(idx, entry);
+                                  const cell = (val, font) => ({
+                                    fontFamily: font || "'Fira Code',monospace", fontSize: font ? 12 : 11,
+                                    color: val ? "#9ca3af" : "#2a2a2a", cursor: kbAuthed ? "pointer" : "default",
+                                    padding:"3px 6px", borderRadius:4, border:"1px solid transparent",
+                                    overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"
+                                  });
+                                  const hover = (e, enter) => { if (kbAuthed) e.target.style.borderColor = enter ? "#2a2a2a" : "transparent"; };
+                                  return (
+                                    <>
+                                      <span onClick={click} style={cell(entry.gl)} onMouseEnter={e=>hover(e,true)} onMouseLeave={e=>hover(e,false)}>{entry.gl || "\u2014"}</span>
+                                      <span onClick={click} style={cell(entry.name,"'Lora',serif")} onMouseEnter={e=>hover(e,true)} onMouseLeave={e=>hover(e,false)}>{entry.name || "\u2014"}</span>
+                                      {hasProp ? (
+                                        <>
+                                          <span style={{fontFamily:"'Fira Code',monospace",fontSize:11,color:"#2a2a2a"}} title="Property mapping unavailable for group-only rows">—</span>
+                                          <span style={{fontFamily:"'Lora',serif",fontSize:12,color:"#2a2a2a"}}>—</span>
+                                        </>
+                                      ) : (
+                                        <span onClick={click} style={{...cell(entry.notes),fontStyle: entry.notes ? "italic" : "normal"}} onMouseEnter={e=>hover(e,true)} onMouseLeave={e=>hover(e,false)}>{entry.notes || "\u2014"}</span>
+                                      )}
+                                      {kbAuthed && (
+                                        <button onClick={() => { if (confirm(`Delete group-only entry ${entry.gl}${entry.name ? ` (${entry.name})` : ""}?`)) coaDeleteGroupOnlyRow(idx); }} style={{...s.btn,padding:"2px 6px",fontSize:10,color:"#ef4444",fontWeight:700}} title="Delete entry">&#10005;</button>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            );
+                          })}
+                        </>
+                      );
+                    })()}
+
                     {/* Footer */}
                     <div style={{padding:"12px 10px",borderTop:"1px solid #1e1e1e",fontFamily:"'Fira Code',monospace",fontSize:11,color:"#4b5563"}}>
-                      {coaData.stylAccounts.length} accounts
-                      {(Object.keys(coaEdits).length + Object.keys(coaPropEdits).length) > 0 && <span style={{color:"#e8c468",marginLeft:12}}>{Object.keys(coaEdits).length + Object.keys(coaPropEdits).length} unsaved edits</span>}
+                      {coaData.stylAccounts.length} STYL accounts
+                      {(() => {
+                        const goCount = (coaData.maps?.[coaActiveMap]?.groupOnly || []).length;
+                        return goCount > 0 ? <span style={{marginLeft:8}}>+ {goCount} group-only</span> : null;
+                      })()}
+                      {(Object.keys(coaEdits).length + Object.keys(coaPropEdits).length + Object.keys(coaGroupOnlyEdits).length) > 0 && <span style={{color:"#e8c468",marginLeft:12}}>{Object.keys(coaEdits).length + Object.keys(coaPropEdits).length + Object.keys(coaGroupOnlyEdits).length} unsaved edits</span>}
                     </div>
                   </div>
                 );
